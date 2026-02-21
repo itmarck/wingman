@@ -12,11 +12,15 @@ A personal automation system that filters emails, news, and social media, delive
 
 ## Current state
 
-The project is in **Phase 2** (email agent). Only the scaffolding exists at the root level — no agent code has been written yet. The `agents/`, `shared/`, `config/`, and `logs/` directories still need to be created.
+Both agents are **implemented and ready to configure**:
 
-Files currently at the root that will eventually move to `config/`:
-- `profile.md` → `config/profile.md` (email classification rules)
-- `sources.json` → `config/sources.json` (trend source definitions)
+- `shared/` — logger, Slack webhook helper, Claude CLI wrapper
+- `agents/email/` — OAuth device-code auth, Microsoft Graph client, seen-state tracking, orchestrator
+- `agents/trends/` — RSS fetcher, Reddit JSON fetcher, orchestrator
+- `config/profile.md` — email classification rules (editable, loaded dynamically)
+- `config/sources.json` — trend source definitions (editable, loaded dynamically)
+
+**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run dev:email` to test.
 
 ---
 
@@ -67,8 +71,10 @@ Agents are **cron jobs**, not servers. They run once per schedule, then exit:
 
 Claude Code CLI is used for classification and summarization — no API key needed:
 ```js
-// Pattern used in shared/claude.js
-const result = await exec(`claude -p "${prompt}"`);
+// shared/claude.js pipes prompts via stdin to avoid shell escaping issues
+const proc = spawn('claude', ['-p', '--output-format', 'text'], { stdio: ['pipe', 'pipe', 'pipe'] });
+proc.stdin.write(prompt);
+proc.stdin.end();
 ```
 This requires Claude Code to be installed and authenticated (`claude --version`).
 
@@ -78,7 +84,7 @@ The email agent tracks processed IDs in `state/email-seen.json` (auto-generated,
 
 ### Behavior configuration
 
-`config/profile.md` (currently `profile.md` at root) defines how emails are classified. It's loaded dynamically each cycle — edit it and `pm2 restart email-agent`, no code changes needed.
+`config/profile.md` defines how emails are classified. It's loaded dynamically each cycle — edit it and `pm2 restart email-agent`, no code changes needed.
 
 Classification output schema:
 ```json
