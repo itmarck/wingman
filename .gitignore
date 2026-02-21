@@ -1,0 +1,19 @@
+# Secrets
+.env
+.env.local
+
+# Auto-generated persistent state
+state/
+
+# Logs
+logs/
+
+# Node
+node_modules/
+
+# pm2
+.pm2/
+
+# OS
+.DS_Store
+Thumbs.db

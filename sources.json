@@ -1,0 +1,23 @@
+{
+  "rss": [
+    {
+      "name": "Example — add your sources here",
+      "url": "https://example.com/rss",
+      "category": "technology",
+      "active": false
+    }
+  ],
+  "reddit": [
+    {
+      "subreddit": "programming",
+      "limit": 10,
+      "active": false
+    }
+  ],
+  "interest_categories": [
+    "technology",
+    "startups",
+    "ai",
+    "finance"
+  ]
+}
