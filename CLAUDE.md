@@ -35,11 +35,13 @@ npm run dev:all                      # force all agents to run now
 node main.js --force-email           # force only email
 node main.js --force-digest          # force only morning digest
 node main.js --force-trending        # force only Reddit trending
+node main.js --force-catchup         # force email catch-up (inbox + junk)
 
 # Individual agents (bypass scheduler)
 npm run dev:email                    # email agent only
 npm run dev:trends                   # morning digest only
 npm run dev:trending                 # Reddit trending only
+npm run dev:catchup                  # email catch-up (all unread today)
 
 # Test shared utilities
 npm run test:slack                   # verify Slack webhook
@@ -80,8 +82,21 @@ Agent schedule:
 - **Email**: every 15 min (skips 2 ticks)
 - **Morning digest**: once per day at 8:00am local time
 - **Reddit trending**: every 10 min (skips 1 tick)
+- **Email catch-up**: auto-triggers when scheduler detects >60 min gap (e.g. PC was suspended)
 
 The `--force-*` flags bypass timing checks for testing.
+
+### Email catch-up
+
+When the scheduler detects it's been offline for more than 60 minutes (e.g. PC suspended overnight), it automatically runs a catch-up scan instead of the normal email cycle:
+
+1. Fetches **all unread emails from today** (inbox + junk/spam folder)
+2. Classifies each one via Claude CLI
+3. Rescues misclassified junk: if an email in junk is classified as non-noise, moves it to inbox
+4. Executes email actions (mark read, archive, trash)
+5. Groups and notifies via Slack
+
+Can also be triggered manually with `npm run dev:catchup`.
 
 ### Agent data flow
 

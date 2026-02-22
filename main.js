@@ -10,6 +10,7 @@ const STATE_FILE = 'state/scheduler.json';
 const EMAIL_INTERVAL = 15;
 const TRENDING_INTERVAL = 10;
 const DIGEST_HOUR = 8; // Local hour for morning digest
+const CATCHUP_GAP = 60; // Minutes of inactivity that triggers catch-up
 
 async function loadState() {
   try {
@@ -17,7 +18,7 @@ async function loadState() {
     return JSON.parse(data);
   } catch (err) {
     if (err.code === 'ENOENT') {
-      return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null };
+      return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null, lastCatchup: null };
     }
     throw err;
   }
@@ -55,12 +56,25 @@ function shouldRunTrending(state, force) {
   return minutesSince(state.lastRedditTrending) >= TRENDING_INTERVAL;
 }
 
+function shouldRunCatchup(state, force) {
+  if (force) return true;
+  // Auto catch-up if the scheduler was offline for more than CATCHUP_GAP minutes
+  const gap = minutesSince(state.lastEmailTick);
+  if (gap < CATCHUP_GAP) return false;
+  // Only catch-up once per gap (don't repeat if already caught up recently)
+  const today = new Date().toISOString().slice(0, 10);
+  if (state.lastCatchup === today) return false;
+  log.info(`Detected ${Math.round(gap)} min gap since last email tick — triggering catch-up`);
+  return true;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const forceAll = args.includes('--force-all');
   const forceEmail = forceAll || args.includes('--force-email');
   const forceDigest = forceAll || args.includes('--force-digest');
   const forceTrending = forceAll || args.includes('--force-trending');
+  const forceCatchup = forceAll || args.includes('--force-catchup');
 
   const state = await loadState();
   const now = new Date();
@@ -69,7 +83,12 @@ async function main() {
 
   const plan = [];
 
-  if (shouldRunEmail(state, forceEmail)) {
+  // Catch-up runs INSTEAD of normal email when triggered
+  const needsCatchup = shouldRunCatchup(state, forceCatchup);
+
+  if (needsCatchup) {
+    plan.push('catchup');
+  } else if (shouldRunEmail(state, forceEmail)) {
     plan.push('email');
   }
   if (shouldRunDigest(state, forceDigest)) {
@@ -94,6 +113,13 @@ async function main() {
           const { runEmailAgent } = await import('./agents/email/index.js');
           await runEmailAgent();
           state.lastEmailTick = now.toISOString();
+          break;
+        }
+        case 'catchup': {
+          const { runEmailCatchup } = await import('./agents/email/index.js');
+          await runEmailCatchup();
+          state.lastEmailTick = now.toISOString();
+          state.lastCatchup = now.toISOString().slice(0, 10);
           break;
         }
         case 'digest': {

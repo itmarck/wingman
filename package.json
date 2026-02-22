@@ -14,11 +14,13 @@
     "dev:email": "node agents/email/index.js",
     "dev:trends": "node agents/trends/index.js",
     "dev:trending": "node agents/trends/trending.js",
+    "dev:catchup": "node main.js --force-catchup",
     "test:slack": "node shared/slack.js",
     "test:claude": "node shared/claude.js",
     "log": "node scripts/log.js"
   },
   "dependencies": {
+    "chalk": "^5.6.2",
     "dotenv": "^16.4.5",
     "node-fetch": "^3.3.2",
     "rss-parser": "^3.13.0"

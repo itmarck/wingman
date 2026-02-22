@@ -87,6 +87,71 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
   return data.value;
 }
 
+export async function fetchUnreadToday(accessToken, { includeJunk = false } = {}) {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const since = todayStart.toISOString();
+
+  const folders = [{ name: 'inbox', path: '/me/messages' }];
+  if (includeJunk) {
+    folders.push({ name: 'junk', path: '/me/mailFolders/junkemail/messages' });
+  }
+
+  const allEmails = [];
+
+  for (const folder of folders) {
+    const params = new URLSearchParams({
+      $filter: `receivedDateTime ge ${since} and isRead eq false`,
+      $select: 'id,subject,from,receivedDateTime,bodyPreview,body,isRead,parentFolderId',
+      $top: '100',
+      $orderby: 'receivedDateTime desc',
+    });
+
+    const url = `${GRAPH_URL}${folder.path}?${params}`;
+    log.verbose(`Graph API request (${folder.name}): GET ${url}`);
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      log.verbose(`Graph API response (${res.status}): ${text}`);
+      log.warn(`Failed to fetch ${folder.name} (${res.status}), skipping`);
+      continue;
+    }
+
+    const data = await res.json();
+    const tagged = data.value.map((e) => ({ ...e, _folder: folder.name }));
+    allEmails.push(...tagged);
+
+    log.info(`Fetched ${data.value.length} unread emails from ${folder.name} (today)`);
+  }
+
+  return allEmails;
+}
+
+export async function moveToInbox(accessToken, messageId) {
+  log.verbose(`POST /me/messages/${messageId.slice(0, 20)}... /move → inbox`);
+
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ destinationId: 'inbox' }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    log.verbose(`moveToInbox response (${res.status}): ${text}`);
+    throw new Error(`moveToInbox failed (${res.status}): ${text}`);
+  }
+
+  log.verbose(`moveToInbox OK (${res.status})`);
+}
+
 export async function markAsRead(accessToken, messageId) {
   log.verbose(`PATCH /me/messages/${messageId.slice(0, 20)}... → isRead: true`);
 

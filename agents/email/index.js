@@ -3,7 +3,7 @@ import { readFile } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
 import { classify } from '../../shared/claude.js';
 import { sendSlack, formatEmailGroup } from '../../shared/slack.js';
-import { getAccessToken, fetchEmails, markAsRead, archiveEmail, moveToTrash } from './graph.js';
+import { getAccessToken, fetchEmails, fetchUnreadToday, markAsRead, archiveEmail, moveToTrash, moveToInbox } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 
 const log = createLogger('email');
@@ -193,6 +193,130 @@ export async function runEmailAgent() {
     } catch {
       // Don't fail the cycle over a log notification
     }
+  }
+}
+
+export async function runEmailCatchup() {
+  log.info('Starting catch-up scan (all unread today, inbox + junk)...');
+
+  const accessToken = await getAccessToken();
+  const emails = await fetchUnreadToday(accessToken, { includeJunk: true });
+
+  if (emails.length === 0) {
+    log.info('No unread emails today. All caught up!');
+    return;
+  }
+
+  const seen = await loadSeen();
+  const unseen = emails.filter((e) => !seen.has(e.id));
+
+  const inboxCount = unseen.filter((e) => e._folder === 'inbox').length;
+  const junkCount = unseen.filter((e) => e._folder === 'junk').length;
+
+  log.info(`Catch-up: ${unseen.length} unprocessed (${inboxCount} inbox, ${junkCount} junk), ${emails.length - unseen.length} already processed`);
+
+  if (unseen.length === 0) {
+    log.info('All unread emails already processed. Nothing to do.');
+    return;
+  }
+
+  const profile = await loadProfile();
+  const classified = [];
+  const counts = { urgent: 0, important: 0, informational: 0, noise: 0, error: 0 };
+
+  for (const email of unseen) {
+    try {
+      const from = email.from?.emailAddress?.address || 'unknown';
+      const fromName = email.from?.emailAddress?.name || from;
+      const folderTag = email._folder === 'junk' ? ' [JUNK]' : '';
+      log.info(`Classifying${folderTag}: "${email.subject}" from ${from}`);
+
+      const result = await classify(buildPrompt(profile, email));
+      seen.add(email.id);
+      counts[result.classification]++;
+      classified.push({ email, classification: result });
+
+      log.info(`  → ${result.classification} [${result.email_action || 'none'}]${folderTag} "${email.subject}" — ${fromName}: ${result.summary}`);
+      log.verbose(`  Full classification: ${JSON.stringify(result)}`);
+
+      // Rescue: if a junk email is not noise, move it to inbox
+      if (email._folder === 'junk' && result.classification !== 'noise') {
+        try {
+          await moveToInbox(accessToken, email.id);
+          log.info(`  📬 Rescued from junk: "${email.subject}"`);
+        } catch (err) {
+          log.error(`  Failed to rescue from junk: ${err.message}`);
+        }
+      }
+    } catch (err) {
+      counts.error++;
+      seen.add(email.id);
+      log.error(`Failed to process "${email.subject}": ${err.message}`);
+    }
+  }
+
+  // Execute email actions
+  for (const { email, classification } of classified) {
+    const action = classification.email_action || 'none';
+    if (action === 'none') continue;
+
+    try {
+      await executeAction(accessToken, email.id, action);
+      log.info(`  Action "${action}" on: "${email.subject}"`);
+    } catch (err) {
+      log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
+    }
+  }
+
+  // Notify via Slack
+  const slackWorthy = classified.filter((c) => c.classification.classification !== 'noise');
+
+  if (slackWorthy.length > 0) {
+    const groups = new Map();
+
+    for (const item of slackWorthy) {
+      const key = `${item.classification.classification}::${item.classification.group_key || item.email.id}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          classification: item.classification.classification,
+          groupKey: item.classification.group_key,
+          items: [],
+        });
+      }
+      groups.get(key).items.push(item);
+    }
+
+    log.info(`Grouped into ${groups.size} Slack messages`);
+
+    for (const [, group] of groups) {
+      try {
+        const webhook = group.classification === 'urgent' ? WEBHOOK_IMPORTANT : WEBHOOK_DIGEST;
+        const payload = formatEmailGroup(group, timeAgo);
+        await sendSlack(webhook, payload);
+      } catch (err) {
+        log.error(`Failed to send Slack notification: ${err.message}`);
+      }
+    }
+  }
+
+  await saveSeen(seen);
+
+  const parts = [];
+  if (counts.urgent > 0) parts.push(`${counts.urgent} urgent`);
+  if (counts.important > 0) parts.push(`${counts.important} important`);
+  if (counts.informational > 0) parts.push(`${counts.informational} info`);
+  if (counts.noise > 0) parts.push(`${counts.noise} noise`);
+  if (counts.error > 0) parts.push(`${counts.error} errors`);
+  const rescued = classified.filter((c) => c.email._folder === 'junk' && c.classification.classification !== 'noise').length;
+  if (rescued > 0) parts.push(`${rescued} rescued from junk`);
+
+  const summary = `Catch-up complete: ${unseen.length} processed — ${parts.join(', ')}`;
+  log.info(summary);
+
+  try {
+    await sendSlack(WEBHOOK_LOGS, `[catch-up] ${summary}`);
+  } catch {
+    // Don't fail over a log notification
   }
 }
 

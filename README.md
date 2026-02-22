@@ -50,6 +50,7 @@ npm run dev:all           # force all agents now
 npm run dev:email         # email agent only
 npm run dev:trends        # morning digest only
 npm run dev:trending      # Reddit trending only
+npm run dev:catchup       # catch-up: all unread today + junk
 
 # Testing
 npm run test:slack        # verify Slack webhook
