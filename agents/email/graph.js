@@ -19,10 +19,9 @@ export async function getAccessToken() {
     client_id: CLIENT_ID,
     grant_type: 'refresh_token',
     refresh_token: currentRefreshToken,
-    scope: 'Mail.Read offline_access',
+    scope: 'Mail.ReadWrite offline_access',
   });
 
-  // Include client_secret only if set (confidential app)
   if (CLIENT_SECRET) {
     params.set('client_secret', CLIENT_SECRET);
   }
@@ -40,7 +39,6 @@ export async function getAccessToken() {
 
   const data = await res.json();
 
-  // Microsoft may rotate the refresh token — keep the latest one
   if (data.refresh_token) {
     currentRefreshToken = data.refresh_token;
   }
@@ -53,7 +51,7 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
 
   const params = new URLSearchParams({
     $filter: `receivedDateTime ge ${since}`,
-    $select: 'id,subject,from,receivedDateTime,bodyPreview,body',
+    $select: 'id,subject,from,receivedDateTime,bodyPreview,body,isRead',
     $top: '50',
     $orderby: 'receivedDateTime desc',
   });
@@ -72,4 +70,54 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
   const data = await res.json();
   log.info(`Fetched ${data.value.length} emails from the last ${lookbackHours}h`);
   return data.value;
+}
+
+export async function markAsRead(accessToken, messageId) {
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ isRead: true }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`markAsRead failed (${res.status}): ${text}`);
+  }
+}
+
+export async function archiveEmail(accessToken, messageId) {
+  // Move to Archive folder. Graph uses the well-known folder name "archive".
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ destinationId: 'archive' }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`archiveEmail failed (${res.status}): ${text}`);
+  }
+}
+
+export async function moveToTrash(accessToken, messageId) {
+  // Move to Deleted Items folder
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ destinationId: 'deleteditems' }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`moveToTrash failed (${res.status}): ${text}`);
+  }
 }

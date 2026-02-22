@@ -2,8 +2,8 @@ import 'dotenv/config';
 import { readFile } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
 import { classify } from '../../shared/claude.js';
-import { sendSlack, formatEmailImportant, formatEmailDigest } from '../../shared/slack.js';
-import { getAccessToken, fetchEmails } from './graph.js';
+import { sendSlack, formatEmailGroup } from '../../shared/slack.js';
+import { getAccessToken, fetchEmails, markAsRead, archiveEmail, moveToTrash } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 
 const log = createLogger('email-agent');
@@ -38,31 +38,32 @@ function buildPrompt(profile, email) {
   ].join('\n');
 }
 
-async function processEmail(email, profile, seen) {
-  const id = email.id;
-  if (seen.has(id)) return null;
+function timeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'justo ahora';
+  if (mins < 60) return `hace ${mins} min`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `hace ${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `hace ${days}d`;
+}
 
-  const from = email.from?.emailAddress?.address || 'unknown';
-  log.info(`Classifying: "${email.subject}" from ${from}`);
-
-  const classification = await classify(buildPrompt(profile, email));
-  seen.add(id);
-
-  log.info(`  → ${classification.classification}: ${classification.reason}`);
-
-  switch (classification.classification) {
-    case 'urgent':
-      await sendSlack(WEBHOOK_IMPORTANT, formatEmailImportant(email, classification));
-      return 'urgent';
-
-    case 'important':
-    case 'informational':
-      await sendSlack(WEBHOOK_DIGEST, formatEmailDigest(email, classification));
-      return classification.classification;
-
-    case 'noise':
+async function executeAction(accessToken, emailId, action) {
+  switch (action) {
+    case 'read':
+      await markAsRead(accessToken, emailId);
+      break;
+    case 'archive':
+      await markAsRead(accessToken, emailId);
+      await archiveEmail(accessToken, emailId);
+      break;
+    case 'trash':
+      await moveToTrash(accessToken, emailId);
+      break;
+    case 'none':
     default:
-      return 'noise';
+      break;
   }
 }
 
@@ -73,34 +74,109 @@ async function main() {
   const emails = await fetchEmails(accessToken, LOOKBACK_HOURS);
 
   if (emails.length === 0) {
-    log.info('No new emails found.');
+    log.info('No emails in lookback window.');
     return;
   }
 
-  const profile = await loadProfile();
   const seen = await loadSeen();
 
+  // Double filter: skip emails already read in Outlook OR already processed by agent
+  const unseen = emails.filter((e) => {
+    if (seen.has(e.id)) return false;
+    if (e.isRead) {
+      // Already read by user in Outlook — mark as seen so we don't check again
+      seen.add(e.id);
+      return false;
+    }
+    return true;
+  });
+
+  if (unseen.length === 0) {
+    log.info(`All ${emails.length} emails already read or processed. Nothing to do.`);
+    await saveSeen(seen);
+    return;
+  }
+
+  log.info(`${unseen.length} new unread emails to classify (${emails.length - unseen.length} skipped)`);
+
+  const profile = await loadProfile();
+  const classified = [];
   const counts = { urgent: 0, important: 0, informational: 0, noise: 0, error: 0 };
 
-  for (const email of emails) {
+  // Phase 1: Classify all unseen emails
+  for (const email of unseen) {
     try {
-      const result = await processEmail(email, profile, seen);
-      if (result) counts[result]++;
+      const from = email.from?.emailAddress?.address || 'unknown';
+      log.info(`Classifying: "${email.subject}" from ${from}`);
+
+      const result = await classify(buildPrompt(profile, email));
+      seen.add(email.id);
+
+      log.info(`  → ${result.classification} [${result.email_action || 'none'}]: ${result.reason}`);
+      counts[result.classification]++;
+
+      classified.push({ email, classification: result });
     } catch (err) {
       counts.error++;
+      seen.add(email.id);
       log.error(`Failed to process "${email.subject}": ${err.message}`);
+    }
+  }
+
+  // Phase 2: Execute email actions (mark read, archive, trash)
+  for (const { email, classification } of classified) {
+    const action = classification.email_action || 'none';
+    if (action === 'none') continue;
+
+    try {
+      await executeAction(accessToken, email.id, action);
+      log.info(`  Action "${action}" executed on: "${email.subject}"`);
+    } catch (err) {
+      log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
+    }
+  }
+
+  // Phase 3: Group non-noise emails for Slack
+  const slackWorthy = classified.filter((c) => c.classification.classification !== 'noise');
+
+  if (slackWorthy.length > 0) {
+    const groups = new Map();
+
+    for (const item of slackWorthy) {
+      const key = `${item.classification.classification}::${item.classification.group_key || item.email.id}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          classification: item.classification.classification,
+          groupKey: item.classification.group_key,
+          items: [],
+        });
+      }
+      groups.get(key).items.push(item);
+    }
+
+    for (const [, group] of groups) {
+      try {
+        const webhook = group.classification === 'urgent' ? WEBHOOK_IMPORTANT : WEBHOOK_DIGEST;
+        const payload = formatEmailGroup(group, timeAgo);
+        await sendSlack(webhook, payload);
+      } catch (err) {
+        log.error(`Failed to send Slack notification: ${err.message}`);
+      }
     }
   }
 
   await saveSeen(seen);
 
-  const summary = `Cycle complete: ${emails.length} emails — ${counts.urgent} urgent, ${counts.important} important, ${counts.informational} informational, ${counts.noise} noise, ${counts.error} errors`;
+  const summary = `Cycle complete: ${emails.length} fetched, ${unseen.length} new — ${counts.urgent} urgent, ${counts.important} important, ${counts.informational} info, ${counts.noise} noise, ${counts.error} errors`;
   log.info(summary);
 
-  try {
-    await sendSlack(WEBHOOK_LOGS, `[email-agent] ${summary}`);
-  } catch {
-    // Don't fail the cycle over a log notification
+  // Only log to Slack if something actually happened
+  if (unseen.length > 0) {
+    try {
+      await sendSlack(WEBHOOK_LOGS, `[email-agent] ${summary}`);
+    } catch {
+      // Don't fail the cycle over a log notification
+    }
   }
 }
 

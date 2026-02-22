@@ -18,7 +18,7 @@ const log = createLogger('email-auth');
 
 const CLIENT_ID = process.env.MS_CLIENT_ID;
 const TENANT_ID = process.env.MS_TENANT_ID || 'consumers';
-const SCOPES = 'Mail.Read offline_access';
+const SCOPES = 'Mail.ReadWrite offline_access';
 
 const DEVICE_CODE_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/devicecode`;
 const TOKEN_URL = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/token`;

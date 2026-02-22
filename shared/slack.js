@@ -23,74 +23,93 @@ export async function sendSlack(webhookUrl, payload) {
   }
 }
 
-export function formatEmailImportant(email, classification) {
-  const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Unknown';
-  const fromAddr = email.from?.emailAddress?.address || '';
+const LEVEL_EMOJI = {
+  urgent: '🚨',
+  important: '📌',
+  informational: 'ℹ️',
+};
 
-  const blocks = [
-    {
-      type: 'header',
-      text: { type: 'plain_text', text: `🚨 ${classification.classification.toUpperCase()}: ${email.subject || '(no subject)'}` },
-    },
-    {
-      type: 'section',
-      fields: [
-        { type: 'mrkdwn', text: `*From:*\n${from} (${fromAddr})` },
-        { type: 'mrkdwn', text: `*Received:*\n${new Date(email.receivedDateTime).toLocaleString()}` },
-      ],
-    },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*Summary:*\n${classification.summary}` },
-    },
-    {
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*Reason:*\n${classification.reason}` },
-    },
-  ];
+const LEVEL_LABEL = {
+  urgent: 'URGENTE',
+  important: 'IMPORTANTE',
+  informational: 'INFO',
+};
+
+export function formatEmailGroup(group, timeAgo) {
+  const emoji = LEVEL_EMOJI[group.classification] || '📧';
+  const label = LEVEL_LABEL[group.classification] || group.classification.toUpperCase();
+  const items = group.items;
+
+  // Single email — concise one-message format
+  if (items.length === 1) {
+    return formatSingleEmail(items[0], emoji, label, timeAgo);
+  }
+
+  // Multiple similar emails — grouped into one message
+  return formatGroupedEmails(items, emoji, label, group, timeAgo);
+}
+
+function formatSingleEmail({ email, classification }, emoji, label, timeAgo) {
+  const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Desconocido';
+  const ago = timeAgo(email.receivedDateTime);
+
+  const lines = [`${emoji} *${label}*`, ''];
+  lines.push(`[${ago}] ${classification.summary}`);
+  lines.push(`_De: ${from}_`);
 
   if (classification.suggested_action) {
-    blocks.push({
-      type: 'section',
-      text: { type: 'mrkdwn', text: `*Suggested action:*\n${classification.suggested_action}` },
-    });
+    lines.push('');
+    lines.push(`*Acción:* ${classification.suggested_action}`);
   }
 
   if (classification.draft_reply) {
-    blocks.push(
-      { type: 'divider' },
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: `*Draft reply:*\n>>>${classification.draft_reply}` },
-      },
-    );
+    lines.push('');
+    lines.push(`*Borrador de respuesta:*`);
+    lines.push(`>>>${classification.draft_reply}`);
   }
-
-  return { blocks };
-}
-
-export function formatEmailDigest(email, classification) {
-  const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Unknown';
 
   return {
     blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `*${email.subject || '(no subject)'}*\nFrom: ${from} · _${classification.classification}_\n${classification.summary}`,
-        },
-      },
+      { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } },
     ],
   };
 }
+
+function formatGroupedEmails(items, emoji, label, group, timeAgo) {
+  const count = items.length;
+  // Use the summary from the first item as the group description
+  const firstClassification = items[0].classification;
+
+  const header = `${emoji} *${label}* — ${count} correos similares`;
+
+  const bulletLines = items.map(({ email, classification }) => {
+    const ago = timeAgo(email.receivedDateTime);
+    const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Desconocido';
+    return `• [${ago}] ${classification.summary} — _${from}_`;
+  });
+
+  const lines = [header, '', ...bulletLines];
+
+  if (firstClassification.suggested_action) {
+    lines.push('');
+    lines.push(`*Acción:* ${firstClassification.suggested_action}`);
+  }
+
+  return {
+    blocks: [
+      { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } },
+    ],
+  };
+}
+
+// ─── Trends formatter ───────────────────────────────────────
 
 export function formatTrendsDigest(digestText) {
   return {
     blocks: [
       {
         type: 'header',
-        text: { type: 'plain_text', text: '📰 Morning Digest' },
+        text: { type: 'plain_text', text: '📰 Resumen del día' },
       },
       {
         type: 'section',
@@ -100,7 +119,6 @@ export function formatTrendsDigest(digestText) {
   };
 }
 
-// Standalone test
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
   const webhookUrl = process.env.SLACK_WEBHOOK_LOGS;
   if (!webhookUrl) {
@@ -108,6 +126,6 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
     process.exit(1);
   }
   log.info('Sending test message to #agent-logs...');
-  await sendSlack(webhookUrl, '🧪 Wingman Slack integration test — if you see this, it works!');
+  await sendSlack(webhookUrl, '🧪 Test de integración de Wingman — si ves esto, funciona!');
   log.info('Test message sent successfully.');
 }

@@ -18,10 +18,11 @@ async function loadSources() {
 
 function buildPrompt(rssItems, redditItems, categories) {
   const lines = [
-    'You are a personal news curator. Summarize the most interesting and relevant items below into a concise morning digest.',
-    `Focus on these interest categories: ${categories.join(', ')}.`,
-    'Format the output as a Slack-friendly markdown digest with sections and bullet points.',
-    'Keep it under 2000 characters. Prioritize quality over quantity — skip low-value items.',
+    'Eres mi curador personal de noticias. Resume los items más interesantes e importantes en un resumen matutino conciso.',
+    'IMPORTANTE: Escribe todo el resumen en español. Usa inglés solo para nombres propios, marcas y términos técnicos sin equivalente natural en español.',
+    `Enfócate en estas categorías de interés: ${categories.join(', ')}.`,
+    'Formato: markdown compatible con Slack, con secciones y bullet points.',
+    'Máximo 2000 caracteres. Prioriza calidad sobre cantidad — omite lo que no aporte valor.',
     '',
     '---',
     '',
