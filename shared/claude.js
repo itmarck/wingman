@@ -6,12 +6,17 @@ const log = createLogger('claude');
 const TIMEOUT_MS = 120_000;
 
 export async function classify(prompt) {
+  log.verbose(`Classify prompt (${prompt.length} chars):\n${prompt.slice(0, 500)}...`);
   const output = await runClaude(prompt);
+  log.verbose(`Classify raw response:\n${output}`);
   return parseJSON(output);
 }
 
 export async function summarize(prompt) {
-  return runClaude(prompt);
+  log.verbose(`Summarize prompt (${prompt.length} chars):\n${prompt.slice(0, 500)}...`);
+  const output = await runClaude(prompt);
+  log.verbose(`Summarize raw response (${output.length} chars):\n${output.slice(0, 500)}...`);
+  return output;
 }
 
 function runClaude(prompt) {
@@ -34,6 +39,9 @@ function runClaude(prompt) {
 
     proc.on('close', (code) => {
       clearTimeout(timer);
+      if (stderr.trim()) {
+        log.verbose(`Claude CLI stderr: ${stderr.trim()}`);
+      }
       if (code !== 0) {
         reject(new Error(`Claude CLI exited with code ${code}: ${stderr.trim()}`));
       } else {

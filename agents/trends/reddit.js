@@ -1,7 +1,7 @@
 import { createLogger } from '../../shared/logger.js';
 
-const log = createLogger('trends-agent');
-const USER_AGENT = 'wingman-bot/1.0';
+const log = createLogger('trends');
+const USER_AGENT = 'wingman/1.0';
 
 export async function fetchReddit(subreddits) {
   const active = subreddits.filter((s) => s.active);
@@ -17,6 +17,7 @@ export async function fetchReddit(subreddits) {
       const url = `https://www.reddit.com/r/${sub.subreddit}/hot.json?limit=${limit}`;
 
       log.info(`Fetching Reddit: r/${sub.subreddit}`);
+      log.verbose(`Reddit URL: ${url}`);
 
       const res = await fetch(url, {
         headers: { 'User-Agent': USER_AGENT },
@@ -27,16 +28,17 @@ export async function fetchReddit(subreddits) {
       }
 
       const data = await res.json();
+      const posts = data.data.children.filter((c) => !c.data.stickied);
 
-      return data.data.children
-        .filter((c) => !c.data.stickied)
-        .map((c) => ({
-          title: c.data.title,
-          url: `https://reddit.com${c.data.permalink}`,
-          score: c.data.score,
-          subreddit: c.data.subreddit,
-          num_comments: c.data.num_comments,
-        }));
+      log.verbose(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
+
+      return posts.map((c) => ({
+        title: c.data.title,
+        url: `https://reddit.com${c.data.permalink}`,
+        score: c.data.score,
+        subreddit: c.data.subreddit,
+        num_comments: c.data.num_comments,
+      }));
     }),
   );
 
@@ -46,6 +48,7 @@ export async function fetchReddit(subreddits) {
       items.push(...result.value);
     } else {
       log.error(`Reddit fetch failed: ${result.reason.message}`);
+      log.verbose(`Reddit error detail: ${result.reason.stack}`);
     }
   }
 

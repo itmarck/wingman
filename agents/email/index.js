@@ -6,7 +6,7 @@ import { sendSlack, formatEmailGroup } from '../../shared/slack.js';
 import { getAccessToken, fetchEmails, markAsRead, archiveEmail, moveToTrash } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 
-const log = createLogger('email-agent');
+const log = createLogger('email');
 
 const WEBHOOK_IMPORTANT = process.env.SLACK_WEBHOOK_EMAIL_IMPORTANT;
 const WEBHOOK_DIGEST = process.env.SLACK_WEBHOOK_EMAIL_DIGEST;
@@ -79,17 +79,25 @@ async function main() {
   }
 
   const seen = await loadSeen();
+  log.verbose(`Seen state loaded: ${seen.size} IDs tracked`);
 
-  // Double filter: skip emails already read in Outlook OR already processed by agent
+  let skippedRead = 0;
+  let skippedSeen = 0;
   const unseen = emails.filter((e) => {
-    if (seen.has(e.id)) return false;
+    if (seen.has(e.id)) {
+      skippedSeen++;
+      return false;
+    }
     if (e.isRead) {
-      // Already read by user in Outlook — mark as seen so we don't check again
       seen.add(e.id);
+      skippedRead++;
+      log.verbose(`Skipped (already read in Outlook): "${e.subject}"`);
       return false;
     }
     return true;
   });
+
+  log.verbose(`Filter: ${unseen.length} to classify, ${skippedRead} read in Outlook, ${skippedSeen} already processed`);
 
   if (unseen.length === 0) {
     log.info(`All ${emails.length} emails already read or processed. Nothing to do.`);
@@ -103,19 +111,19 @@ async function main() {
   const classified = [];
   const counts = { urgent: 0, important: 0, informational: 0, noise: 0, error: 0 };
 
-  // Phase 1: Classify all unseen emails
   for (const email of unseen) {
     try {
       const from = email.from?.emailAddress?.address || 'unknown';
+      const fromName = email.from?.emailAddress?.name || from;
       log.info(`Classifying: "${email.subject}" from ${from}`);
 
       const result = await classify(buildPrompt(profile, email));
       seen.add(email.id);
-
-      log.info(`  → ${result.classification} [${result.email_action || 'none'}]: ${result.reason}`);
       counts[result.classification]++;
-
       classified.push({ email, classification: result });
+
+      log.info(`  → ${result.classification} [${result.email_action || 'none'}] "${email.subject}" — ${fromName}: ${result.summary}`);
+      log.verbose(`  Full classification: ${JSON.stringify(result)}`);
     } catch (err) {
       counts.error++;
       seen.add(email.id);
@@ -123,21 +131,20 @@ async function main() {
     }
   }
 
-  // Phase 2: Execute email actions (mark read, archive, trash)
   for (const { email, classification } of classified) {
     const action = classification.email_action || 'none';
     if (action === 'none') continue;
 
     try {
       await executeAction(accessToken, email.id, action);
-      log.info(`  Action "${action}" executed on: "${email.subject}"`);
+      log.info(`  Action "${action}" on: "${email.subject}"`);
     } catch (err) {
       log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
     }
   }
 
-  // Phase 3: Group non-noise emails for Slack
   const slackWorthy = classified.filter((c) => c.classification.classification !== 'noise');
+  log.verbose(`Slack-worthy: ${slackWorthy.length} (${classified.length - slackWorthy.length} noise filtered)`);
 
   if (slackWorthy.length > 0) {
     const groups = new Map();
@@ -154,10 +161,13 @@ async function main() {
       groups.get(key).items.push(item);
     }
 
-    for (const [, group] of groups) {
+    log.verbose(`Grouped into ${groups.size} Slack messages`);
+
+    for (const [key, group] of groups) {
       try {
         const webhook = group.classification === 'urgent' ? WEBHOOK_IMPORTANT : WEBHOOK_DIGEST;
         const payload = formatEmailGroup(group, timeAgo);
+        log.verbose(`Sending group "${key}" (${group.items.length} emails) to ${group.classification === 'urgent' ? '#email-important' : '#email-digest'}`);
         await sendSlack(webhook, payload);
       } catch (err) {
         log.error(`Failed to send Slack notification: ${err.message}`);
@@ -167,10 +177,16 @@ async function main() {
 
   await saveSeen(seen);
 
-  const summary = `Cycle complete: ${emails.length} fetched, ${unseen.length} new — ${counts.urgent} urgent, ${counts.important} important, ${counts.informational} info, ${counts.noise} noise, ${counts.error} errors`;
+  const parts = [];
+  if (counts.urgent > 0) parts.push(`${counts.urgent} urgent`);
+  if (counts.important > 0) parts.push(`${counts.important} important`);
+  if (counts.informational > 0) parts.push(`${counts.informational} info`);
+  if (counts.noise > 0) parts.push(`${counts.noise} noise`);
+  if (counts.error > 0) parts.push(`${counts.error} errors`);
+
+  const summary = `Cycle complete: ${emails.length} fetched, ${unseen.length} new — ${parts.join(', ')}`;
   log.info(summary);
 
-  // Only log to Slack if something actually happened
   if (unseen.length > 0) {
     try {
       await sendSlack(WEBHOOK_LOGS, `[email-agent] ${summary}`);

@@ -21,32 +21,50 @@ npm install -g pm2
 # 4. Make sure Claude Code is installed and authenticated
 claude --version
 
-# 5. Test Slack connection
-npm run test:slack
+# 5. Authenticate with Microsoft (device-code flow)
+node agents/email/auth.js
 
-# 6. Test Claude Code connection
+# 6. Test connections
+npm run test:slack
 npm run test:claude
 
-# 7. Start the agents
-npm run start
+# 7. Run the email agent manually to verify
+npm run dev:email
 
-# 8. Configure auto-start on boot
+# 8. Start the agents as cron jobs
+npm start
+
+# 9. Configure auto-start on boot
 pm2 startup
 pm2 save
 ```
 
-## Useful commands
+## Commands
 
 ```bash
-npm run status        # check agent status
-npm run logs          # live log stream
-npm run restart       # restart all agents
-npm run dev:email     # run the email agent manually (for testing)
-npm run dev:trends    # run the trends agent manually (for testing)
-npm run test:slack    # verify Slack connection
-npm run test:claude   # verify Claude Code connection
+npm run dev:email         # run email agent once (testing)
+npm run dev:trends        # run trends agent once (testing)
+npm run test:slack        # verify Slack webhook
+npm run test:claude       # verify Claude CLI
+
+npm run log               # view today's log
+npm run log -- oneline    # compact view
+npm run log -- ayer       # yesterday's log
+npm run log -- urgente    # filter by classification
+npm run log -- quiet      # hide verbose lines
+
+npm start                 # start pm2 cron jobs
+npm run status            # check agent status
+npm run logs              # live pm2 log stream
+npm run restart           # restart all agents
 ```
+
+## Configuration
+
+- `config/profile.md` — email classification rules (edit to tune behavior)
+- `config/sources.json` — RSS feeds and Reddit sources for trends
+- `.env` — credentials and webhook URLs
 
 ## Full documentation
 
-See `CLAUDE.md` for full architecture and design decisions.
+See `CLAUDE.md` for architecture, data flow, and code conventions.

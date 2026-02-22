@@ -14,7 +14,7 @@
 import 'dotenv/config';
 import { createLogger } from '../../shared/logger.js';
 
-const log = createLogger('email-auth');
+const log = createLogger('auth');
 
 const CLIENT_ID = process.env.MS_CLIENT_ID;
 const TENANT_ID = process.env.MS_TENANT_ID || 'consumers';

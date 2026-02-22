@@ -6,7 +6,7 @@ import { sendSlack, formatTrendsDigest } from '../../shared/slack.js';
 import { fetchRSS } from './rss.js';
 import { fetchReddit } from './reddit.js';
 
-const log = createLogger('trends-agent');
+const log = createLogger('trends');
 
 const WEBHOOK_NEWS = process.env.SLACK_WEBHOOK_NEWS;
 const WEBHOOK_LOGS = process.env.SLACK_WEBHOOK_LOGS;

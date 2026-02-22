@@ -12,13 +12,14 @@ A personal automation system that filters emails, news, and social media, delive
 
 ## Current state
 
-Both agents are **implemented and ready to configure**:
+Both agents are **implemented and functional**:
 
-- `shared/` — logger, Slack webhook helper, Claude CLI wrapper
-- `agents/email/` — OAuth device-code auth, Microsoft Graph client, seen-state tracking, orchestrator
-- `agents/trends/` — RSS fetcher, Reddit JSON fetcher, orchestrator
-- `config/profile.md` — email classification rules (editable, loaded dynamically)
+- `shared/` — logger (dual output: terminal + daily log file), Slack webhook helper, Claude CLI wrapper
+- `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash), seen-state tracking, orchestrator with grouping logic
+- `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), orchestrator
+- `config/profile.md` — email classification rules in Spanish (editable, loaded dynamically)
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
+- `scripts/log.js` — log viewer CLI with filtering and oneline mode
 
 **To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run dev:email` to test.
 
@@ -35,11 +36,20 @@ npm run dev:trends      # node agents/trends/index.js
 npm run test:slack      # node shared/slack.js
 npm run test:claude     # node shared/claude.js
 
+# Log viewer
+npm run log                      # today's full log (local time)
+npm run log -- oneline           # compact view
+npm run log -- ayer               # yesterday's log
+npm run log -- urgente            # only urgent classifications
+npm run log -- noise              # only noise
+npm run log -- email              # only email agent lines
+npm run log -- quiet              # hide verbose lines
+npm run log -- ayer oneline       # combinable
+
 # pm2 process management
 npm start               # pm2 start ecosystem.config.js
 npm run status          # pm2 list
-npm run logs            # pm2 logs
-pm2 logs email-agent    # logs for a specific agent
+npm run logs            # pm2 logs (live stream)
 pm2 restart email-agent # restart one agent
 pm2 save && pm2 startup # persist across reboots
 ```
@@ -56,8 +66,17 @@ Each agent follows the same pipeline pattern:
 sources → fetcher → classifier (Claude CLI) → notifier (Slack)
 ```
 
-- **Email agent** (`agents/email/`): OAuth → fetch unread → classify each email → post urgent to `#email-important`, rest to `#email-digest`
-- **Trends agent** (`agents/trends/`): RSS + Reddit → summarize → post digest to `#news-digest`
+- **Email agent** (`agents/email/`): OAuth → fetch unread → filter (isRead + seen.json) → classify each → group similar → post to Slack → execute actions (mark read / archive / trash)
+- **Trends agent** (`agents/trends/`): RSS + Reddit → summarize via Claude → post digest to `#news-digest`
+
+### Email classification flow
+
+1. Fetch emails from last `EMAIL_LOOKBACK_HOURS` via Microsoft Graph
+2. Double filter: skip emails already read in Outlook (`isRead`) + already processed (`state/email-seen.json`)
+3. Classify each email via Claude CLI using `config/profile.md` rules
+4. Group similar emails by `group_key` (e.g. two login alerts → one Slack message)
+5. Post grouped notifications: urgent → `#email-important`, important/info → `#email-digest`, noise → skip
+6. Execute email actions: `read` (mark as read), `archive` (mark read + move to archive), `trash` (move to deleted), `none`
 
 ### pm2 scheduling
 
@@ -71,12 +90,28 @@ Agents are **cron jobs**, not servers. They run once per schedule, then exit:
 
 Claude Code CLI is used for classification and summarization — no API key needed:
 ```js
-// shared/claude.js pipes prompts via stdin to avoid shell escaping issues
 const proc = spawn('claude', ['-p', '--output-format', 'text'], { stdio: ['pipe', 'pipe', 'pipe'] });
 proc.stdin.write(prompt);
 proc.stdin.end();
 ```
 This requires Claude Code to be installed and authenticated (`claude --version`).
+
+### Logging
+
+Single daily log file at `logs/YYYY-MM-DD.log`. All modules write to the same file with tagged lines:
+
+```
+[2026-02-22 00:43:00] [email ] INFO Starting email cycle...
+[2026-02-22 00:43:01] [claude] VERBOSE Classify prompt (1823 chars)...
+[2026-02-22 00:43:05] [slack ] VERBOSE Slack POST → https://hooks...
+```
+
+- Tags are 6-char fixed width, lowercase
+- `info`, `warn`, `error` → terminal + file
+- `verbose` → file only (API responses, payloads, raw prompts)
+- Terminal shows local time, file stores UTC
+
+Current tags: `email`, `trends`, `claude`, `slack`, `auth`
 
 ### Persistent state
 
@@ -89,13 +124,17 @@ The email agent tracks processed IDs in `state/email-seen.json` (auto-generated,
 Classification output schema:
 ```json
 {
-  "classification": "urgent" | "important" | "informational" | "noise",
+  "classification": "urgent | important | informational | noise",
   "reason": "...",
   "summary": "...",
   "suggested_action": "...",
-  "draft_reply": "..."
+  "draft_reply": "...",
+  "group_key": "...",
+  "email_action": "read | archive | trash | none"
 }
 ```
+
+All text fields are written in **Spanish** by Claude. English only for proper nouns and technical terms.
 
 ---
 
@@ -106,9 +145,9 @@ Classification output schema:
 | Runtime | Node.js ≥18, ES Modules (`import/export`) |
 | Process manager | pm2 |
 | AI | Claude Code CLI (`claude -p`) |
-| Email | Microsoft Graph API + OAuth 2.0 |
+| Email | Microsoft Graph API + OAuth 2.0 (Mail.ReadWrite) |
 | Notifications | Slack Incoming Webhooks |
-| Trends | RSS (`rss-parser`) + Reddit API |
+| Trends | RSS (`rss-parser`) + Reddit JSON (unauthenticated) |
 
 ---
 
@@ -117,8 +156,9 @@ Classification output schema:
 - ES Modules throughout (`"type": "module"` in package.json)
 - `async/await` everywhere — no callbacks
 - `try/catch` around every email/item — one failure must not crash the whole cycle
-- Log prefix per agent: `[email-agent]`, `[trends-agent]`
+- Logger tags: 6-char fixed width, lowercase (e.g. `createLogger('email')`)
 - All secrets from `process.env` — never hardcoded
+- Slack output in Spanish, code and logs in English
 
 ---
 
@@ -126,11 +166,10 @@ Classification output schema:
 
 | Channel | Content |
 |---------|---------|
-| `#email-important` | Urgent/actionable emails with summary and draft reply |
-| `#email-digest` | Daily summary of all other emails |
-| `#news-digest` | Morning digest of news and trends |
-| `#alerts` | Critical keyword matches |
-| `#agent-logs` | Technical agent activity (debugging) |
+| `#email-important` | Urgent emails with summary (Spanish) |
+| `#email-digest` | Important/informational emails (Spanish) |
+| `#news-digest` | Morning digest of news and trends (Spanish) |
+| `#agent-logs` | Technical agent activity (English) |
 
 ---
 
@@ -144,4 +183,5 @@ SLACK_WEBHOOK_EMAIL_IMPORTANT / _EMAIL_DIGEST / _NEWS / _ALERTS / _LOGS  ← Sla
 EMAIL_LOOKBACK_HOURS=1
 ```
 
-`MS_REFRESH_TOKEN` is generated on first run via `node agents/email/auth.js`.
+`MS_REFRESH_TOKEN` is generated via `node agents/email/auth.js` (device-code flow).
+Scope: `Mail.ReadWrite offline_access`. Use `MS_TENANT_ID=consumers` for personal accounts.

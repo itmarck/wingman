@@ -12,7 +12,8 @@
     "dev:email": "node agents/email/index.js",
     "dev:trends": "node agents/trends/index.js",
     "test:slack": "node shared/slack.js",
-    "test:claude": "node shared/claude.js"
+    "test:claude": "node shared/claude.js",
+    "log": "node scripts/log.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

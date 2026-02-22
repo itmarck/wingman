@@ -10,17 +10,24 @@ export async function sendSlack(webhookUrl, payload) {
   }
 
   const body = typeof payload === 'string' ? { text: payload } : payload;
+  const bodyStr = JSON.stringify(body);
+
+  log.verbose(`Slack POST → ${webhookUrl.slice(0, 50)}... (${bodyStr.length} chars)`);
+  log.verbose(`Slack payload: ${bodyStr}`);
 
   const res = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: bodyStr,
   });
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`Slack response (${res.status}): ${text}`);
     throw new Error(`Slack webhook failed (${res.status}): ${text}`);
   }
+
+  log.verbose(`Slack POST OK (${res.status})`);
 }
 
 const LEVEL_EMOJI = {
@@ -77,7 +84,6 @@ function formatSingleEmail({ email, classification }, emoji, label, timeAgo) {
 
 function formatGroupedEmails(items, emoji, label, group, timeAgo) {
   const count = items.length;
-  // Use the summary from the first item as the group description
   const firstClassification = items[0].classification;
 
   const header = `${emoji} *${label}* — ${count} correos similares`;
@@ -101,8 +107,6 @@ function formatGroupedEmails(items, emoji, label, group, timeAgo) {
     ],
   };
 }
-
-// ─── Trends formatter ───────────────────────────────────────
 
 export function formatTrendsDigest(digestText) {
   return {

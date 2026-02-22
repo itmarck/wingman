@@ -1,6 +1,6 @@
 import { createLogger } from '../../shared/logger.js';
 
-const log = createLogger('email-agent');
+const log = createLogger('email');
 
 const TENANT_ID = process.env.MS_TENANT_ID || 'consumers';
 const CLIENT_ID = process.env.MS_CLIENT_ID;
@@ -14,6 +14,8 @@ export async function getAccessToken() {
   if (!CLIENT_ID || !currentRefreshToken) {
     throw new Error('MS_CLIENT_ID and MS_REFRESH_TOKEN must be set. Run: node agents/email/auth.js');
   }
+
+  log.verbose(`Token refresh request → tenant: ${TENANT_ID}, client: ${CLIENT_ID.slice(0, 8)}...`);
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -34,14 +36,18 @@ export async function getAccessToken() {
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`Token refresh response (${res.status}): ${text}`);
     throw new Error(`Token refresh failed (${res.status}): ${text}`);
   }
 
   const data = await res.json();
 
+  const rotated = !!data.refresh_token;
   if (data.refresh_token) {
     currentRefreshToken = data.refresh_token;
   }
+
+  log.verbose(`Token refresh OK — expires_in: ${data.expires_in}s, refresh_token rotated: ${rotated}`);
 
   return data.access_token;
 }
@@ -57,6 +63,7 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
   });
 
   const url = `${GRAPH_URL}/me/messages?${params}`;
+  log.verbose(`Graph API request: GET ${url}`);
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -64,15 +71,25 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`Graph API response (${res.status}): ${text}`);
     throw new Error(`Graph API /me/messages failed (${res.status}): ${text}`);
   }
 
   const data = await res.json();
   log.info(`Fetched ${data.value.length} emails from the last ${lookbackHours}h`);
+
+  // Log each email's metadata for debugging
+  for (const email of data.value) {
+    const from = email.from?.emailAddress?.address || 'unknown';
+    log.verbose(`  Email: "${email.subject}" from ${from} | isRead: ${email.isRead} | id: ${email.id.slice(0, 20)}...`);
+  }
+
   return data.value;
 }
 
 export async function markAsRead(accessToken, messageId) {
+  log.verbose(`PATCH /me/messages/${messageId.slice(0, 20)}... → isRead: true`);
+
   const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}`, {
     method: 'PATCH',
     headers: {
@@ -84,12 +101,16 @@ export async function markAsRead(accessToken, messageId) {
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`markAsRead response (${res.status}): ${text}`);
     throw new Error(`markAsRead failed (${res.status}): ${text}`);
   }
+
+  log.verbose(`markAsRead OK (${res.status})`);
 }
 
 export async function archiveEmail(accessToken, messageId) {
-  // Move to Archive folder. Graph uses the well-known folder name "archive".
+  log.verbose(`POST /me/messages/${messageId.slice(0, 20)}... /move → archive`);
+
   const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
     method: 'POST',
     headers: {
@@ -101,12 +122,16 @@ export async function archiveEmail(accessToken, messageId) {
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`archiveEmail response (${res.status}): ${text}`);
     throw new Error(`archiveEmail failed (${res.status}): ${text}`);
   }
+
+  log.verbose(`archiveEmail OK (${res.status})`);
 }
 
 export async function moveToTrash(accessToken, messageId) {
-  // Move to Deleted Items folder
+  log.verbose(`POST /me/messages/${messageId.slice(0, 20)}... /move → deleteditems`);
+
   const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
     method: 'POST',
     headers: {
@@ -118,6 +143,9 @@ export async function moveToTrash(accessToken, messageId) {
 
   if (!res.ok) {
     const text = await res.text();
+    log.verbose(`moveToTrash response (${res.status}): ${text}`);
     throw new Error(`moveToTrash failed (${res.status}): ${text}`);
   }
+
+  log.verbose(`moveToTrash OK (${res.status})`);
 }
