@@ -51,13 +51,14 @@ function buildTrendingPrompt(posts) {
     '- Cursiva: _texto_',
     '- NO uses ##, ###, ---, **, ```, ni ningún otro markdown estándar',
     '- Un bullet por post con el resumen',
+    '- NO repitas los links de los posts — esos ya se muestran arriba del resumen',
     '',
     'Máximo 1000 caracteres en total.',
     '',
   ];
 
   for (const p of posts) {
-    lines.push(`- [r/${p.subreddit}] "${p.title}" (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel})`);
+    lines.push(`- [r/${p.subreddit}] "${p.title}" (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel}) → ${p.url}`);
   }
 
   return lines.join('\n');

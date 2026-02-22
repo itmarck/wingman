@@ -17,12 +17,84 @@
       "url": "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
       "category": "finanzas",
       "active": true
+    },
+    {
+      "name": "NASA Artemis",
+      "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
+      "category": "ciencia / nasa",
+      "active": true
+    },
+    {
+      "name": "Ars Technica Science",
+      "url": "https://feeds.arstechnica.com/arstechnica/science",
+      "category": "ciencia",
+      "active": true
+    },
+    {
+      "name": "ECMAScript / TC39",
+      "url": "https://github.com/tc39/proposals/commits/main.atom",
+      "category": "javascript / web",
+      "active": true
+    },
+    {
+      "name": "OpenAI Blog",
+      "url": "https://openai.com/blog/rss.xml",
+      "category": "inteligencia artificial",
+      "active": true
+    },
+    {
+      "name": "Congreso del Perú",
+      "url": "https://comunicaciones.congreso.gob.pe/noticias/feed/",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "Presidencia del Perú",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=presidencia&contenido[]=normas",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "PCM Perú",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=pcm&contenido[]=normas",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "Poder Judicial",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=pj&contenido[]=normas",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "Tribunal Constitucional",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=tc&contenido[]=normas",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "SUNAT",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=sunat&contenido[]=normas",
+      "category": "perú oficial",
+      "active": true
+    },
+    {
+      "name": "Gob. Regional Lambayeque",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=regionlambayeque&contenido[]=normas",
+      "category": "perú local",
+      "active": true
+    },
+    {
+      "name": "Municipalidad de Chiclayo",
+      "url": "https://www.gob.pe/busquedas.rss?institucion[]=munichiclayo&contenido[]=normas",
+      "category": "perú local",
+      "active": true
     }
   ],
   "reddit": [
     {
       "subreddit": "PERU",
-      "limit": 16,
+      "limit": 25,
       "active": true
     },
     {
@@ -39,15 +111,51 @@
       "subreddit": "PreguntasReddit",
       "limit": 10,
       "active": true
+    },
+    {
+      "subreddit": "worldnews",
+      "limit": 10,
+      "active": true
+    },
+    {
+      "subreddit": "geopolitics",
+      "limit": 8,
+      "active": true
+    },
+    {
+      "subreddit": "science",
+      "limit": 8,
+      "active": true
+    },
+    {
+      "subreddit": "LocalLLaMA",
+      "limit": 8,
+      "active": true
+    },
+    {
+      "subreddit": "artificial",
+      "limit": 8,
+      "active": true
+    },
+    {
+      "subreddit": "investing",
+      "limit": 8,
+      "active": true
     }
   ],
   "interest_categories": [
-    "tecnología",
-    "inteligencia artificial",
+    "javascript y tecnologías web modernas (ECMAScript, Web APIs, browser features)",
+    "inteligencia artificial (modelos nuevos, herramientas, aplicaciones prácticas)",
+    "finanzas e inversiones (S&P 500, VOO, mercados globales)",
     "geopolítica mundial",
-    "política peruana",
-    "finanzas",
-    "criptomonedas",
-    "nasa"
-  ]
+    "perú oficial: leyes aprobadas, decretos supremos, resoluciones relevantes, compras estatales, decisiones del congreso/PCM/poder judicial/tribunal constitucional, normas tributarias de SUNAT — solo hechos con impacto real, no trámites administrativos rutinarios",
+    "perú local: decisiones del gobierno regional de Lambayeque y municipalidad de Chiclayo que afecten a ciudadanos (obras, ordenanzas, presupuesto, transporte)",
+    "ciencia (hallazgos en cualquier rama, descubrimientos históricos)",
+    "nasa (especialmente Artemis 2 y exploración espacial)",
+    "historia universal (descubrimientos arqueológicos, personajes históricos)"
+  ],
+  "watchlist": {
+    "description": "Financial instruments to track for buy/sell context",
+    "tickers": ["VOO"]
+  }
 }

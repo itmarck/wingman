@@ -96,11 +96,14 @@ Not worth my time:
 - **Sorteos, concursos, or promotions requiring extra steps** to participate → classification: `"noise"`, action: `"trash"`.
 - **All other promotional emails** → classification: `"noise"`, action: `"trash"`.
 
-My interests for filtering relevant promotions:
-- Tecnología (gadgets, hardware, software, gaming)
-- Inteligencia artificial (tools, APIs, courses)
-- Finanzas e inversiones
+My interests for filtering relevant promotions and software updates:
+- JavaScript y tecnologías web modernas (frameworks, runtime, herramientas de desarrollo)
+- Inteligencia artificial (modelos, herramientas, APIs, cursos)
+- Hardware y gadgets (audio, periféricos, componentes PC, gaming)
+- Finanzas e inversiones (plataformas, herramientas de análisis)
 - Libros y educación
+- Cloud services (AWS, Vercel, Cloudflare, etc.)
+- Productividad (Notion, VS Code, herramientas dev)
 
 ### Software updates (category: "software-update")
 
