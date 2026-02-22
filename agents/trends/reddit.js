@@ -7,7 +7,7 @@ export async function fetchReddit(subreddits) {
   const active = subreddits.filter((s) => s.active);
 
   if (active.length === 0) {
-    log.info('No active Reddit sources configured.');
+    log.info('No active Reddit sources configured');
     return [];
   }
 
@@ -16,8 +16,8 @@ export async function fetchReddit(subreddits) {
       const limit = sub.limit || 10;
       const url = `https://www.reddit.com/r/${sub.subreddit}/hot.json?limit=${limit}`;
 
-      log.info(`Fetching Reddit: r/${sub.subreddit}`);
-      log.data(`Reddit URL: ${url}`);
+      log.info(`Fetching Reddit: r/${sub.subreddit}`, 1);
+      log.verb(`Reddit URL: ${url}`, 1);
 
       const res = await fetch(url, {
         headers: {
@@ -33,7 +33,12 @@ export async function fetchReddit(subreddits) {
       const data = await res.json();
       const posts = data.data.children.filter((c) => !c.data.stickied);
 
-      log.ok(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
+      log.ok(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`, 1);
+
+      // Log each post as data
+      for (const c of posts) {
+        log.data(`r/${sub.subreddit}: "${c.data.title}" (score:${c.data.score} cmt:${c.data.num_comments})`, null, 2);
+      }
 
       return posts.map((c) => ({
         id: c.data.id,
@@ -53,7 +58,7 @@ export async function fetchReddit(subreddits) {
       items.push(...result.value);
     } else {
       log.error(`Reddit fetch failed: ${result.reason.message}`);
-      log.data(`Reddit error detail: ${result.reason.stack}`);
+      log.verb(`Reddit error detail: ${result.reason.stack}`, 1);
     }
   }
 

@@ -48,13 +48,18 @@ npm run test:slack                   # verify Slack webhook
 npm run test:claude                  # verify Claude CLI
 
 # Log viewer
-npm run log                          # today's full log (local time)
-npm run log -- oneline               # compact view
+npm run log                          # today's full log (no verb/data)
+npm run log -- oneline               # compact view (depth 00 only)
 npm run log -- ayer                  # yesterday's log
+npm run log -- verbose               # include verb (technical) lines
+npm run log -- data                  # include data (payload) lines
+npm run log -- all                   # include everything (verb + data)
+npm run log -- depth 0               # only top-level lines
+npm run log -- depth 1               # up to item-level detail
 npm run log -- urgente               # only urgent classifications
 npm run log -- noise                 # only noise
 npm run log -- mail                  # only email agent lines
-npm run log -- quiet                 # hide DATA lines
+npm run log -- summary               # show tick summaries (output.log)
 npm run log -- ayer oneline          # combinable
 
 # pm2 process management
@@ -143,29 +148,57 @@ This requires Claude Code to be installed and authenticated (`claude --version`)
 
 ### Logging
 
-Single daily log file at `logs/YYYY-MM-DD.log`. All modules write to the same file with symbol-prefixed lines:
+Two log outputs with distinct roles:
+
+**Daily log** (`logs/YYYY-MM-DD.log`) — detailed structured log with metadata-enriched format:
 
 ```
-━━━ 2026-02-22 00:43:00 Tick at 19:43:00 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-▸ 2026-02-22 00:43:00 [main] Evaluating agents...
-  2026-02-22 00:43:00 [mail] Filter: 3 new, 2 read in Outlook
-✓ 2026-02-22 00:43:01 [mail] Cycle complete: 5 fetched, 3 new
-· 2026-02-22 00:43:01 [clde] Classify prompt (1823 chars)...
-✓ 2026-02-22 00:43:05 [slck] POST OK (200)
-⚠ 2026-02-22 00:43:06 [trnd] RSS feed timeout
-✗ 2026-02-22 00:43:07 [mail] Token refresh failed (401)
+SYMBOL TIMESTAMP [TAG ] LEVEL DD | MESSAGE
 ```
 
-Log levels (symbol → meaning):
-- `━` TICK — separator bar between scheduler ticks (terminal + file)
-- `▸` HEAD — section headers, easy to scan (terminal + file)
-- ` ` INFO — details, contextual information (terminal + file)
-- `✓` OK — success confirmations (terminal + file)
-- `⚠` WARN — warnings (terminal + file)
-- `✗` ERROR — errors (terminal + file)
-- `·` DATA — structured/verbose data: API responses, prompts, payloads (file only)
+Example:
+```
+━━━ 2026-02-22 16:10:21 Tick at 11:10:21 a. m. ━━━━━━━━━━━━━━━━━━━━━━
+▸ 2026-02-22 16:10:21 [mail] head 00 | Email cycle (lookback: 1h)
+✓ 2026-02-22 16:10:22 [mail] ok   00 | Fetched 5 emails from the last 1h
+  2026-02-22 16:10:22 [mail] info 01 |   "Invoice #12345" from Stripe -- important [archive]
+  2026-02-22 16:10:22 [mail] info 01 |   "Login alert" from Google -- informational [read]
+· 2026-02-22 16:10:23 [clde] data 00 | Classification result:
+· 2026-02-22 16:10:23 [clde] data 01 |   {
+· 2026-02-22 16:10:23 [clde] data 01 |     "classification": "important",
+· 2026-02-22 16:10:23 [clde] data 01 |     "email_action": "archive"
+· 2026-02-22 16:10:23 [clde] data 01 |   }
+· 2026-02-22 16:10:23 [mail] verb 00 | Token refresh OK — expires_in: 3599s
+✓ 2026-02-22 16:10:23 [mail] ok   00 | Cycle done: 5 fetched, 3 new — 1 imp, 1 info, 1 noise
+```
 
-Tags are 4-char fixed width, lowercase. Terminal shows colored output with chalk; file stores plain text with same symbols.
+**Tick summary** (`logs/output.log`) — one line per scheduler tick, written by main.js (not pm2):
+
+```
+2026-02-22 11:15:00 Tick — nothing to run
+2026-02-22 11:20:00 Tick — email: 3 new (1 imp, 1 info, 1 noise), trending: 0 found
+2026-02-22 11:35:00 Tick — digest: posted (30 RSS + 41 Reddit)
+```
+
+Log levels (symbol → label → output):
+- `━` `tick` — separator bar between scheduler ticks (terminal + file)
+- `▸` `head` — section headers, agent starts (terminal + file)
+- ` ` `info` — details, contextual information (terminal + file)
+- `✓` `ok  ` — success confirmations (terminal + file)
+- `⚠` `warn` — warnings (terminal + file)
+- `✗` `err ` — errors (terminal + file)
+- `·` `verb` — technical internals: URLs, token refresh, prompts, stack traces (file only)
+- `·` `data` — concrete payloads: API responses, email lists, JSON classifications (file only)
+
+Depth (`DD`): `00` = top-level actions, `01` = individual items (emails, posts, JSON lines), `02` = sub-details.
+
+Tags are 4-char fixed width, lowercase. Terminal shows colored output with chalk; file stores plain text with metadata.
+
+Filtering examples:
+- `grep "\[mail\] .* 00"` — only top-level mail summaries
+- `grep "info 01"` — only item-level lists
+- `grep "\[clde\] data"` — only Claude response data
+- `grep "verb"` — only technical details
 
 Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`
 

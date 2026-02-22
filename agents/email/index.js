@@ -68,18 +68,18 @@ async function executeAction(accessToken, emailId, action) {
 }
 
 export async function runEmailAgent() {
-  log.head(`Starting email cycle (lookback: ${LOOKBACK_HOURS}h)`);
+  log.head(`Email cycle (lookback: ${LOOKBACK_HOURS}h)`);
 
   const accessToken = await getAccessToken();
   const emails = await fetchEmails(accessToken, LOOKBACK_HOURS);
 
   if (emails.length === 0) {
-    log.info('No emails in lookback window.');
-    return;
+    log.info('No emails in lookback window');
+    return { summary: 'email: 0 new' };
   }
 
   const seen = await loadSeen();
-  log.data(`Seen state loaded: ${seen.size} IDs tracked`);
+  log.verb(`Seen state loaded: ${seen.size} IDs tracked`);
 
   let skippedRead = 0;
   let skippedSeen = 0;
@@ -91,7 +91,7 @@ export async function runEmailAgent() {
     if (e.isRead) {
       seen.add(e.id);
       skippedRead++;
-      log.data(`Skipped (already read in Outlook): "${e.subject}"`);
+      log.verb(`Skipped (already read in Outlook): "${e.subject}"`, 1);
       return false;
     }
     return true;
@@ -100,12 +100,10 @@ export async function runEmailAgent() {
   log.info(`Filter: ${unseen.length} new, ${skippedRead} read in Outlook, ${skippedSeen} already processed`);
 
   if (unseen.length === 0) {
-    log.info(`All ${emails.length} emails already read or processed. Nothing to do.`);
+    log.info('All emails already read or processed');
     await saveSeen(seen);
-    return;
+    return { summary: 'email: 0 new' };
   }
-
-  log.info(`${unseen.length} new unread emails to classify (${emails.length - unseen.length} skipped)`);
 
   const profile = await loadProfile();
   const classified = [];
@@ -115,15 +113,16 @@ export async function runEmailAgent() {
     try {
       const from = email.from?.emailAddress?.address || 'unknown';
       const fromName = email.from?.emailAddress?.name || from;
-      log.info(`Classifying: "${email.subject}" from ${from}`);
 
       const result = await classify(buildPrompt(profile, email));
       seen.add(email.id);
       counts[result.classification]++;
       classified.push({ email, classification: result });
 
-      log.info(`  → ${result.classification} [${result.email_action || 'none'}] "${email.subject}" — ${fromName}: ${result.summary}`);
-      log.data(`  Full classification: ${JSON.stringify(result)}`);
+      // Visible one-liner per email with classification result
+      log.info(`"${email.subject}" from ${fromName} -- ${result.classification} [${result.email_action || 'none'}]`, 1);
+      // Full classification JSON as data
+      log.data(`Classification for "${email.subject}":`, result, 1);
     } catch (err) {
       counts.error++;
       seen.add(email.id);
@@ -137,7 +136,7 @@ export async function runEmailAgent() {
 
     try {
       await executeAction(accessToken, email.id, action);
-      log.ok(`  Action "${action}" on: "${email.subject}"`);
+      log.ok(`Action "${action}" on: "${email.subject}"`, 1);
     } catch (err) {
       log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
     }
@@ -167,7 +166,7 @@ export async function runEmailAgent() {
       try {
         const webhook = group.classification === 'urgent' ? WEBHOOK_IMPORTANT : WEBHOOK_DIGEST;
         const payload = formatEmailGroup(group, timeAgo);
-        log.data(`Sending group "${key}" (${group.items.length} emails) to ${group.classification === 'urgent' ? '#email-important' : '#email-digest'}`);
+        log.verb(`Sending group "${key}" (${group.items.length} emails) to ${group.classification === 'urgent' ? '#email-important' : '#email-digest'}`, 1);
         await sendSlack(webhook, payload);
       } catch (err) {
         log.error(`Failed to send Slack notification: ${err.message}`);
@@ -178,33 +177,35 @@ export async function runEmailAgent() {
   await saveSeen(seen);
 
   const parts = [];
-  if (counts.urgent > 0) parts.push(`${counts.urgent} urgent`);
-  if (counts.important > 0) parts.push(`${counts.important} important`);
+  if (counts.urgent > 0) parts.push(`${counts.urgent} urg`);
+  if (counts.important > 0) parts.push(`${counts.important} imp`);
   if (counts.informational > 0) parts.push(`${counts.informational} info`);
   if (counts.noise > 0) parts.push(`${counts.noise} noise`);
-  if (counts.error > 0) parts.push(`${counts.error} errors`);
+  if (counts.error > 0) parts.push(`${counts.error} err`);
 
-  const summary = `Cycle complete: ${emails.length} fetched, ${unseen.length} new — ${parts.join(', ')}`;
-  log.ok(summary);
+  const summaryText = `email: ${unseen.length} new (${parts.join(', ')})`;
+  log.ok(`Cycle done: ${emails.length} fetched, ${unseen.length} new — ${parts.join(', ')}`);
 
   if (unseen.length > 0) {
     try {
-      await sendSlack(WEBHOOK_LOGS, `[email-agent] ${summary}`);
+      await sendSlack(WEBHOOK_LOGS, `[email-agent] ${summaryText}`);
     } catch {
       // Don't fail the cycle over a log notification
     }
   }
+
+  return { summary: summaryText };
 }
 
 export async function runEmailCatchup() {
-  log.head('Starting catch-up scan (all unread today, inbox + junk)');
+  log.head('Catch-up scan (all unread today, inbox + junk)');
 
   const accessToken = await getAccessToken();
   const emails = await fetchUnreadToday(accessToken, { includeJunk: true });
 
   if (emails.length === 0) {
     log.info('No unread emails today. All caught up!');
-    return;
+    return { summary: 'catchup: 0 unread' };
   }
 
   const seen = await loadSeen();
@@ -216,8 +217,8 @@ export async function runEmailCatchup() {
   log.info(`Catch-up: ${unseen.length} unprocessed (${inboxCount} inbox, ${junkCount} junk), ${emails.length - unseen.length} already processed`);
 
   if (unseen.length === 0) {
-    log.info('All unread emails already processed. Nothing to do.');
-    return;
+    log.info('All unread emails already processed');
+    return { summary: 'catchup: 0 unprocessed' };
   }
 
   const profile = await loadProfile();
@@ -229,23 +230,22 @@ export async function runEmailCatchup() {
       const from = email.from?.emailAddress?.address || 'unknown';
       const fromName = email.from?.emailAddress?.name || from;
       const folderTag = email._folder === 'junk' ? ' [JUNK]' : '';
-      log.info(`Classifying${folderTag}: "${email.subject}" from ${from}`);
 
       const result = await classify(buildPrompt(profile, email));
       seen.add(email.id);
       counts[result.classification]++;
       classified.push({ email, classification: result });
 
-      log.info(`  → ${result.classification} [${result.email_action || 'none'}]${folderTag} "${email.subject}" — ${fromName}: ${result.summary}`);
-      log.data(`  Full classification: ${JSON.stringify(result)}`);
+      log.info(`"${email.subject}" from ${fromName}${folderTag} -- ${result.classification} [${result.email_action || 'none'}]`, 1);
+      log.data(`Classification for "${email.subject}":`, result, 1);
 
       // Rescue: if a junk email is not noise, move it to inbox
       if (email._folder === 'junk' && result.classification !== 'noise') {
         try {
           await moveToInbox(accessToken, email.id);
-          log.ok(`  📬 Rescued from junk: "${email.subject}"`);
+          log.ok(`Rescued from junk: "${email.subject}"`, 1);
         } catch (err) {
-          log.error(`  Failed to rescue from junk: ${err.message}`);
+          log.error(`Failed to rescue from junk: ${err.message}`);
         }
       }
     } catch (err) {
@@ -262,7 +262,7 @@ export async function runEmailCatchup() {
 
     try {
       await executeAction(accessToken, email.id, action);
-      log.ok(`  Action "${action}" on: "${email.subject}"`);
+      log.ok(`Action "${action}" on: "${email.subject}"`, 1);
     } catch (err) {
       log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
     }
@@ -302,22 +302,24 @@ export async function runEmailCatchup() {
   await saveSeen(seen);
 
   const parts = [];
-  if (counts.urgent > 0) parts.push(`${counts.urgent} urgent`);
-  if (counts.important > 0) parts.push(`${counts.important} important`);
+  if (counts.urgent > 0) parts.push(`${counts.urgent} urg`);
+  if (counts.important > 0) parts.push(`${counts.important} imp`);
   if (counts.informational > 0) parts.push(`${counts.informational} info`);
   if (counts.noise > 0) parts.push(`${counts.noise} noise`);
-  if (counts.error > 0) parts.push(`${counts.error} errors`);
+  if (counts.error > 0) parts.push(`${counts.error} err`);
   const rescued = classified.filter((c) => c.email._folder === 'junk' && c.classification.classification !== 'noise').length;
-  if (rescued > 0) parts.push(`${rescued} rescued from junk`);
+  if (rescued > 0) parts.push(`${rescued} rescued`);
 
-  const summary = `Catch-up complete: ${unseen.length} processed — ${parts.join(', ')}`;
-  log.ok(summary);
+  const summaryText = `catchup: ${unseen.length} processed (${parts.join(', ')})`;
+  log.ok(`Catch-up done: ${unseen.length} processed — ${parts.join(', ')}`);
 
   try {
-    await sendSlack(WEBHOOK_LOGS, `[catch-up] ${summary}`);
+    await sendSlack(WEBHOOK_LOGS, `[catch-up] ${summaryText}`);
   } catch {
     // Don't fail over a log notification
   }
+
+  return { summary: summaryText };
 }
 
 // Direct execution: npm run dev:email

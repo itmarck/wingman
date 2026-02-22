@@ -55,7 +55,7 @@ function buildPrompt(rssItems, redditItems, categories) {
 }
 
 export async function runTrendsDigest() {
-  log.head('Starting trends cycle');
+  log.head('Trends digest cycle');
 
   const sources = await loadSources();
 
@@ -67,28 +67,30 @@ export async function runTrendsDigest() {
   const totalItems = rssItems.length + redditItems.length;
 
   if (totalItems === 0) {
-    log.info('No items fetched from any source. Skipping digest.');
-    return;
+    log.info('No items fetched from any source. Skipping digest');
+    return { summary: 'digest: no items' };
   }
 
-  log.info(`Total items: ${rssItems.length} RSS + ${redditItems.length} Reddit = ${totalItems}. Generating digest...`);
+  log.info(`Total items: ${rssItems.length} RSS + ${redditItems.length} Reddit = ${totalItems}`);
 
   const prompt = buildPrompt(rssItems, redditItems, sources.interest_categories || []);
-  log.info(`Prompt built (${prompt.length} chars). Calling Claude...`);
+  log.info(`Calling Claude (${prompt.length} chars)...`);
 
   const digest = await summarize(prompt);
   log.info(`Digest generated (${digest.length} chars). Posting to Slack...`);
 
   await sendSlack(WEBHOOK_NEWS, formatTrendsDigest(digest));
 
-  const summary = `Cycle complete: ${rssItems.length} RSS + ${redditItems.length} Reddit → digest posted`;
-  log.ok(summary);
+  const summaryText = `digest: posted (${rssItems.length} RSS + ${redditItems.length} Reddit)`;
+  log.ok(`Cycle done: ${rssItems.length} RSS + ${redditItems.length} Reddit → digest posted`);
 
   try {
-    await sendSlack(WEBHOOK_LOGS, `[trends-agent] ${summary}`);
+    await sendSlack(WEBHOOK_LOGS, `[trends-agent] ${summaryText}`);
   } catch {
     // Don't fail the cycle over a log notification
   }
+
+  return { summary: summaryText };
 }
 
 // Direct execution: npm run dev:trends

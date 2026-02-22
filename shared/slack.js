@@ -13,8 +13,8 @@ export async function sendSlack(webhookUrl, payload) {
   const bodyStr = JSON.stringify(body);
 
   log.info(`POST (${bodyStr.length} chars)`);
-  log.data(`POST → ${webhookUrl.slice(0, 50)}...`);
-  log.data(`Payload: ${bodyStr}`);
+  log.verb(`POST → ${webhookUrl.slice(0, 50)}...`);
+  log.verb(`Payload: ${bodyStr}`, 1);
 
   const res = await fetch(webhookUrl, {
     method: 'POST',

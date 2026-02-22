@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { createLogger } from './shared/logger.js';
+import { createLogger, flushLogs } from './shared/logger.js';
 
 const log = createLogger('main');
 
@@ -95,53 +95,64 @@ async function main() {
 
   if (plan.length === 0) {
     log.info('Nothing to run this tick');
+    log.summary('Tick — nothing to run');
     return;
   }
 
   log.info(`Agents: ${plan.join(', ')}${forceAll ? ' (forced)' : ''}`);
+
+  const summaryParts = [];
 
   for (const agent of plan) {
     try {
       switch (agent) {
         case 'email': {
           const { runEmailAgent } = await import('./agents/email/index.js');
-          await runEmailAgent();
+          const result = await runEmailAgent();
           state.lastEmailTick = now.toISOString();
+          summaryParts.push(result?.summary || 'email: done');
           break;
         }
         case 'catchup': {
           const { runEmailCatchup } = await import('./agents/email/index.js');
-          await runEmailCatchup();
+          const result = await runEmailCatchup();
           state.lastEmailTick = now.toISOString();
           state.lastCatchup = now.toISOString().slice(0, 10);
+          summaryParts.push(result?.summary || 'catchup: done');
           break;
         }
         case 'digest': {
           const { runTrendsDigest } = await import('./agents/trends/index.js');
-          await runTrendsDigest();
+          const result = await runTrendsDigest();
           state.lastDigest = now.toISOString().slice(0, 10);
+          summaryParts.push(result?.summary || 'digest: done');
           break;
         }
         case 'trending': {
           const { runRedditTrending } = await import('./agents/trends/trending.js');
-          await runRedditTrending();
+          const result = await runRedditTrending();
           state.lastRedditTrending = now.toISOString();
+          summaryParts.push(result?.summary || 'trending: done');
           break;
         }
       }
     } catch (err) {
       log.error(`Agent "${agent}" failed: ${err.message}`);
-      log.data(`Agent "${agent}" stack: ${err.stack}`);
+      log.verb(`Agent "${agent}" stack: ${err.stack}`);
+      summaryParts.push(`${agent}: FAILED`);
     }
   }
 
   await saveState(state);
   log.ok(`Tick complete — ran: ${plan.join(', ')}`);
+  log.summary(`Tick — ${summaryParts.join(', ')}`);
 }
 
 main()
+  .then(() => flushLogs())
   .then(() => process.exit(0))
-  .catch((err) => {
+  .catch(async (err) => {
     log.error(`Scheduler fatal error: ${err.message}`);
+    await flushLogs();
     process.exit(1);
   });

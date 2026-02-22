@@ -6,16 +6,20 @@ const log = createLogger('clde');
 const TIMEOUT_MS = 120_000;
 
 export async function classify(prompt) {
-  log.data(`Classify prompt (${prompt.length} chars):\n${prompt.slice(0, 500)}...`);
+  log.verb(`Classify prompt (${prompt.length} chars):`);
+  log.verb(prompt.slice(0, 500) + '...', 1);
   const output = await runClaude(prompt);
-  log.data(`Classify raw response:\n${output}`);
-  return parseJSON(output);
+  const parsed = parseJSON(output);
+  log.data('Classification result:', parsed);
+  return parsed;
 }
 
 export async function summarize(prompt) {
-  log.data(`Summarize prompt (${prompt.length} chars):\n${prompt.slice(0, 500)}...`);
+  log.verb(`Summarize prompt (${prompt.length} chars):`);
+  log.verb(prompt.slice(0, 500) + '...', 1);
   const output = await runClaude(prompt);
-  log.data(`Summarize raw response (${output.length} chars):\n${output.slice(0, 500)}...`);
+  log.data(`Summarize response (${output.length} chars):`);
+  log.data(output.slice(0, 500) + (output.length > 500 ? '...' : ''), 1);
   return output;
 }
 
@@ -40,7 +44,7 @@ function runClaude(prompt) {
     proc.on('close', (code) => {
       clearTimeout(timer);
       if (stderr.trim()) {
-        log.data(`Claude CLI stderr: ${stderr.trim()}`);
+        log.verb(`Claude CLI stderr: ${stderr.trim()}`);
       }
       if (code !== 0) {
         reject(new Error(`Claude CLI exited with code ${code}: ${stderr.trim()}`));
@@ -73,7 +77,7 @@ function parseJSON(text) {
     return parsed;
   } catch (err) {
     log.error(`Failed to parse Claude response as JSON: ${err.message}`);
-    log.data(`Raw output: ${text.slice(0, 500)}`);
+    log.verb(`Raw output: ${text.slice(0, 500)}`);
     throw err;
   }
 }

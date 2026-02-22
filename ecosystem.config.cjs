@@ -14,9 +14,9 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
       },
-      out_file: './logs/output.log',
+      // pm2 stdout/stderr disabled — we write our own summary to logs/output.log
+      out_file: 'NULL',
       error_file: './logs/error.log',
-      log_date_format: 'YYYY-MM-DD HH:mm:ss',
       max_memory_restart: '200M',
     },
   ],

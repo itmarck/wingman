@@ -64,21 +64,21 @@ function buildTrendingPrompt(posts) {
 }
 
 export async function runRedditTrending() {
-  log.head(`Starting Reddit trending scan (threshold: ${THRESHOLD})`);
+  log.head(`Reddit trending scan (threshold: ${THRESHOLD})`);
 
   const sources = await loadSources();
   const redditSources = sources.reddit || [];
 
   if (redditSources.filter((s) => s.active).length === 0) {
-    log.info('No active Reddit sources. Skipping trending scan.');
-    return;
+    log.info('No active Reddit sources. Skipping trending scan');
+    return { summary: 'trending: no sources' };
   }
 
   const posts = await fetchReddit(redditSources);
 
   if (posts.length === 0) {
-    log.info('No Reddit posts fetched. Skipping trending scan.');
-    return;
+    log.info('No Reddit posts fetched. Skipping trending scan');
+    return { summary: 'trending: no posts' };
   }
 
   const state = await loadState();
@@ -104,15 +104,16 @@ export async function runRedditTrending() {
     .filter((p) => p.trendingScore >= THRESHOLD)
     .sort((a, b) => b.trendingScore - a.trendingScore);
 
-  log.info(`Trending scan: ${posts.length} posts evaluated, ${scored.length} above threshold (${THRESHOLD})`);
+  log.info(`Trending scan: ${posts.length} evaluated, ${scored.length} above threshold (${THRESHOLD})`);
 
   if (scored.length > 0) {
+    // Log each trending post as data with scores
     for (const p of scored) {
-      log.info(`  🔥 r/${p.subreddit}: "${p.title}" (score: ${p.score}, comments: ${p.num_comments}, trending: ${Math.round(p.trendingScore)}, age: ${p.ageLabel})`);
+      log.data(`r/${p.subreddit}: "${p.title}" -- score:${p.score} cmt:${p.num_comments} trend:${Math.round(p.trendingScore)} age:${p.ageLabel}`, null, 1);
     }
 
     const prompt = buildTrendingPrompt(scored);
-    log.info(`Prompt built (${prompt.length} chars). Calling Claude for trending summary...`);
+    log.info(`Calling Claude (${prompt.length} chars) for trending summary...`);
 
     const summary = await summarize(prompt);
     log.info(`Trending summary generated (${summary.length} chars). Posting to Slack...`);
@@ -129,18 +130,21 @@ export async function runRedditTrending() {
     state.notified = notifiedArr.slice(-MAX_NOTIFIED);
     await saveState(state);
 
-    const logMsg = `Trending: ${scored.length} posts notified`;
-    log.ok(logMsg);
+    const summaryText = `trending: ${scored.length} notified`;
+    log.ok(summaryText);
 
     try {
-      await sendSlack(WEBHOOK_LOGS, `[trending] ${logMsg}`);
+      await sendSlack(WEBHOOK_LOGS, `[trending] ${summaryText}`);
     } catch {
       // Don't fail over a log notification
     }
+
+    return { summary: summaryText };
   } else {
-    log.info('No trending posts found this cycle.');
+    log.info('No trending posts found this cycle');
     state.notified = [...notifiedSet];
     await saveState(state);
+    return { summary: 'trending: 0 found' };
   }
 }
 
