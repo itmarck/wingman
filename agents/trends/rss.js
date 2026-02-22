@@ -14,13 +14,14 @@ export async function fetchRSS(sources) {
 
   const results = await Promise.allSettled(
     active.map(async (source) => {
-      log.info(`Fetching RSS: ${source.name}`);
+      log.info(`Fetching RSS: ${source.name} (${source.category})`);
       log.verbose(`RSS URL: ${source.url}`);
 
       const feed = await parser.parseURL(source.url);
-      log.verbose(`RSS "${source.name}" returned ${feed.items.length} items`);
+      const sliced = feed.items.slice(0, 10);
+      log.info(`RSS "${source.name}": ${feed.items.length} items, using top ${sliced.length}`);
 
-      return feed.items.slice(0, 10).map((item) => ({
+      return sliced.map((item) => ({
         title: item.title || '(untitled)',
         link: item.link || '',
         snippet: item.contentSnippet?.slice(0, 200) || '',

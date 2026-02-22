@@ -68,7 +68,7 @@ async function executeAction(accessToken, emailId, action) {
 }
 
 async function main() {
-  log.info('Starting email cycle...');
+  log.info(`Starting email cycle (lookback: ${LOOKBACK_HOURS}h)...`);
 
   const accessToken = await getAccessToken();
   const emails = await fetchEmails(accessToken, LOOKBACK_HOURS);
@@ -97,7 +97,7 @@ async function main() {
     return true;
   });
 
-  log.verbose(`Filter: ${unseen.length} to classify, ${skippedRead} read in Outlook, ${skippedSeen} already processed`);
+  log.info(`Filter: ${unseen.length} new, ${skippedRead} read in Outlook, ${skippedSeen} already processed`);
 
   if (unseen.length === 0) {
     log.info(`All ${emails.length} emails already read or processed. Nothing to do.`);
@@ -144,7 +144,7 @@ async function main() {
   }
 
   const slackWorthy = classified.filter((c) => c.classification.classification !== 'noise');
-  log.verbose(`Slack-worthy: ${slackWorthy.length} (${classified.length - slackWorthy.length} noise filtered)`);
+  log.info(`Slack: ${slackWorthy.length} to notify, ${classified.length - slackWorthy.length} noise filtered`);
 
   if (slackWorthy.length > 0) {
     const groups = new Map();
@@ -161,7 +161,7 @@ async function main() {
       groups.get(key).items.push(item);
     }
 
-    log.verbose(`Grouped into ${groups.size} Slack messages`);
+    log.info(`Grouped into ${groups.size} Slack messages`);
 
     for (const [key, group] of groups) {
       try {

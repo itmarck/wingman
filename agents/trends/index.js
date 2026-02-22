@@ -21,10 +21,16 @@ function buildPrompt(rssItems, redditItems, categories) {
     'Eres mi curador personal de noticias. Resume los items más interesantes e importantes en un resumen matutino conciso.',
     'IMPORTANTE: Escribe todo el resumen en español. Usa inglés solo para nombres propios, marcas y términos técnicos sin equivalente natural en español.',
     `Enfócate en estas categorías de interés: ${categories.join(', ')}.`,
-    'Formato: markdown compatible con Slack, con secciones y bullet points.',
-    'Máximo 2000 caracteres. Prioriza calidad sobre cantidad — omite lo que no aporte valor.',
     '',
-    '---',
+    'FORMATO — usa Slack mrkdwn (NO markdown estándar):',
+    '- Negrita: *texto* (un solo asterisco)',
+    '- Cursiva: _texto_',
+    '- Bullet points: • o -',
+    '- Emojis para encabezados de sección (ej: 🤖 *IA & Tecnología*)',
+    '- NO uses ##, ###, ---, **, ```, ni ningún otro markdown estándar',
+    '- Separa secciones con una línea vacía',
+    '',
+    'Máximo 2000 caracteres. Prioriza calidad sobre cantidad — omite lo que no aporte valor.',
     '',
   ];
 
@@ -65,10 +71,13 @@ async function main() {
     return;
   }
 
-  log.info(`Total items collected: ${totalItems}. Generating digest...`);
+  log.info(`Total items: ${rssItems.length} RSS + ${redditItems.length} Reddit = ${totalItems}. Generating digest...`);
 
   const prompt = buildPrompt(rssItems, redditItems, sources.interest_categories || []);
+  log.info(`Prompt built (${prompt.length} chars). Calling Claude...`);
+
   const digest = await summarize(prompt);
+  log.info(`Digest generated (${digest.length} chars). Posting to Slack...`);
 
   await sendSlack(WEBHOOK_NEWS, formatTrendsDigest(digest));
 

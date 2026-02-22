@@ -1,7 +1,7 @@
 import { createLogger } from '../../shared/logger.js';
 
 const log = createLogger('trends');
-const USER_AGENT = 'wingman/1.0';
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 export async function fetchReddit(subreddits) {
   const active = subreddits.filter((s) => s.active);
@@ -20,7 +20,10 @@ export async function fetchReddit(subreddits) {
       log.verbose(`Reddit URL: ${url}`);
 
       const res = await fetch(url, {
-        headers: { 'User-Agent': USER_AGENT },
+        headers: {
+          'User-Agent': USER_AGENT,
+          Accept: 'application/json',
+        },
       });
 
       if (!res.ok) {
@@ -30,7 +33,7 @@ export async function fetchReddit(subreddits) {
       const data = await res.json();
       const posts = data.data.children.filter((c) => !c.data.stickied);
 
-      log.verbose(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
+      log.info(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
 
       return posts.map((c) => ({
         title: c.data.title,

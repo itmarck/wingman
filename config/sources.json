@@ -1,23 +1,53 @@
 {
   "rss": [
     {
-      "name": "Example — add your sources here",
-      "url": "https://example.com/rss",
-      "category": "technology",
-      "active": false
+      "name": "Hacker News",
+      "url": "https://hnrss.org/frontpage",
+      "category": "tecnología",
+      "active": true
+    },
+    {
+      "name": "The Verge",
+      "url": "https://www.theverge.com/rss/index.xml",
+      "category": "tecnología",
+      "active": true
+    },
+    {
+      "name": "Market Watch",
+      "url": "https://feeds.content.dowjones.io/public/rss/mw_realtimeheadlines",
+      "category": "finanzas",
+      "active": true
     }
   ],
   "reddit": [
     {
+      "subreddit": "PERU",
+      "limit": 16,
+      "active": true
+    },
+    {
       "subreddit": "programming",
       "limit": 10,
-      "active": false
+      "active": true
+    },
+    {
+      "subreddit": "javascript",
+      "limit": 10,
+      "active": true
+    },
+    {
+      "subreddit": "PreguntasReddit",
+      "limit": 10,
+      "active": true
     }
   ],
   "interest_categories": [
-    "technology",
-    "startups",
-    "ai",
-    "finance"
+    "tecnología",
+    "inteligencia artificial",
+    "geopolítica mundial",
+    "política peruana",
+    "finanzas",
+    "criptomonedas",
+    "nasa"
   ]
 }

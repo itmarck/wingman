@@ -12,7 +12,8 @@ export async function sendSlack(webhookUrl, payload) {
   const body = typeof payload === 'string' ? { text: payload } : payload;
   const bodyStr = JSON.stringify(body);
 
-  log.verbose(`Slack POST → ${webhookUrl.slice(0, 50)}... (${bodyStr.length} chars)`);
+  log.info(`Slack POST (${bodyStr.length} chars)`);
+  log.verbose(`Slack POST → ${webhookUrl.slice(0, 50)}...`);
   log.verbose(`Slack payload: ${bodyStr}`);
 
   const res = await fetch(webhookUrl, {
@@ -23,11 +24,11 @@ export async function sendSlack(webhookUrl, payload) {
 
   if (!res.ok) {
     const text = await res.text();
-    log.verbose(`Slack response (${res.status}): ${text}`);
+    log.error(`Slack POST failed (${res.status}): ${text}`);
     throw new Error(`Slack webhook failed (${res.status}): ${text}`);
   }
 
-  log.verbose(`Slack POST OK (${res.status})`);
+  log.info(`Slack POST OK (${res.status})`);
 }
 
 const LEVEL_EMOJI = {
@@ -109,18 +110,34 @@ function formatGroupedEmails(items, emoji, label, group, timeAgo) {
 }
 
 export function formatTrendsDigest(digestText) {
-  return {
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: '📰 Resumen del día' },
-      },
-      {
-        type: 'section',
-        text: { type: 'mrkdwn', text: digestText },
-      },
-    ],
-  };
+  // Slack sections have a 3000 char limit — split if needed
+  const blocks = [
+    {
+      type: 'section',
+      text: { type: 'mrkdwn', text: '📰 *Resumen del día*' },
+    },
+    { type: 'divider' },
+  ];
+
+  // Split on double newlines to respect section boundaries
+  if (digestText.length <= 2900) {
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: digestText } });
+  } else {
+    const parts = digestText.split(/\n\n/);
+    let chunk = '';
+    for (const part of parts) {
+      if (chunk.length + part.length + 2 > 2900) {
+        blocks.push({ type: 'section', text: { type: 'mrkdwn', text: chunk.trim() } });
+        chunk = '';
+      }
+      chunk += (chunk ? '\n\n' : '') + part;
+    }
+    if (chunk.trim()) {
+      blocks.push({ type: 'section', text: { type: 'mrkdwn', text: chunk.trim() } });
+    }
+  }
+
+  return { blocks };
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
