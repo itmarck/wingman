@@ -88,10 +88,8 @@ export async function fetchEmails(accessToken, lookbackHours = 1) {
   return data.value;
 }
 
-export async function fetchUnreadToday(accessToken, { includeJunk = false } = {}) {
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const since = todayStart.toISOString();
+export async function fetchUnreadRecent(accessToken, { includeJunk = false, lookbackDays = 2 } = {}) {
+  const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
 
   const folders = [{ name: 'inbox', path: '/me/mailFolders/inbox/messages' }];
   if (includeJunk) {
@@ -130,7 +128,7 @@ export async function fetchUnreadToday(accessToken, { includeJunk = false } = {}
     const tagged = data.value.map((e) => ({ ...e, _folder: folder.name }));
     allEmails.push(...tagged);
 
-    log.info(`Fetched ${data.value.length} unread emails from ${folder.name} (today)`);
+    log.info(`Fetched ${data.value.length} unread emails from ${folder.name} (last ${lookbackDays}d)`);
 
     for (const email of data.value) {
       const from = email.from?.emailAddress?.address || 'unknown';
@@ -258,4 +256,89 @@ export async function moveToTrash(accessToken, messageId) {
   }
 
   log.verb(`moveToTrash OK (${res.status})`);
+}
+
+// Cache resolved folder IDs to avoid repeated lookups within a cycle
+const folderIdCache = new Map();
+
+/**
+ * Resolve a folder by displayName, creating it if it doesn't exist.
+ * Results are cached for the duration of the process.
+ */
+async function resolveOrCreateFolder(accessToken, folderName) {
+  if (folderIdCache.has(folderName)) {
+    return folderIdCache.get(folderName);
+  }
+
+  // List all top-level folders
+  const listUrl = `${GRAPH_URL}/me/mailFolders?$select=id,displayName&$top=100`;
+  log.verb(`Resolving folder "${folderName}": GET ${listUrl}`);
+
+  const listRes = await fetch(listUrl, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!listRes.ok) {
+    throw new Error(`Failed to list mail folders (${listRes.status})`);
+  }
+
+  const listData = await listRes.json();
+  const existing = listData.value.find(
+    (f) => f.displayName.toLowerCase() === folderName.toLowerCase()
+  );
+
+  if (existing) {
+    log.verb(`Found folder "${folderName}" → ${existing.id.slice(0, 20)}...`);
+    folderIdCache.set(folderName, existing.id);
+    return existing.id;
+  }
+
+  // Create the folder
+  log.info(`Creating mail folder "${folderName}"...`);
+  const createRes = await fetch(`${GRAPH_URL}/me/mailFolders`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ displayName: folderName }),
+  });
+
+  if (!createRes.ok) {
+    const text = await createRes.text();
+    log.verb(`createFolder response (${createRes.status}): ${text}`);
+    throw new Error(`Failed to create folder "${folderName}" (${createRes.status})`);
+  }
+
+  const created = await createRes.json();
+  log.ok(`Created folder "${folderName}" → ${created.id.slice(0, 20)}...`);
+  folderIdCache.set(folderName, created.id);
+  return created.id;
+}
+
+/**
+ * Move an email to a named folder (creates folder if needed).
+ * Used for: Tickets, Orders, Investments, or any custom folder.
+ */
+export async function moveToFolder(accessToken, messageId, folderName) {
+  const folderId = await resolveOrCreateFolder(accessToken, folderName);
+
+  log.verb(`POST /me/messages/${messageId.slice(0, 20)}... /move → "${folderName}"`);
+
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}/move`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ destinationId: folderId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    log.verb(`moveToFolder response (${res.status}): ${text}`);
+    throw new Error(`moveToFolder "${folderName}" failed (${res.status}): ${text}`);
+  }
+
+  log.verb(`moveToFolder "${folderName}" OK (${res.status})`);
 }

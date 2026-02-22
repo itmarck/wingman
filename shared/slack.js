@@ -31,78 +31,63 @@ export async function sendSlack(webhookUrl, payload) {
   log.ok(`POST OK (${res.status})`);
 }
 
-const LEVEL_EMOJI = {
-  urgent: '🚨',
-  important: '📌',
-  informational: 'ℹ️',
+const CHANNEL_EMOJI = {
+  important: '🚨',
+  digest: '📬',
 };
 
-const LEVEL_LABEL = {
-  urgent: 'URGENTE',
-  important: 'IMPORTANTE',
-  informational: 'INFO',
-};
-
-export function formatEmailGroup(group, timeAgo) {
-  const emoji = LEVEL_EMOJI[group.classification] || '📧';
-  const label = LEVEL_LABEL[group.classification] || group.classification.toUpperCase();
+/**
+ * Format classified emails for Slack — concise natural language output.
+ * Single emails: one-liner. Groups: bullet list.
+ */
+export function formatEmailDigest(group, timeAgo) {
+  const emoji = group.channel === 'important' ? CHANNEL_EMOJI.important : CHANNEL_EMOJI.digest;
   const items = group.items;
 
   if (items.length === 1) {
-    return formatSingleEmail(items[0], emoji, label, timeAgo);
+    const { email, classification } = items[0];
+    const ago = timeAgo(email.receivedDateTime);
+    const text = `${emoji} ${classification.summary} _(${ago})_`;
+    return {
+      blocks: [
+        { type: 'section', text: { type: 'mrkdwn', text } },
+      ],
+    };
   }
 
-  return formatGroupedEmails(items, emoji, label, group, timeAgo);
-}
+  // Grouped: bullet list with shared header
+  const bulletLines = items.map(({ email, classification }) => {
+    const ago = timeAgo(email.receivedDateTime);
+    return `• ${classification.summary} _(${ago})_`;
+  });
 
-function formatSingleEmail({ email, classification }, emoji, label, timeAgo) {
-  const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Desconocido';
-  const ago = timeAgo(email.receivedDateTime);
-
-  const lines = [`${emoji} *${label}*`, ''];
-  lines.push(`[${ago}] ${classification.summary}`);
-  lines.push(`_De: ${from}_`);
-
-  if (classification.suggested_action) {
-    lines.push('');
-    lines.push(`*Acción:* ${classification.suggested_action}`);
-  }
-
-  if (classification.draft_reply) {
-    lines.push('');
-    lines.push(`*Borrador de respuesta:*`);
-    lines.push(`>>>${classification.draft_reply}`);
-  }
+  const header = `${emoji} *${items.length} correos — ${group.groupKey || 'varios'}*`;
+  const text = [header, ...bulletLines].join('\n');
 
   return {
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } },
+      { type: 'section', text: { type: 'mrkdwn', text } },
     ],
   };
 }
 
-function formatGroupedEmails(items, emoji, label, group, timeAgo) {
-  const count = items.length;
-  const firstClassification = items[0].classification;
-
-  const header = `${emoji} *${label}* — ${count} correos similares`;
-
-  const bulletLines = items.map(({ email, classification }) => {
-    const ago = timeAgo(email.receivedDateTime);
+/**
+ * Format unknown/unclassified emails as a review block for Slack.
+ * Sent to #email-digest so the user can review and update rules.
+ */
+export function formatUnknownEmails(unknowns, timeAgo) {
+  const bulletLines = unknowns.map(({ email, classification }) => {
     const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Desconocido';
-    return `• [${ago}] ${classification.summary} — _${from}_`;
+    const ago = timeAgo(email.receivedDateTime);
+    return `• *${email.subject}* de _${from}_ (${ago})\n  ${classification.summary}`;
   });
 
-  const lines = [header, '', ...bulletLines];
-
-  if (firstClassification.suggested_action) {
-    lines.push('');
-    lines.push(`*Acción:* ${firstClassification.suggested_action}`);
-  }
+  const header = `🔍 *${unknowns.length} correo${unknowns.length > 1 ? 's' : ''} sin clasificar — revisar reglas*`;
+  const text = [header, '', ...bulletLines].join('\n');
 
   return {
     blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } },
+      { type: 'section', text: { type: 'mrkdwn', text: text.length <= 2900 ? text : text.slice(0, 2900) + '…' } },
     ],
   };
 }

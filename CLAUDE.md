@@ -16,7 +16,7 @@ All agents are **implemented and functional**:
 
 - `main.js` — centralized scheduler (tick every 5 min, manages agent timing)
 - `shared/` — logger (dual output: terminal + daily log file), Slack webhook helper, Claude CLI wrapper
-- `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash), seen-state tracking, orchestrator with grouping logic
+- `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash, move to folder), seen-state tracking, orchestrator with category-based routing
 - `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), morning digest orchestrator, Reddit trending detector
 - `config/profile.md` — email classification rules in Spanish (editable, loaded dynamically)
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
@@ -41,7 +41,7 @@ node main.js --force-catchup         # force email catch-up (inbox + junk)
 npm run dev:email                    # email agent only
 npm run dev:trends                   # morning digest only
 npm run dev:trending                 # Reddit trending only
-npm run dev:catchup                  # email catch-up (all unread today)
+npm run dev:catchup                  # email catch-up (unread last 2 days)
 
 # Test shared utilities
 npm run test:slack                   # verify Slack webhook
@@ -95,11 +95,12 @@ The `--force-*` flags bypass timing checks for testing.
 
 When the scheduler detects it's been offline for more than 60 minutes (e.g. PC suspended overnight), it automatically runs a catch-up scan instead of the normal email cycle:
 
-1. Fetches **all unread emails from today** (inbox + junk/spam folder)
+1. Fetches **all unread emails from the last 2 days** (inbox + junk/spam folder)
 2. Classifies each one via Claude CLI
 3. Rescues misclassified junk: if an email in junk is classified as non-noise, moves it to inbox
-4. Executes email actions (mark read, archive, trash)
-5. Groups and notifies via Slack
+4. Executes email actions (folder moves, archive, trash)
+5. Marks ALL processed emails as read
+6. Routes notifications to Slack (respecting category-specific rules)
 
 Can also be triggered manually with `npm run dev:catchup`.
 
@@ -111,7 +112,7 @@ Each agent follows the same pipeline pattern:
 sources → fetcher → classifier (Claude CLI) → notifier (Slack)
 ```
 
-- **Email agent** (`agents/email/`): OAuth → fetch unread → filter (isRead + seen.json) → classify each → group similar → post to Slack → execute actions (mark read / archive / trash)
+- **Email agent** (`agents/email/`): OAuth → fetch unread → filter (isRead + seen.json) → classify each (with category) → execute actions (folder moves / archive / trash) → mark all as read → route notifications by category to Slack
 - **Trends digest** (`agents/trends/index.js`): RSS + Reddit → summarize via Claude → post digest to `#news-digest`
 - **Reddit trending** (`agents/trends/trending.js`): fetch Reddit → calculate trending score → if above threshold → summarize via Claude → post to `#news-digest`
 
@@ -119,10 +120,32 @@ sources → fetcher → classifier (Claude CLI) → notifier (Slack)
 
 1. Fetch emails from last `EMAIL_LOOKBACK_HOURS` via Microsoft Graph
 2. Double filter: skip emails already read in Outlook (`isRead`) + already processed (`state/email-seen.json`)
-3. Classify each email via Claude CLI using `config/profile.md` rules
-4. Group similar emails by `group_key` (e.g. two login alerts → one Slack message)
-5. Post grouped notifications: urgent → `#email-important`, important/info → `#email-digest`, noise → skip
-6. Execute email actions: `read` (mark as read), `archive` (mark read + move to archive), `trash` (move to deleted), `none`
+3. Classify each email via Claude CLI using `config/profile.md` rules (returns classification + category + email_action + amount)
+4. Execute email actions: `archive`, `trash`, `folder-tickets`, `folder-orders`, `folder-investments`, `read`, `none`
+5. Mark ALL processed emails as read (regardless of action)
+6. Route notifications based on category-specific rules:
+   - urgent → `#email-important`
+   - tickets with amount >= 1000 PEN → `#email-digest`
+   - tickets under threshold → filed silently
+   - orders → filed silently (no notification)
+   - investment transactions → `#email-digest`
+   - relevant promotions → `#email-digest` (concise discount info)
+   - unknown → `#email-digest` as review block
+   - noise → no notification
+
+### Email categories and folder routing
+
+| Category | Action | Folder | Notify? |
+|----------|--------|--------|---------|
+| `security` | read | inbox | Always (urgent) |
+| `personal` | read/archive | inbox/archive | If important+ |
+| `promotion` | trash/read | deleted/inbox | Only relevant discounts |
+| `software-update` | archive | archive | If actively used tool |
+| `ticket` | folder-tickets | Tickets | If amount >= 1000 PEN |
+| `order` | folder-orders | Orders | Never |
+| `investment` | folder-investments | Investments | Transaction confirmations |
+| `spam` | trash | deleted | Never |
+| `unknown` | none | inbox | Always (for review) |
 
 ### Reddit trending detection
 
@@ -161,12 +184,15 @@ Example:
 ━━━ 2026-02-22 16:10:21 Tick at 11:10:21 a. m. ━━━━━━━━━━━━━━━━━━━━━━
 ▸ 2026-02-22 16:10:21 [mail] head 00 | Email cycle (lookback: 1h)
 ✓ 2026-02-22 16:10:22 [mail] ok   00 | Fetched 5 emails from the last 1h
-  2026-02-22 16:10:22 [mail] info 01 |   "Invoice #12345" from Stripe -- important [archive]
-  2026-02-22 16:10:22 [mail] info 01 |   "Login alert" from Google -- informational [read]
+  2026-02-22 16:10:22 [mail] info 01 |   "Invoice #12345" from Stripe -- important (ticket) [folder-tickets] 250 PEN
+  2026-02-22 16:10:22 [mail] info 01 |   "Login alert" from Google -- urgent (security) [read]
 · 2026-02-22 16:10:23 [clde] data 00 | Classification result:
 · 2026-02-22 16:10:23 [clde] data 01 |   {
 · 2026-02-22 16:10:23 [clde] data 01 |     "classification": "important",
-· 2026-02-22 16:10:23 [clde] data 01 |     "email_action": "archive"
+· 2026-02-22 16:10:23 [clde] data 01 |     "category": "ticket",
+· 2026-02-22 16:10:23 [clde] data 01 |     "email_action": "folder-tickets",
+· 2026-02-22 16:10:23 [clde] data 01 |     "amount": 250,
+· 2026-02-22 16:10:23 [clde] data 01 |     "amount_currency": "PEN"
 · 2026-02-22 16:10:23 [clde] data 01 |   }
 · 2026-02-22 16:10:23 [mail] verb 00 | Token refresh OK — expires_in: 3599s
 ✓ 2026-02-22 16:10:23 [mail] ok   00 | Cycle done: 5 fetched, 3 new — 1 imp, 1 info, 1 noise
@@ -219,15 +245,22 @@ All state files are auto-generated and not committed.
 Classification output schema:
 ```json
 {
-  "classification": "urgent | important | informational | noise",
+  "classification": "urgent | important | informational | noise | unknown",
+  "category": "security | personal | promotion | software-update | ticket | order | investment | spam | unknown",
   "reason": "...",
   "summary": "...",
-  "suggested_action": "...",
-  "draft_reply": "...",
+  "amount": null,
+  "amount_currency": null,
   "group_key": "...",
-  "email_action": "read | archive | trash | none"
+  "email_action": "read | archive | trash | folder-tickets | folder-orders | folder-investments | none"
 }
 ```
+
+- `classification` determines importance level (which Slack channel, if any)
+- `category` determines email type (which folder, notification rules)
+- `amount` / `amount_currency` extracted for invoices/payments (used by code to apply threshold)
+- Folders (Tickets, Orders, Investments) are auto-created on first use via Graph API
+- All processed emails are marked as read after actions complete
 
 All text fields are written in **Spanish** by Claude. English only for proper nouns and technical terms.
 
