@@ -54,7 +54,7 @@ function buildPrompt(rssItems, redditItems, categories) {
   return lines.join('\n');
 }
 
-async function main() {
+export async function runTrendsDigest() {
   log.info('Starting trends cycle...');
 
   const sources = await loadSources();
@@ -91,9 +91,13 @@ async function main() {
   }
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    log.error(`Fatal error: ${err.message}`);
-    process.exit(1);
-  });
+// Direct execution: npm run dev:trends
+const isDirectRun = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
+if (isDirectRun) {
+  runTrendsDigest()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      log.error(`Fatal error: ${err.message}`);
+      process.exit(1);
+    });
+}

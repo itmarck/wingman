@@ -36,11 +36,13 @@ export async function fetchReddit(subreddits) {
       log.info(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
 
       return posts.map((c) => ({
+        id: c.data.id,
         title: c.data.title,
         url: `https://reddit.com${c.data.permalink}`,
         score: c.data.score,
         subreddit: c.data.subreddit,
         num_comments: c.data.num_comments,
+        created_utc: c.data.created_utc,
       }));
     }),
   );

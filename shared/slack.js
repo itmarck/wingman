@@ -140,6 +140,28 @@ export function formatTrendsDigest(digestText) {
   return { blocks };
 }
 
+export function formatTrendingPosts(posts, summary) {
+  const header = `🔥 *${posts.length === 1 ? 'Tema en tendencia' : `${posts.length} temas en tendencia`}*`;
+
+  const postLines = posts.map((p) =>
+    `• <${p.url}|r/${p.subreddit}> — *${p.title}* (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel})`
+  );
+
+  const lines = [header, '', ...postLines];
+
+  if (summary) {
+    lines.push('', summary);
+  }
+
+  const text = lines.join('\n');
+
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: text.length <= 2900 ? text : text.slice(0, 2900) + '…' } },
+  ];
+
+  return { blocks };
+}
+
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
   const webhookUrl = process.env.SLACK_WEBHOOK_LOGS;
   if (!webhookUrl) {

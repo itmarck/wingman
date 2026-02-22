@@ -1,16 +1,19 @@
 {
   "name": "wingman",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Personal automation system: email, news, and Slack notifications",
   "type": "module",
   "scripts": {
-    "start": "pm2 start ecosystem.config.js",
+    "start": "pm2 start ecosystem.config.cjs",
     "stop": "pm2 stop all",
     "restart": "pm2 restart all",
     "status": "pm2 list",
     "logs": "pm2 logs",
+    "dev": "node main.js",
+    "dev:all": "node main.js --force-all",
     "dev:email": "node agents/email/index.js",
     "dev:trends": "node agents/trends/index.js",
+    "dev:trending": "node agents/trends/trending.js",
     "test:slack": "node shared/slack.js",
     "test:claude": "node shared/claude.js",
     "log": "node scripts/log.js"

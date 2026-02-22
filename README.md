@@ -28,10 +28,10 @@ node agents/email/auth.js
 npm run test:slack
 npm run test:claude
 
-# 7. Run the email agent manually to verify
-npm run dev:email
+# 7. Run all agents manually to verify
+npm run dev:all
 
-# 8. Start the agents as cron jobs
+# 8. Start the scheduler as a cron job
 npm start
 
 # 9. Configure auto-start on boot
@@ -42,28 +42,38 @@ pm2 save
 ## Commands
 
 ```bash
-npm run dev:email         # run email agent once (testing)
-npm run dev:trends        # run trends agent once (testing)
+# Scheduler
+npm run dev               # run one tick (respects timing)
+npm run dev:all           # force all agents now
+
+# Individual agents
+npm run dev:email         # email agent only
+npm run dev:trends        # morning digest only
+npm run dev:trending      # Reddit trending only
+
+# Testing
 npm run test:slack        # verify Slack webhook
 npm run test:claude       # verify Claude CLI
 
+# Log viewer
 npm run log               # view today's log
 npm run log -- oneline    # compact view
 npm run log -- ayer       # yesterday's log
 npm run log -- urgente    # filter by classification
 npm run log -- quiet      # hide verbose lines
 
-npm start                 # start pm2 cron jobs
-npm run status            # check agent status
-npm run logs              # live pm2 log stream
-npm run restart           # restart all agents
+# pm2
+npm start                 # start scheduler
+npm run status            # check status
+npm run logs              # live log stream
+npm run restart           # restart scheduler
 ```
 
 ## Configuration
 
 - `config/profile.md` — email classification rules (edit to tune behavior)
 - `config/sources.json` — RSS feeds and Reddit sources for trends
-- `.env` — credentials and webhook URLs
+- `.env` — credentials, webhook URLs, and trending threshold
 
 ## Full documentation
 
