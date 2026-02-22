@@ -2,7 +2,7 @@ import { appendFile, mkdir } from 'fs/promises';
 import chalk from 'chalk';
 
 const LOG_DIR = 'logs';
-const TAG_WIDTH = 6;
+const TAG_WIDTH = 4;
 let dirReady = false;
 
 async function ensureDir() {
@@ -36,68 +36,74 @@ async function writeToFile(line) {
 }
 
 const TAG_COLORS = {
-  clock: chalk.blue,
-  sched: chalk.blue,
-  email: chalk.cyan,
-  trends: chalk.magenta,
-  claude: chalk.yellow,
-  slack: chalk.green,
+  main: chalk.blue,
+  mail: chalk.cyan,
+  trnd: chalk.magenta,
+  clde: chalk.yellow,
+  slck: chalk.green,
   auth: chalk.red,
 };
 
-function colorTag(id) {
-  const tag = id.trim();
-  const colorFn = TAG_COLORS[tag] || chalk.white;
-  return colorFn(id);
-}
-
 const LEVEL_STYLE = {
-  INFO: { symbol: '✓', color: chalk.green },
-  WARN: { symbol: '⚠', color: chalk.yellow },
-  ERROR: { symbol: '✗', color: chalk.red },
-  VERBOSE: { symbol: '·', color: chalk.gray },
+  TICK:  { symbol: '━', color: chalk.blue, termFn: 'log' },
+  HEAD:  { symbol: '▸', color: chalk.white, termFn: 'log' },
+  INFO:  { symbol: ' ', color: chalk.gray, termFn: 'log' },
+  OK:    { symbol: '✓', color: chalk.green, termFn: 'log' },
+  WARN:  { symbol: '⚠', color: chalk.yellow, termFn: 'warn' },
+  ERROR: { symbol: '✗', color: chalk.red, termFn: 'error' },
+  DATA:  { symbol: '·', color: chalk.gray, termFn: null },
 };
 
 export function createLogger(tag) {
   const id = tag.slice(0, TAG_WIDTH).padEnd(TAG_WIDTH);
+  const tagColor = TAG_COLORS[id.trim()] || chalk.white;
 
-  const fileLine = (level, msg) => `[${utcTimestamp()}] [${id}] ${level} ${msg}`;
+  function fileLine(level, msg) {
+    const style = LEVEL_STYLE[level];
+    const ts = utcTimestamp();
+
+    if (level === 'TICK') {
+      return `━━━ ${ts} ${msg} ${'━'.repeat(Math.max(0, 50 - msg.length))}`;
+    }
+
+    return `${style.symbol} ${ts} [${id}] ${msg}`;
+  }
 
   function termPrint(level, msg) {
     const style = LEVEL_STYLE[level];
+    if (!style.termFn) return;
+
+    if (level === 'TICK') {
+      const bar = chalk.blue(`━━━ ${msg} ${'━'.repeat(Math.max(0, 60 - msg.length))}`);
+      console[style.termFn](bar);
+      return;
+    }
+
     const time = chalk.gray(localTime());
     const sym = style.color(style.symbol);
-    const tagStr = colorTag(id);
-    const text = level === 'ERROR' ? chalk.red(msg) : level === 'WARN' ? chalk.yellow(msg) : msg;
-    const line = `${sym} ${time} ${chalk.gray('[')}${tagStr}${chalk.gray(']')} ${text}`;
+    const tagStr = `${chalk.gray('[')}${tagColor(id)}${chalk.gray(']')}`;
 
-    if (level === 'ERROR') {
-      console.error(line);
-    } else if (level === 'WARN') {
-      console.warn(line);
-    } else {
-      console.log(line);
-    }
+    let text = msg;
+    if (level === 'ERROR') text = chalk.red(msg);
+    else if (level === 'WARN') text = chalk.yellow(msg);
+    else if (level === 'HEAD') text = chalk.white.bold(msg);
+    else if (level === 'OK') text = chalk.green(msg);
+
+    console[style.termFn](`${sym} ${time} ${tagStr} ${text}`);
+  }
+
+  function emit(level, msg) {
+    termPrint(level, msg);
+    writeToFile(fileLine(level, msg));
   }
 
   return {
-    info(msg) {
-      termPrint('INFO', msg);
-      writeToFile(fileLine('INFO', msg));
-    },
-
-    warn(msg) {
-      termPrint('WARN', msg);
-      writeToFile(fileLine('WARN', msg));
-    },
-
-    error(msg) {
-      termPrint('ERROR', msg);
-      writeToFile(fileLine('ERROR', msg));
-    },
-
-    verbose(msg) {
-      writeToFile(fileLine('VERBOSE', msg));
-    },
+    tick(msg)  { emit('TICK', msg); },
+    head(msg)  { emit('HEAD', msg); },
+    info(msg)  { emit('INFO', msg); },
+    ok(msg)    { emit('OK', msg); },
+    warn(msg)  { emit('WARN', msg); },
+    error(msg) { emit('ERROR', msg); },
+    data(msg)  { writeToFile(fileLine('DATA', msg)); },
   };
 }

@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger } from './shared/logger.js';
 
-const log = createLogger('clock');
+const log = createLogger('main');
 
 const STATE_FILE = 'state/scheduler.json';
 
@@ -45,7 +45,6 @@ function shouldRunDigest(state, force) {
   const localHour = now.getHours();
   const today = now.toISOString().slice(0, 10);
 
-  // Run once per day, after DIGEST_HOUR (local time)
   if (localHour < DIGEST_HOUR) return false;
   if (state.lastDigest === today) return false;
   return true;
@@ -58,13 +57,11 @@ function shouldRunTrending(state, force) {
 
 function shouldRunCatchup(state, force) {
   if (force) return true;
-  // Auto catch-up if the scheduler was offline for more than CATCHUP_GAP minutes
   const gap = minutesSince(state.lastEmailTick);
   if (gap < CATCHUP_GAP) return false;
-  // Only catch-up once per gap (don't repeat if already caught up recently)
   const today = new Date().toISOString().slice(0, 10);
   if (state.lastCatchup === today) return false;
-  log.info(`Detected ${Math.round(gap)} min gap since last email tick — triggering catch-up`);
+  log.warn(`Detected ${Math.round(gap)} min gap since last email tick — triggering catch-up`);
   return true;
 }
 
@@ -79,14 +76,12 @@ async function main() {
   const state = await loadState();
   const now = new Date();
 
-  log.info(`Tick at ${now.toLocaleTimeString()} — evaluating agents...`);
+  log.tick(`Tick at ${now.toLocaleTimeString()}`);
 
   const plan = [];
 
-  // Catch-up runs INSTEAD of normal email when triggered
-  const needsCatchup = shouldRunCatchup(state, forceCatchup);
-
-  if (needsCatchup) {
+  // TODO: Improve catchup invoke
+  if (shouldRunCatchup(state, forceCatchup)) {
     plan.push('catchup');
   } else if (shouldRunEmail(state, forceEmail)) {
     plan.push('email');
@@ -99,13 +94,12 @@ async function main() {
   }
 
   if (plan.length === 0) {
-    log.info('Nothing to run this tick.');
+    log.info('Nothing to run this tick');
     return;
   }
 
-  log.info(`Agents to run: ${plan.join(', ')}${forceAll ? ' (forced)' : ''}`);
+  log.info(`Agents: ${plan.join(', ')}${forceAll ? ' (forced)' : ''}`);
 
-  // Run agents sequentially to avoid overloading Claude
   for (const agent of plan) {
     try {
       switch (agent) {
@@ -137,13 +131,12 @@ async function main() {
       }
     } catch (err) {
       log.error(`Agent "${agent}" failed: ${err.message}`);
-      log.verbose(`Agent "${agent}" stack: ${err.stack}`);
-      // Continue with other agents even if one fails
+      log.data(`Agent "${agent}" stack: ${err.stack}`);
     }
   }
 
   await saveState(state);
-  log.info(`Tick complete. Ran: ${plan.join(', ')}`);
+  log.ok(`Tick complete — ran: ${plan.join(', ')}`);
 }
 
 main()

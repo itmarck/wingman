@@ -50,12 +50,12 @@ npm run test:claude                  # verify Claude CLI
 # Log viewer
 npm run log                          # today's full log (local time)
 npm run log -- oneline               # compact view
-npm run log -- ayer                   # yesterday's log
+npm run log -- ayer                  # yesterday's log
 npm run log -- urgente               # only urgent classifications
-npm run log -- noise                  # only noise
-npm run log -- email                  # only email agent lines
-npm run log -- quiet                  # hide verbose lines
-npm run log -- ayer oneline           # combinable
+npm run log -- noise                 # only noise
+npm run log -- mail                  # only email agent lines
+npm run log -- quiet                 # hide DATA lines
+npm run log -- ayer oneline          # combinable
 
 # pm2 process management
 npm start                            # pm2 start ecosystem.config.js
@@ -143,21 +143,31 @@ This requires Claude Code to be installed and authenticated (`claude --version`)
 
 ### Logging
 
-Single daily log file at `logs/YYYY-MM-DD.log`. All modules write to the same file with tagged lines:
+Single daily log file at `logs/YYYY-MM-DD.log`. All modules write to the same file with symbol-prefixed lines:
 
 ```
-[2026-02-22 00:43:00] [clock ] INFO Tick at 19:43:00 — evaluating agents...
-[2026-02-22 00:43:00] [email ] INFO Starting email cycle (lookback: 1h)...
-[2026-02-22 00:43:01] [claude] VERBOSE Classify prompt (1823 chars)...
-[2026-02-22 00:43:05] [slack ] INFO Slack POST OK (200)
+━━━ 2026-02-22 00:43:00 Tick at 19:43:00 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+▸ 2026-02-22 00:43:00 [main] Evaluating agents...
+  2026-02-22 00:43:00 [mail] Filter: 3 new, 2 read in Outlook
+✓ 2026-02-22 00:43:01 [mail] Cycle complete: 5 fetched, 3 new
+· 2026-02-22 00:43:01 [clde] Classify prompt (1823 chars)...
+✓ 2026-02-22 00:43:05 [slck] POST OK (200)
+⚠ 2026-02-22 00:43:06 [trnd] RSS feed timeout
+✗ 2026-02-22 00:43:07 [mail] Token refresh failed (401)
 ```
 
-- Tags are 6-char fixed width, lowercase
-- `info`, `warn`, `error` → terminal + file
-- `verbose` → file only (API responses, payloads, raw prompts)
-- Terminal shows local time, file stores UTC
+Log levels (symbol → meaning):
+- `━` TICK — separator bar between scheduler ticks (terminal + file)
+- `▸` HEAD — section headers, easy to scan (terminal + file)
+- ` ` INFO — details, contextual information (terminal + file)
+- `✓` OK — success confirmations (terminal + file)
+- `⚠` WARN — warnings (terminal + file)
+- `✗` ERROR — errors (terminal + file)
+- `·` DATA — structured/verbose data: API responses, prompts, payloads (file only)
 
-Current tags: `clock`, `email`, `trends`, `claude`, `slack`, `auth`
+Tags are 4-char fixed width, lowercase. Terminal shows colored output with chalk; file stores plain text with same symbols.
+
+Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`
 
 ### Persistent state
 
@@ -208,7 +218,7 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 - ES Modules throughout (`"type": "module"` in package.json)
 - `async/await` everywhere — no callbacks
 - `try/catch` around every email/item — one failure must not crash the whole cycle
-- Logger tags: 6-char fixed width, lowercase (e.g. `createLogger('email')`)
+- Logger tags: 4-char fixed width, lowercase (e.g. `createLogger('mail')`)
 - All secrets from `process.env` — never hardcoded
 - Slack output in Spanish (Slack mrkdwn format), code and logs in English
 

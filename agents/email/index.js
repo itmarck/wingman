@@ -6,7 +6,7 @@ import { sendSlack, formatEmailGroup } from '../../shared/slack.js';
 import { getAccessToken, fetchEmails, fetchUnreadToday, markAsRead, archiveEmail, moveToTrash, moveToInbox } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 
-const log = createLogger('email');
+const log = createLogger('mail');
 
 const WEBHOOK_IMPORTANT = process.env.SLACK_WEBHOOK_EMAIL_IMPORTANT;
 const WEBHOOK_DIGEST = process.env.SLACK_WEBHOOK_EMAIL_DIGEST;
@@ -68,7 +68,7 @@ async function executeAction(accessToken, emailId, action) {
 }
 
 export async function runEmailAgent() {
-  log.info(`Starting email cycle (lookback: ${LOOKBACK_HOURS}h)...`);
+  log.head(`Starting email cycle (lookback: ${LOOKBACK_HOURS}h)`);
 
   const accessToken = await getAccessToken();
   const emails = await fetchEmails(accessToken, LOOKBACK_HOURS);
@@ -79,7 +79,7 @@ export async function runEmailAgent() {
   }
 
   const seen = await loadSeen();
-  log.verbose(`Seen state loaded: ${seen.size} IDs tracked`);
+  log.data(`Seen state loaded: ${seen.size} IDs tracked`);
 
   let skippedRead = 0;
   let skippedSeen = 0;
@@ -91,7 +91,7 @@ export async function runEmailAgent() {
     if (e.isRead) {
       seen.add(e.id);
       skippedRead++;
-      log.verbose(`Skipped (already read in Outlook): "${e.subject}"`);
+      log.data(`Skipped (already read in Outlook): "${e.subject}"`);
       return false;
     }
     return true;
@@ -123,7 +123,7 @@ export async function runEmailAgent() {
       classified.push({ email, classification: result });
 
       log.info(`  → ${result.classification} [${result.email_action || 'none'}] "${email.subject}" — ${fromName}: ${result.summary}`);
-      log.verbose(`  Full classification: ${JSON.stringify(result)}`);
+      log.data(`  Full classification: ${JSON.stringify(result)}`);
     } catch (err) {
       counts.error++;
       seen.add(email.id);
@@ -137,7 +137,7 @@ export async function runEmailAgent() {
 
     try {
       await executeAction(accessToken, email.id, action);
-      log.info(`  Action "${action}" on: "${email.subject}"`);
+      log.ok(`  Action "${action}" on: "${email.subject}"`);
     } catch (err) {
       log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
     }
@@ -167,7 +167,7 @@ export async function runEmailAgent() {
       try {
         const webhook = group.classification === 'urgent' ? WEBHOOK_IMPORTANT : WEBHOOK_DIGEST;
         const payload = formatEmailGroup(group, timeAgo);
-        log.verbose(`Sending group "${key}" (${group.items.length} emails) to ${group.classification === 'urgent' ? '#email-important' : '#email-digest'}`);
+        log.data(`Sending group "${key}" (${group.items.length} emails) to ${group.classification === 'urgent' ? '#email-important' : '#email-digest'}`);
         await sendSlack(webhook, payload);
       } catch (err) {
         log.error(`Failed to send Slack notification: ${err.message}`);
@@ -185,7 +185,7 @@ export async function runEmailAgent() {
   if (counts.error > 0) parts.push(`${counts.error} errors`);
 
   const summary = `Cycle complete: ${emails.length} fetched, ${unseen.length} new — ${parts.join(', ')}`;
-  log.info(summary);
+  log.ok(summary);
 
   if (unseen.length > 0) {
     try {
@@ -197,7 +197,7 @@ export async function runEmailAgent() {
 }
 
 export async function runEmailCatchup() {
-  log.info('Starting catch-up scan (all unread today, inbox + junk)...');
+  log.head('Starting catch-up scan (all unread today, inbox + junk)');
 
   const accessToken = await getAccessToken();
   const emails = await fetchUnreadToday(accessToken, { includeJunk: true });
@@ -237,13 +237,13 @@ export async function runEmailCatchup() {
       classified.push({ email, classification: result });
 
       log.info(`  → ${result.classification} [${result.email_action || 'none'}]${folderTag} "${email.subject}" — ${fromName}: ${result.summary}`);
-      log.verbose(`  Full classification: ${JSON.stringify(result)}`);
+      log.data(`  Full classification: ${JSON.stringify(result)}`);
 
       // Rescue: if a junk email is not noise, move it to inbox
       if (email._folder === 'junk' && result.classification !== 'noise') {
         try {
           await moveToInbox(accessToken, email.id);
-          log.info(`  📬 Rescued from junk: "${email.subject}"`);
+          log.ok(`  📬 Rescued from junk: "${email.subject}"`);
         } catch (err) {
           log.error(`  Failed to rescue from junk: ${err.message}`);
         }
@@ -262,7 +262,7 @@ export async function runEmailCatchup() {
 
     try {
       await executeAction(accessToken, email.id, action);
-      log.info(`  Action "${action}" on: "${email.subject}"`);
+      log.ok(`  Action "${action}" on: "${email.subject}"`);
     } catch (err) {
       log.error(`Failed action "${action}" on "${email.subject}": ${err.message}`);
     }
@@ -311,7 +311,7 @@ export async function runEmailCatchup() {
   if (rescued > 0) parts.push(`${rescued} rescued from junk`);
 
   const summary = `Catch-up complete: ${unseen.length} processed — ${parts.join(', ')}`;
-  log.info(summary);
+  log.ok(summary);
 
   try {
     await sendSlack(WEBHOOK_LOGS, `[catch-up] ${summary}`);

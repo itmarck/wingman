@@ -6,7 +6,7 @@ import { sendSlack, formatTrendsDigest } from '../../shared/slack.js';
 import { fetchRSS } from './rss.js';
 import { fetchReddit } from './reddit.js';
 
-const log = createLogger('trends');
+const log = createLogger('trnd');
 
 const WEBHOOK_NEWS = process.env.SLACK_WEBHOOK_NEWS;
 const WEBHOOK_LOGS = process.env.SLACK_WEBHOOK_LOGS;
@@ -55,7 +55,7 @@ function buildPrompt(rssItems, redditItems, categories) {
 }
 
 export async function runTrendsDigest() {
-  log.info('Starting trends cycle...');
+  log.head('Starting trends cycle');
 
   const sources = await loadSources();
 
@@ -82,7 +82,7 @@ export async function runTrendsDigest() {
   await sendSlack(WEBHOOK_NEWS, formatTrendsDigest(digest));
 
   const summary = `Cycle complete: ${rssItems.length} RSS + ${redditItems.length} Reddit → digest posted`;
-  log.info(summary);
+  log.ok(summary);
 
   try {
     await sendSlack(WEBHOOK_LOGS, `[trends-agent] ${summary}`);

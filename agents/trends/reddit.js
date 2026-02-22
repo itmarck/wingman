@@ -1,6 +1,6 @@
 import { createLogger } from '../../shared/logger.js';
 
-const log = createLogger('trends');
+const log = createLogger('trnd');
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 export async function fetchReddit(subreddits) {
@@ -17,7 +17,7 @@ export async function fetchReddit(subreddits) {
       const url = `https://www.reddit.com/r/${sub.subreddit}/hot.json?limit=${limit}`;
 
       log.info(`Fetching Reddit: r/${sub.subreddit}`);
-      log.verbose(`Reddit URL: ${url}`);
+      log.data(`Reddit URL: ${url}`);
 
       const res = await fetch(url, {
         headers: {
@@ -33,7 +33,7 @@ export async function fetchReddit(subreddits) {
       const data = await res.json();
       const posts = data.data.children.filter((c) => !c.data.stickied);
 
-      log.info(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
+      log.ok(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`);
 
       return posts.map((c) => ({
         id: c.data.id,
@@ -53,7 +53,7 @@ export async function fetchReddit(subreddits) {
       items.push(...result.value);
     } else {
       log.error(`Reddit fetch failed: ${result.reason.message}`);
-      log.verbose(`Reddit error detail: ${result.reason.stack}`);
+      log.data(`Reddit error detail: ${result.reason.stack}`);
     }
   }
 

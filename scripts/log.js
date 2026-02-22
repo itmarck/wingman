@@ -7,16 +7,16 @@
  *   npm run log                    → today's full log (colorized)
  *   npm run log -- hoy             → today's full log
  *   npm run log -- ayer            → yesterday's full log
- *   npm run log -- oneline         → compact view (INFO only, short timestamp)
+ *   npm run log -- oneline         → compact view (non-data lines, short)
  *   npm run log -- ayer oneline    → yesterday compact
  *   npm run log -- urgente         → only urgent classifications
  *   npm run log -- noise           → only noise
- *   npm run log -- quiet           → hide verbose lines
+ *   npm run log -- quiet           → hide DATA lines
  *   npm run log -- errores         → only errors
- *   npm run log -- email           → only email agent lines
- *   npm run log -- claude          → only claude lines
- *   npm run log -- slack           → only slack lines
- *   npm run log -- trends          → only trends agent lines
+ *   npm run log -- mail            → only mail agent lines
+ *   npm run log -- clde            → only claude lines
+ *   npm run log -- slck            → only slack lines
+ *   npm run log -- trnd            → only trends agent lines
  */
 
 import { readFile } from 'fs/promises';
@@ -37,23 +37,32 @@ function utcToLocal(utcStr) {
 }
 
 const TAG_COLORS = {
-  clock: chalk.blue,
-  sched: chalk.blue,
-  email: chalk.cyan,
-  trends: chalk.magenta,
-  claude: chalk.yellow,
-  slack: chalk.green,
+  main: chalk.blue,
+  mail: chalk.cyan,
+  trnd: chalk.magenta,
+  clde: chalk.yellow,
+  slck: chalk.green,
   auth: chalk.red,
 };
 
-const LEVEL_STYLE = {
-  INFO: { symbol: '✓', color: chalk.green },
-  WARN: { symbol: '⚠', color: chalk.yellow },
-  ERROR: { symbol: '✗', color: chalk.red },
-  VERBOSE: { symbol: '·', color: chalk.gray },
+// Symbols used in log file format
+const SYMBOL_MAP = {
+  '━': { level: 'TICK', color: chalk.blue },
+  '▸': { level: 'HEAD', color: chalk.white },
+  ' ': { level: 'INFO', color: chalk.gray },
+  '✓': { level: 'OK', color: chalk.green },
+  '⚠': { level: 'WARN', color: chalk.yellow },
+  '✗': { level: 'ERROR', color: chalk.red },
+  '·': { level: 'DATA', color: chalk.gray },
 };
 
-const LINE_RE = /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] \[(.{6})\] (\w+) (.*)$/;
+// Match: symbol timestamp [tag ] message
+// Examples:
+//   ✓ 2026-02-22 00:43:00 [mail] Fetched 5 emails
+//   · 2026-02-22 00:43:00 [clde] Classify prompt...
+//   ━━━ 2026-02-22 00:43:00 Tick at 19:43:00 ━━━━━━━━━
+const TICK_RE = /^━━━ (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (.+?)[\s━]*$/;
+const LINE_RE = /^(.) (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[(.{4})\] (.*)$/;
 const JSON_RE = /\{[\s\S]*\}$/;
 const CLASSIFICATION_RE = /→ (urgent|important|informational|noise) /;
 
@@ -65,19 +74,41 @@ function colorizeClassification(text) {
     .replace(/→ noise /g, chalk.gray('→ noise '));
 }
 
-function formatLine(raw) {
+function parseLine(raw) {
+  // Try TICK line first
+  const tickMatch = raw.match(TICK_RE);
+  if (tickMatch) {
+    return { level: 'TICK', timestamp: tickMatch[1], tag: null, msg: tickMatch[2] };
+  }
+
+  // Try regular line
   const match = raw.match(LINE_RE);
-  if (!match) return raw;
+  if (!match) return null;
 
-  const [, timestamp, tagRaw, level, msg] = match;
+  const [, symbol, timestamp, tag, msg] = match;
+  const info = SYMBOL_MAP[symbol];
+  if (!info) return null;
+
+  return { level: info.level, timestamp, tag: tag.trim(), msg };
+}
+
+function formatLine(raw) {
+  const parsed = parseLine(raw);
+  if (!parsed) return raw;
+
+  const { level, timestamp, tag, msg } = parsed;
   const localTime = utcToLocal(timestamp);
-  const style = LEVEL_STYLE[level] || LEVEL_STYLE.INFO;
-  const tag = tagRaw.trim();
-  const tagColor = TAG_COLORS[tag] || chalk.white;
 
-  const sym = style.color(style.symbol);
+  // TICK: full-width blue separator bar
+  if (level === 'TICK') {
+    return chalk.blue(`━━━ ${localTime} ${msg} ${'━'.repeat(Math.max(0, 50 - msg.length))}`);
+  }
+
+  const info = Object.values(SYMBOL_MAP).find((s) => s.level === level) || SYMBOL_MAP[' '];
+  const sym = info.color(Object.keys(SYMBOL_MAP).find((k) => SYMBOL_MAP[k].level === level) || ' ');
   const time = chalk.gray(localTime);
-  const tagStr = `${chalk.gray('[')}${tagColor(tagRaw)}${chalk.gray(']')}`;
+  const tagColor = TAG_COLORS[tag] || chalk.white;
+  const tagStr = `${chalk.gray('[')}${tagColor(tag.padEnd(4))}${chalk.gray(']')}`;
 
   let text = msg;
 
@@ -85,22 +116,28 @@ function formatLine(raw) {
     text = chalk.red(msg);
   } else if (level === 'WARN') {
     text = chalk.yellow(msg);
-  } else if (level === 'VERBOSE') {
+  } else if (level === 'HEAD') {
+    text = chalk.white.bold(msg);
+  } else if (level === 'OK') {
+    text = chalk.green(msg);
+  } else if (level === 'DATA') {
     text = chalk.gray(msg);
   } else {
     text = colorizeClassification(msg);
   }
 
-  // Detect inline JSON and format it
-  const jsonMatch = msg.match(JSON_RE);
-  if (jsonMatch && level === 'VERBOSE') {
-    try {
-      const jsonObj = JSON.parse(jsonMatch[0]);
-      const prefix = msg.slice(0, msg.indexOf(jsonMatch[0]));
-      const jsonFormatted = formatJson(jsonObj);
-      text = chalk.gray(prefix) + '\n' + jsonFormatted;
-    } catch {
-      // Not valid JSON, keep as-is
+  // Detect inline JSON in DATA lines and format in a box
+  if (level === 'DATA') {
+    const jsonMatch = msg.match(JSON_RE);
+    if (jsonMatch) {
+      try {
+        const jsonObj = JSON.parse(jsonMatch[0]);
+        const prefix = msg.slice(0, msg.indexOf(jsonMatch[0]));
+        const jsonFormatted = formatJson(jsonObj);
+        text = chalk.gray(prefix) + '\n' + jsonFormatted;
+      } catch {
+        // Not valid JSON, keep as-is
+      }
     }
   }
 
@@ -127,17 +164,27 @@ function colorizeJsonLine(line) {
 }
 
 function formatOneline(raw) {
-  const match = raw.match(LINE_RE);
-  if (!match) return null;
+  const parsed = parseLine(raw);
+  if (!parsed) return null;
 
-  const [, timestamp, tagRaw, level, msg] = match;
-  if (level !== 'INFO') return null;
+  const { level, timestamp, tag, msg } = parsed;
+  // In oneline mode, show HEAD, INFO, OK, WARN, ERROR — skip TICK and DATA
+  if (level === 'DATA' || level === 'TICK') return null;
 
   const localTime = utcToLocal(timestamp);
-  const tag = tagRaw.trim();
   const tagColor = TAG_COLORS[tag] || chalk.white;
 
-  return `${chalk.gray(localTime)}  ${tagColor(tag)}  ${colorizeClassification(msg)}`;
+  const info = Object.values(SYMBOL_MAP).find((s) => s.level === level);
+  const sym = info ? info.color(Object.keys(SYMBOL_MAP).find((k) => SYMBOL_MAP[k].level === level) || ' ') : ' ';
+
+  let text = msg;
+  if (level === 'ERROR') text = chalk.red(msg);
+  else if (level === 'WARN') text = chalk.yellow(msg);
+  else if (level === 'OK') text = chalk.green(msg);
+  else if (level === 'HEAD') text = chalk.white.bold(msg);
+  else text = colorizeClassification(msg);
+
+  return `${sym} ${chalk.gray(localTime)}  ${tagColor(tag)}  ${text}`;
 }
 
 // --- Args parsing ---
@@ -151,20 +198,21 @@ for (const arg of args) {
 }
 
 const oneline = args.includes('oneline') || args.includes('compact');
-const hideVerbose = args.includes('noverbose') || args.includes('quiet');
+const hideData = args.includes('nodata') || args.includes('quiet');
 
 const tagFilter = (() => {
-  if (args.includes('email')) return 'email';
-  if (args.includes('claude')) return 'claude';
-  if (args.includes('slack')) return 'slack';
-  if (args.includes('trends')) return 'trends';
+  if (args.includes('mail') || args.includes('email')) return 'mail';
+  if (args.includes('clde') || args.includes('claude')) return 'clde';
+  if (args.includes('slck') || args.includes('slack')) return 'slck';
+  if (args.includes('trnd') || args.includes('trends')) return 'trnd';
   if (args.includes('auth')) return 'auth';
-  if (args.includes('clock')) return 'clock';
+  if (args.includes('main') || args.includes('clock')) return 'main';
   return null;
 })();
 
 const levelFilter = (() => {
   if (args.includes('errores') || args.includes('errors')) return 'ERROR';
+  if (args.includes('warnings') || args.includes('warns')) return 'WARN';
   return null;
 })();
 
@@ -193,12 +241,14 @@ try {
   for (const raw of lines) {
     if (!raw.trim()) continue;
 
-    if (hideVerbose && raw.includes('] VERBOSE ')) continue;
-    if (tagFilter && !raw.includes(`[${tagFilter}`)) continue;
-    if (levelFilter && !raw.includes(`] ${levelFilter} `)) continue;
+    const parsed = parseLine(raw);
 
-    if (classFilter) {
-      if (!raw.includes(`→ ${classFilter}`)) continue;
+    // Apply filters
+    if (parsed) {
+      if (hideData && parsed.level === 'DATA') continue;
+      if (tagFilter && parsed.tag !== tagFilter) continue;
+      if (levelFilter && parsed.level !== levelFilter) continue;
+      if (classFilter && !raw.includes(`→ ${classFilter}`)) continue;
     }
 
     if (oneline) {

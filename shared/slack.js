@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import { createLogger } from './logger.js';
 
-const log = createLogger('slack');
+const log = createLogger('slck');
 
 export async function sendSlack(webhookUrl, payload) {
   if (!webhookUrl) {
@@ -12,9 +12,9 @@ export async function sendSlack(webhookUrl, payload) {
   const body = typeof payload === 'string' ? { text: payload } : payload;
   const bodyStr = JSON.stringify(body);
 
-  log.info(`Slack POST (${bodyStr.length} chars)`);
-  log.verbose(`Slack POST → ${webhookUrl.slice(0, 50)}...`);
-  log.verbose(`Slack payload: ${bodyStr}`);
+  log.info(`POST (${bodyStr.length} chars)`);
+  log.data(`POST → ${webhookUrl.slice(0, 50)}...`);
+  log.data(`Payload: ${bodyStr}`);
 
   const res = await fetch(webhookUrl, {
     method: 'POST',
@@ -24,11 +24,11 @@ export async function sendSlack(webhookUrl, payload) {
 
   if (!res.ok) {
     const text = await res.text();
-    log.error(`Slack POST failed (${res.status}): ${text}`);
+    log.error(`POST failed (${res.status}): ${text}`);
     throw new Error(`Slack webhook failed (${res.status}): ${text}`);
   }
 
-  log.info(`Slack POST OK (${res.status})`);
+  log.ok(`POST OK (${res.status})`);
 }
 
 const LEVEL_EMOJI = {
@@ -48,12 +48,10 @@ export function formatEmailGroup(group, timeAgo) {
   const label = LEVEL_LABEL[group.classification] || group.classification.toUpperCase();
   const items = group.items;
 
-  // Single email — concise one-message format
   if (items.length === 1) {
     return formatSingleEmail(items[0], emoji, label, timeAgo);
   }
 
-  // Multiple similar emails — grouped into one message
   return formatGroupedEmails(items, emoji, label, group, timeAgo);
 }
 
@@ -110,7 +108,6 @@ function formatGroupedEmails(items, emoji, label, group, timeAgo) {
 }
 
 export function formatTrendsDigest(digestText) {
-  // Slack sections have a 3000 char limit — split if needed
   const blocks = [
     {
       type: 'section',
@@ -119,7 +116,6 @@ export function formatTrendsDigest(digestText) {
     { type: 'divider' },
   ];
 
-  // Split on double newlines to respect section boundaries
   if (digestText.length <= 2900) {
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: digestText } });
   } else {
@@ -168,7 +164,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
     log.error('SLACK_WEBHOOK_LOGS not set in .env');
     process.exit(1);
   }
-  log.info('Sending test message to #agent-logs...');
+  log.head('Sending test message to #agent-logs...');
   await sendSlack(webhookUrl, '🧪 Test de integración de Wingman — si ves esto, funciona!');
-  log.info('Test message sent successfully.');
+  log.ok('Test message sent successfully');
 }

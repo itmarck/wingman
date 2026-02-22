@@ -5,7 +5,7 @@ import { summarize } from '../../shared/claude.js';
 import { sendSlack, formatTrendingPosts } from '../../shared/slack.js';
 import { fetchReddit } from './reddit.js';
 
-const log = createLogger('trends');
+const log = createLogger('trnd');
 
 const STATE_FILE = 'state/reddit-trending.json';
 const WEBHOOK_NEWS = process.env.SLACK_WEBHOOK_NEWS;
@@ -64,7 +64,7 @@ function buildTrendingPrompt(posts) {
 }
 
 export async function runRedditTrending() {
-  log.info(`Starting Reddit trending scan (threshold: ${THRESHOLD})...`);
+  log.head(`Starting Reddit trending scan (threshold: ${THRESHOLD})`);
 
   const sources = await loadSources();
   const redditSources = sources.reddit || [];
@@ -130,7 +130,7 @@ export async function runRedditTrending() {
     await saveState(state);
 
     const logMsg = `Trending: ${scored.length} posts notified`;
-    log.info(logMsg);
+    log.ok(logMsg);
 
     try {
       await sendSlack(WEBHOOK_LOGS, `[trending] ${logMsg}`);

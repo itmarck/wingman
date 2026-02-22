@@ -82,7 +82,7 @@ async function main() {
     process.exit(1);
   }
 
-  log.info('Starting Microsoft OAuth device code flow...');
+  log.head('Starting Microsoft OAuth device code flow...');
   log.info(`Tenant: ${TENANT_ID}`);
   log.info(`Scopes: ${SCOPES}`);
 
@@ -109,7 +109,7 @@ async function main() {
   console.log(`  MS_REFRESH_TOKEN=${tokenResponse.refresh_token}`);
   console.log('='.repeat(60) + '\n');
 
-  log.info('Done. You can now run the email agent.');
+  log.ok('Done. You can now run the email agent.');
 }
 
 main().catch((err) => {

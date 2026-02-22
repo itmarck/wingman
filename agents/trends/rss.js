@@ -1,7 +1,7 @@
 import Parser from 'rss-parser';
 import { createLogger } from '../../shared/logger.js';
 
-const log = createLogger('trends');
+const log = createLogger('trnd');
 const parser = new Parser({ timeout: 15_000 });
 
 export async function fetchRSS(sources) {
@@ -15,11 +15,11 @@ export async function fetchRSS(sources) {
   const results = await Promise.allSettled(
     active.map(async (source) => {
       log.info(`Fetching RSS: ${source.name} (${source.category})`);
-      log.verbose(`RSS URL: ${source.url}`);
+      log.data(`RSS URL: ${source.url}`);
 
       const feed = await parser.parseURL(source.url);
       const sliced = feed.items.slice(0, 10);
-      log.info(`RSS "${source.name}": ${feed.items.length} items, using top ${sliced.length}`);
+      log.ok(`RSS "${source.name}": ${feed.items.length} items, using top ${sliced.length}`);
 
       return sliced.map((item) => ({
         title: item.title || '(untitled)',
@@ -37,7 +37,7 @@ export async function fetchRSS(sources) {
       items.push(...result.value);
     } else {
       log.error(`RSS fetch failed: ${result.reason.message}`);
-      log.verbose(`RSS error detail: ${result.reason.stack}`);
+      log.data(`RSS error detail: ${result.reason.stack}`);
     }
   }
 
