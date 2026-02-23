@@ -31,21 +31,13 @@ All agents are **implemented and functional**:
 ```bash
 # Scheduler
 npm run dev                          # run one tick (respects timing)
-npm run dev:all                      # force all agents to run now
-node main.js --force-email           # force only email
-node main.js --force-digest          # force only morning digest
-node main.js --force-trending        # force only Reddit trending
-node main.js --force-catchup         # force email catch-up (inbox + junk)
-
-# Individual agents (bypass scheduler)
-npm run dev:email                    # email agent only
-npm run dev:trends                   # morning digest only
-npm run dev:trending                 # Reddit trending only
-npm run dev:catchup                  # email catch-up (unread last 2 days)
-
-# Test shared utilities
-npm run test:slack                   # verify Slack webhook
-npm run test:claude                  # verify Claude CLI
+npm run dev -- all                   # force all agents to run now
+npm run dev -- email                 # force only email
+npm run dev -- digest                # force only morning digest
+npm run dev -- trending              # force only Reddit trending
+npm run dev -- catchup               # force email catch-up (inbox + junk)
+npm run dev -- test slack            # verify Slack webhook
+npm run dev -- test claude           # verify Claude CLI
 
 # Log viewer
 npm run log                          # today's full log (no verb/data)

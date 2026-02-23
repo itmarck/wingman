@@ -9,14 +9,7 @@
     "status": "pm2 list",
     "restart": "pm2 restart all",
     "reset": "pm2 delete wingman && npm start",
-    "dev": "node main.js",
-    "dev:all": "node main.js --force-all",
-    "dev:email": "node agents/email/index.js",
-    "dev:trends": "node agents/trends/index.js",
-    "dev:trending": "node agents/trends/trending.js",
-    "dev:catchup": "node main.js --force-catchup",
-    "test:slack": "node shared/slack.js",
-    "test:claude": "node shared/claude.js",
+    "dev": "node scripts/dev.js",
     "log": "node scripts/log.js"
   },
   "dependencies": {
