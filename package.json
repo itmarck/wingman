@@ -6,9 +6,9 @@
   "scripts": {
     "start": "pm2 start ecosystem.config.cjs",
     "stop": "pm2 stop all",
-    "restart": "pm2 restart all",
     "status": "pm2 list",
-    "logs": "pm2 logs",
+    "restart": "pm2 restart all",
+    "reset": "pm2 delete wingman && npm start",
     "dev": "node main.js",
     "dev:all": "node main.js --force-all",
     "dev:email": "node agents/email/index.js",
