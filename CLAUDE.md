@@ -20,9 +20,11 @@ All agents are **implemented and functional**:
 - `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), morning digest orchestrator, Reddit trending detector
 - `config/profile.md` — email classification rules in Spanish (editable, loaded dynamically)
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
+- `scripts/dev.js` — dev runner CLI (argument-based dispatch: agents, catchup, tests)
 - `scripts/log.js` — log viewer CLI with filtering and oneline mode
+- `scripts/startup.bat` + `scripts/wingman-task.xml` — Windows Task Scheduler auto-startup on boot and resume from sleep
 
-**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run dev:all` to test everything.
+**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run dev -- all` to test everything.
 
 ---
 
@@ -55,11 +57,10 @@ npm run log -- summary               # show tick summaries (output.log)
 npm run log -- ayer oneline          # combinable
 
 # pm2 process management
-npm start                            # pm2 start ecosystem.config.js
+npm start                            # pm2 start ecosystem.config.cjs
 npm run status                       # pm2 list
 npm run logs                         # pm2 logs (live stream)
 pm2 restart wingman                  # restart scheduler
-pm2 save && pm2 startup              # persist across reboots
 ```
 
 ---
@@ -94,7 +95,7 @@ When the scheduler detects it's been offline for more than 60 minutes (e.g. PC s
 5. Marks ALL processed emails as read
 6. Routes notifications to Slack (respecting category-specific rules)
 
-Can also be triggered manually with `npm run dev:catchup`.
+Can also be triggered manually with `npm run dev -- catchup`.
 
 ### Agent data flow
 
@@ -150,6 +151,22 @@ Posts above `REDDIT_TRENDING_THRESHOLD` (default 500) that haven't been notified
 Single process `wingman` runs as a cron job every 5 minutes. Not a server — runs once per tick, then exits.
 
 `autorestart: false` is intentional — pm2 only restarts on schedule, not on crash.
+
+### Windows auto-startup
+
+pm2 doesn't natively support `pm2 startup` on Windows. Instead, a Windows Task Scheduler task (`Wingman`) handles persistence:
+
+- **Trigger 1: LogonTrigger** — starts pm2 + wingman when the user logs in (covers shutdown/reboot)
+- **Trigger 2: EventTrigger** (Power-Troubleshooter, Event ID 1) — restarts on resume from sleep/suspend
+
+The task runs `scripts/startup.bat`, which waits 10 seconds for system stabilization, cleans any stale pm2 process, and starts fresh via `ecosystem.config.cjs`. `MultipleInstancesPolicy: IgnoreNew` prevents duplicates if both triggers fire simultaneously.
+
+To register (requires admin):
+```powershell
+Register-ScheduledTask -TaskName 'Wingman' -Xml (Get-Content 'scripts/wingman-task.xml' | Out-String) -Force
+```
+
+Task definition lives in `scripts/wingman-task.xml`.
 
 ### AI integration
 
