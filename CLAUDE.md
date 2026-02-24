@@ -144,7 +144,15 @@ sources → fetcher → classifier (Claude CLI) → notifier (Slack)
 
 Reddit posts are scored with: `(score × comments) / post_age_hours`
 
-Posts above `REDDIT_TRENDING_THRESHOLD` (default 500) that haven't been notified before are sent through Claude for a brief summary, then posted to `#news-digest`. State tracked in `state/reddit-trending.json` (daily cleanup).
+Two-tier threshold system:
+- **Viral** (`REDDIT_TRENDING_VIRAL`, default 5000): posts above this are always notified regardless of interests — these are massive events too big to miss.
+- **Base** (`REDDIT_TRENDING_THRESHOLD`, default 500): posts between base and viral are sent to Claude filtered by `interest_categories` from `config/sources.json`. Claude omits posts that don't match the user's interests.
+
+Claude tags each post as `[VIRAL]` or `[CANDIDATO]` in the prompt. If no posts survive filtering, Claude responds `NINGUNO` and nothing is posted (but posts are still marked as notified to avoid reprocessing).
+
+Slack format: each post is a single bullet with title in Spanish, link in parentheses, and brief summary. No separate header block for each post.
+
+State tracked in `state/reddit-trending.json` (daily cleanup).
 
 ### pm2 scheduling
 
@@ -318,7 +326,8 @@ See `.env.example`. Key variables:
 MS_CLIENT_ID / MS_CLIENT_SECRET / MS_TENANT_ID / MS_REFRESH_TOKEN  ← Microsoft Graph OAuth
 SLACK_WEBHOOK_EMAIL_IMPORTANT / _EMAIL_DIGEST / _NEWS / _ALERTS / _LOGS  ← Slack
 EMAIL_LOOKBACK_HOURS=1
-REDDIT_TRENDING_THRESHOLD=500  ← trending score threshold (low=more alerts)
+REDDIT_TRENDING_THRESHOLD=500  ← base trending score (filtered by interests)
+REDDIT_TRENDING_VIRAL=5000     ← viral threshold (always notified, no interest filter)
 ```
 
 `MS_REFRESH_TOKEN` is generated via `node agents/email/auth.js` (device-code flow).

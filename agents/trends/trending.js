@@ -11,6 +11,7 @@ const STATE_FILE = 'state/reddit-trending.json';
 const WEBHOOK_NEWS = process.env.SLACK_WEBHOOK_NEWS;
 const WEBHOOK_LOGS = process.env.SLACK_WEBHOOK_LOGS;
 const THRESHOLD = parseInt(process.env.REDDIT_TRENDING_THRESHOLD || '500', 10);
+const VIRAL_THRESHOLD = parseInt(process.env.REDDIT_TRENDING_VIRAL || '5000', 10);
 const MAX_NOTIFIED = 500;
 
 async function loadSources() {
@@ -41,10 +42,16 @@ function trendingScore(post) {
   return (post.score * Math.max(post.num_comments, 1)) / clampedAge;
 }
 
-function buildTrendingPrompt(posts) {
+function buildTrendingPrompt(posts, interestCategories) {
   const lines = [
     'Los siguientes posts de Reddit están en tendencia ahora mismo.',
-    'Genera un resumen breve para cada uno en español, explicando por qué es relevante o interesante.',
+    '',
+    'TAREA:',
+    '- Los posts marcados [VIRAL] son eventos masivos — inclúyelos siempre.',
+    '- Los posts marcados [CANDIDATO] solo deben incluirse si coinciden con mis intereses. Si no coinciden, OMÍTELOS completamente.',
+    '',
+    'MIS INTERESES:',
+    ...interestCategories.map((c) => `- ${c}`),
     '',
     'FORMATO — usa Slack mrkdwn (NO markdown estándar):',
     '- Negrita: *texto* (un solo asterisco)',
@@ -54,23 +61,26 @@ function buildTrendingPrompt(posts) {
     '  • Título traducido al español (<URL|r/SUBREDDIT>): resumen breve',
     '- El link va entre paréntesis justo después del título, usando formato Slack: (<url|r/sub>)',
     '- No agregues nada más fuera de los bullets (sin header ni footer)',
+    '- Si después de filtrar no queda ningún post relevante, responde exactamente: NINGUNO',
     '',
     'Máximo 1000 caracteres en total.',
     '',
   ];
 
   for (const p of posts) {
-    lines.push(`- [r/${p.subreddit}] "${p.title}" (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel}) → ${p.url}`);
+    const tag = p.trendingScore >= VIRAL_THRESHOLD ? 'VIRAL' : 'CANDIDATO';
+    lines.push(`- [${tag}] [r/${p.subreddit}] "${p.title}" (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel}) → ${p.url}`);
   }
 
   return lines.join('\n');
 }
 
 export async function runRedditTrending() {
-  log.head(`Reddit trending scan (threshold: ${THRESHOLD})`);
+  log.head(`Reddit trending scan (threshold: ${THRESHOLD}, viral: ${VIRAL_THRESHOLD})`);
 
   const sources = await loadSources();
   const redditSources = sources.reddit || [];
+  const interestCategories = sources.interest_categories || [];
 
   if (redditSources.filter((s) => s.active).length === 0) {
     log.info('No active Reddit sources. Skipping trending scan');
@@ -115,10 +125,24 @@ export async function runRedditTrending() {
       log.data(`r/${p.subreddit}: "${p.title}" -- score:${p.score} cmt:${p.num_comments} trend:${Math.round(p.trendingScore)} age:${p.ageLabel}`, null, 1);
     }
 
-    const prompt = buildTrendingPrompt(scored);
+    const viralCount = scored.filter((p) => p.trendingScore >= VIRAL_THRESHOLD).length;
+    const candidateCount = scored.length - viralCount;
+    log.info(`Breakdown: ${viralCount} viral + ${candidateCount} candidates`);
+
+    const prompt = buildTrendingPrompt(scored, interestCategories);
     log.info(`Calling Claude (${prompt.length} chars) for trending summary...`);
 
     const summary = await summarize(prompt);
+
+    // Claude responds NINGUNO when no candidates match interests and there are no viral posts
+    if (summary.trim() === 'NINGUNO') {
+      log.info('Claude filtered all candidates — none matched interests');
+      for (const p of scored) notifiedSet.add(p.id);
+      state.notified = [...notifiedSet].slice(-MAX_NOTIFIED);
+      await saveState(state);
+      return { summary: `trending: ${scored.length} evaluated, 0 relevant` };
+    }
+
     log.info(`Trending summary generated (${summary.length} chars). Posting to Slack...`);
 
     await sendSlack(WEBHOOK_NEWS, formatTrendingPosts(scored, summary));
