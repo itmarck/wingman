@@ -5,10 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "pm2 start ecosystem.config.cjs",
-    "stop": "pm2 stop all",
+    "stop": "pm2 delete wingman",
+    "restart": "npm run stop && npm start",
     "status": "pm2 list",
-    "restart": "pm2 restart all",
-    "reset": "pm2 delete wingman && npm start",
     "dev": "node scripts/dev.js",
     "log": "node scripts/log.js"
   },
