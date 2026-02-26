@@ -12,6 +12,7 @@ const EMAIL_INTERVAL = 15;
 const TRENDING_INTERVAL = 10;
 const DIGEST_HOUR = 8; // Local hour for morning digest
 const CATCHUP_HOUR = 8; // Local hour for morning catch-up (retry each tick until success)
+const INBOX_INTERVAL = 30; // Process Notion inbox every 30 min
 
 async function loadState() {
   try {
@@ -19,7 +20,7 @@ async function loadState() {
     return JSON.parse(data);
   } catch (err) {
     if (err.code === 'ENOENT') {
-      return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null, lastCatchup: null };
+      return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null, lastCatchup: null, lastInboxTick: null };
     }
     throw err;
   }
@@ -56,6 +57,11 @@ function shouldRunTrending(state, force) {
   return minutesSince(state.lastRedditTrending) >= TRENDING_INTERVAL;
 }
 
+function shouldRunInbox(state, force) {
+  if (force) return true;
+  return minutesSince(state.lastInboxTick) >= INBOX_INTERVAL;
+}
+
 function shouldRunCatchup(state, force) {
   if (force) return true;
   const now = new Date();
@@ -90,6 +96,7 @@ async function main() {
   const forceDigest = forceAll || args.includes('--force-digest');
   const forceTrending = forceAll || args.includes('--force-trending');
   const forceCatchup = forceAll || args.includes('--force-catchup');
+  const forceInbox = forceAll || args.includes('--force-inbox');
 
   const state = await loadState();
   const now = new Date();
@@ -118,6 +125,9 @@ async function main() {
   }
   if (shouldRunTrending(state, forceTrending)) {
     plan.push('trending');
+  }
+  if (shouldRunInbox(state, forceInbox)) {
+    plan.push('inbox');
   }
 
   if (plan.length === 0) {
@@ -160,6 +170,13 @@ async function main() {
           const result = await runRedditTrending();
           state.lastRedditTrending = now.toISOString();
           summaryParts.push(result?.summary || 'trending: done');
+          break;
+        }
+        case 'inbox': {
+          const { runInboxAgent } = await import('./agents/tasks/inbox.js');
+          const result = await runInboxAgent();
+          state.lastInboxTick = now.toISOString();
+          summaryParts.push(result?.summary || 'inbox: done');
           break;
         }
       }

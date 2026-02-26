@@ -65,6 +65,8 @@ const TAG_COLORS = {
   clde: chalk.yellow,
   slck: chalk.green,
   auth: chalk.red,
+  task: chalk.blue,
+  notn: chalk.cyan,
 };
 
 // Level definitions

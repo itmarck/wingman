@@ -23,11 +23,37 @@ export async function summarize(prompt) {
   return output;
 }
 
+/**
+ * classifyRaw — parse JSON from Claude without field validation.
+ * Used by agents whose schema differs from the email classifier.
+ */
+export async function classifyRaw(prompt) {
+  log.verb(`ClassifyRaw prompt (${prompt.length} chars):`);
+  log.verb(prompt.slice(0, 500) + '...', 1);
+  const output = await runClaude(prompt);
+  const parsed = parseJSONRaw(output);
+  log.data('Classification result:', parsed);
+  return parsed;
+}
+
+function parseJSONRaw(text) {
+  const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  const jsonStr = fenceMatch ? fenceMatch[1].trim() : text.trim();
+  try {
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    log.error(`Failed to parse Claude response as JSON: ${err.message}`);
+    log.verb(`Raw output: ${text.slice(0, 500)}`);
+    throw err;
+  }
+}
+
 function runClaude(prompt) {
   return new Promise((resolve, reject) => {
     const proc = spawn('claude', ['-p', '--output-format', 'text'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: true,
+      windowsHide: true,
     });
 
     let stdout = '';
@@ -86,8 +112,7 @@ function parseJSON(text) {
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
   log.head('Testing Claude CLI integration...');
   const result = await classify(
-    'Classify this test email and respond with JSON:\n\n' +
-    '{"classification": "noise", "reason": "test email", "summary": "This is a test", "suggested_action": null, "draft_reply": null}\n\n' +
+    'Classify this email and respond with a JSON object containing at least a "classification" field.\n\n' +
     'From: test@example.com\nSubject: Test email\nBody: This is a test email for Wingman.'
   );
   log.ok(`Classification result: ${JSON.stringify(result, null, 2)}`);

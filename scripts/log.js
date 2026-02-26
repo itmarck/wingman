@@ -48,6 +48,8 @@ const TAG_COLORS = {
   clde: chalk.yellow,
   slck: chalk.green,
   auth: chalk.red,
+  task: chalk.blue,
+  notn: chalk.cyan,
 };
 
 // New format: SYMBOL TIMESTAMP [TAG ] LEVEL DD | MESSAGE
@@ -199,6 +201,8 @@ const tagFilter = (() => {
   if (args.includes('trnd') || args.includes('trends')) return 'trnd';
   if (args.includes('auth')) return 'auth';
   if (args.includes('main') || args.includes('clock')) return 'main';
+  if (args.includes('task') || args.includes('tasks')) return 'task';
+  if (args.includes('notn') || args.includes('notion')) return 'notn';
   return null;
 })();
 
@@ -237,7 +241,8 @@ if (showSummary) {
           .replace(/(email:[^,)]+)/g, chalk.cyan('$1'))
           .replace(/(trending:[^,)]+)/g, chalk.magenta('$1'))
           .replace(/(digest[^,)]*)/g, chalk.yellow('$1'))
-          .replace(/(catchup:[^,)]+)/g, chalk.blue('$1'));
+          .replace(/(catchup:[^,)]+)/g, chalk.blue('$1'))
+          .replace(/(inbox:[^,)]+)/g, chalk.cyan('$1'));
       }
       console.log(colored);
     }

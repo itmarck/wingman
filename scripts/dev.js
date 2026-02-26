@@ -12,6 +12,9 @@
  *   npm run dev -- catchup         → force email catch-up
  *   npm run dev -- test slack      → verify Slack webhook
  *   npm run dev -- test claude     → verify Claude CLI
+ *   npm run dev -- test notion     → verify Notion API
+ *   npm run dev -- schema          → create Notion databases
+ *   npm run dev -- notion          → list pending tasks
  */
 
 import { spawn } from 'child_process';
@@ -29,6 +32,7 @@ if (args[0] === 'test') {
   const tests = {
     slack: 'shared/slack.js',
     claude: 'shared/claude.js',
+    notion: 'shared/notion.js',
   };
 
   const target = args[1];
@@ -39,10 +43,14 @@ if (args[0] === 'test') {
   }
 
   run('node', [tests[target]]);
+} else if (args[0] === 'schema') {
+  run('node', ['agents/tasks/schema.js']);
+} else if (args[0] === 'notion') {
+  run('node', ['scripts/notion.js', ...args.slice(1)]);
 } else {
   // --- scheduler with optional force flags ---
 
-  const agents = ['all', 'email', 'digest', 'trending', 'catchup'];
+  const agents = ['all', 'email', 'digest', 'trending', 'catchup', 'inbox'];
   const flags = args.filter((a) => agents.includes(a)).map((a) => `--force-${a}`);
 
   run('node', ['main.js', ...flags]);
