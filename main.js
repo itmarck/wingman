@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { readFile, writeFile, mkdir } from 'fs/promises';
+import { execSync } from 'child_process';
 import { createLogger, flushLogs } from './shared/logger.js';
 
 const log = createLogger('main');
@@ -65,6 +66,23 @@ function shouldRunCatchup(state, force) {
   return true;
 }
 
+async function isGaming() {
+  try {
+    const config = JSON.parse(await readFile('config/games.json', 'utf-8'));
+    const exes = config.executables.map(e => e.toLowerCase());
+    const output = execSync('tasklist /FO CSV /NH', { encoding: 'utf-8', timeout: 5000 });
+    for (const line of output.split('\n')) {
+      const match = line.match(/^"([^"]+)"/);
+      if (match && exes.includes(match[1].toLowerCase())) {
+        return match[1];
+      }
+    }
+  } catch {
+    // If tasklist fails or config missing, don't block
+  }
+  return null;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const forceAll = args.includes('--force-all');
@@ -77,6 +95,16 @@ async function main() {
   const now = new Date();
 
   log.tick(`Tick at ${now.toLocaleTimeString()}`);
+
+  // Pause while gaming (bypass with --force-*)
+  if (!forceAll) {
+    const game = await isGaming();
+    if (game) {
+      log.info(`Gaming detected (${game}) — skipping tick`);
+      log.summary(`Tick — paused (gaming: ${game})`);
+      return;
+    }
+  }
 
   const plan = [];
 

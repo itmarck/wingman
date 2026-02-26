@@ -1,0 +1,25 @@
+{
+  "description": "Game executables to detect. When any of these are running, system pauses.",
+  "executables": [
+    "VALORANT-Win64-Shipping.exe",
+    "FortniteLauncher.exe",
+    "FortniteClient-Win64-Shipping.exe",
+    "Minecraft.Windows.exe",
+    "cs2.exe",
+    "csgo.exe",
+    "dota2.exe",
+    "GTA5.exe",
+    "eldenring.exe",
+    "RocketLeague.exe",
+    "LeagueofLegends.exe",
+    "Overwatch.exe",
+    "r5apex.exe",
+    "TEKKEN 8.exe",
+    "streetfighter6.exe",
+    "Cyberpunk2077.exe",
+    "Hogwarts Legacy.exe",
+    "Baldur's Gate 3.exe",
+    "bg3.exe",
+    "javaw.exe"
+  ]
+}
