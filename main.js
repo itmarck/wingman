@@ -11,7 +11,7 @@ const STATE_FILE = 'state/scheduler.json';
 const EMAIL_INTERVAL = 15;
 const TRENDING_INTERVAL = 10;
 const DIGEST_HOUR = 8; // Local hour for morning digest
-const CATCHUP_GAP = 60; // Minutes of inactivity that triggers catch-up
+const CATCHUP_HOUR = 8; // Local hour for morning catch-up (retry each tick until success)
 
 async function loadState() {
   try {
@@ -58,11 +58,11 @@ function shouldRunTrending(state, force) {
 
 function shouldRunCatchup(state, force) {
   if (force) return true;
-  const gap = minutesSince(state.lastEmailTick);
-  if (gap < CATCHUP_GAP) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
   if (state.lastCatchup === today) return false;
-  log.warn(`Detected ${Math.round(gap)} min gap since last email tick — triggering catch-up`);
+  if (now.getHours() < CATCHUP_HOUR) return false;
+  log.info('Morning catch-up — scanning for missed emails');
   return true;
 }
 
@@ -108,7 +108,6 @@ async function main() {
 
   const plan = [];
 
-  // TODO: Improve catchup invoke
   if (shouldRunCatchup(state, forceCatchup)) {
     plan.push('catchup');
   } else if (shouldRunEmail(state, forceEmail)) {
