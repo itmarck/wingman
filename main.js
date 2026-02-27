@@ -76,7 +76,7 @@ async function isGaming() {
   try {
     const config = JSON.parse(await readFile('config/games.json', 'utf-8'));
     const exes = config.executables.map(e => e.toLowerCase());
-    const output = execSync('tasklist /FO CSV /NH', { encoding: 'utf-8', timeout: 5000 });
+    const output = execSync('tasklist /FO CSV /NH', { encoding: 'utf-8', timeout: 5000, windowsHide: true });
     for (const line of output.split('\n')) {
       const match = line.match(/^"([^"]+)"/);
       if (match && exes.includes(match[1].toLowerCase())) {

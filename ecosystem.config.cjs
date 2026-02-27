@@ -11,6 +11,7 @@ module.exports = {
       // Not a server — run once per tick, then exit
       autorestart: false,
       watch: false,
+      windowsHide: true,
       env: {
         NODE_ENV: 'production',
       },
