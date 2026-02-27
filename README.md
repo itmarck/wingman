@@ -15,66 +15,58 @@ npm install
 cp .env.example .env
 # → Edit .env with your credentials
 
-# 3. Install pm2 globally
-npm install -g pm2
-
-# 4. Make sure Claude Code is installed and authenticated
+# 3. Make sure Claude Code is installed and authenticated
 claude --version
 
-# 5. Authenticate with Microsoft (device-code flow)
+# 4. Authenticate with Microsoft (device-code flow)
 node agents/email/auth.js
 
+# 5. Start the scheduler and register auto-start on login
+npm run setup
+
 # 6. Test connections
-npm run test:slack
-npm run test:claude
+npm run dev -- test slack
+npm run dev -- test claude
 
 # 7. Run all agents manually to verify
-npm run dev:all
-
-# 8. Start the scheduler as a cron job
-npm start
-
-# 9. Configure auto-start on boot
-pm2 startup
-pm2 save
+npm run dev -- all
 ```
 
 ## Commands
 
 ```bash
 # Scheduler
-npm run dev               # run one tick (respects timing)
-npm run dev:all           # force all agents now
-
-# Individual agents
-npm run dev:email         # email agent only
-npm run dev:trends        # morning digest only
-npm run dev:trending      # Reddit trending only
-npm run dev:catchup       # catch-up: all unread today + junk
+npm run dev                    # run one tick (respects timing)
+npm run dev -- all             # force all agents now
+npm run dev -- email           # email agent only
+npm run dev -- digest          # morning digest only
+npm run dev -- trending        # Reddit trending only
+npm run dev -- catchup         # catch-up: all unread today + junk
 
 # Testing
-npm run test:slack        # verify Slack webhook
-npm run test:claude       # verify Claude CLI
+npm run dev -- test slack      # verify Slack webhook
+npm run dev -- test claude     # verify Claude CLI
 
 # Log viewer
-npm run log               # view today's log
-npm run log -- oneline    # compact view
-npm run log -- ayer       # yesterday's log
-npm run log -- urgente    # filter by classification
-npm run log -- quiet      # hide verbose lines
+npm run log                    # view today's log
+npm run log -- oneline         # compact view
+npm run log -- ayer            # yesterday's log
+npm run log -- urgente         # filter by classification
+npm run log -- verbose         # include technical lines
 
 # pm2
-npm start                 # start scheduler
-npm run status            # check status
-npm run logs              # live log stream
-npm run restart           # restart scheduler
+npm run setup                  # register auto-start + start pm2 (idempotent)
+npm start                      # start scheduler (pm2 only, no auto-start)
+npm run status                 # check status
+npm run logs                   # live log stream
+npm run restart                # restart scheduler
 ```
 
 ## Configuration
 
 - `config/profile.md` — email classification rules (edit to tune behavior)
 - `config/sources.json` — RSS feeds and Reddit sources for trends
-- `.env` — credentials, webhook URLs, and trending threshold
+- `.env` — credentials, webhook URLs, and trending thresholds
 
 ## Full documentation
 

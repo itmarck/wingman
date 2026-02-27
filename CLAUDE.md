@@ -22,9 +22,9 @@ All agents are **implemented and functional**:
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
 - `scripts/dev.js` — dev runner CLI (argument-based dispatch: agents, catchup, tests)
 - `scripts/log.js` — log viewer CLI with filtering and oneline mode
-- `scripts/startup.bat` + `scripts/wingman-task.xml` — Windows Task Scheduler auto-startup on boot and resume from sleep
+- `scripts/setup.js` — one-command setup: registers auto-start on login (no admin) + starts pm2
 
-**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run dev -- all` to test everything.
+**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run setup` to start everything, then `npm run dev -- all` to test.
 
 ---
 
@@ -55,6 +55,9 @@ npm run log -- noise                 # only noise
 npm run log -- mail                  # only email agent lines
 npm run log -- summary               # show tick summaries (output.log)
 npm run log -- ayer oneline          # combinable
+
+# Setup (run once on a new machine)
+npm run setup                        # register auto-start + start pm2 (no admin, idempotent)
 
 # pm2 process management
 npm start                            # pm2 start ecosystem.config.cjs
@@ -162,29 +165,39 @@ Single process `wingman` runs as a cron job every 5 minutes. Not a server — ru
 
 ### Windows auto-startup
 
-pm2 doesn't natively support `pm2 startup` on Windows. Instead, a Windows Task Scheduler task (`Wingman`) handles persistence:
+pm2 doesn't natively support `pm2 startup` on Windows. Instead, `npm run setup` drops a VBScript into the Windows user Startup folder — no admin required, no Task Scheduler.
 
-- **Trigger 1: LogonTrigger** — starts pm2 + wingman when the user logs in (covers shutdown/reboot)
-- **Trigger 2: EventTrigger** (Power-Troubleshooter, Event ID 1) — restarts on resume from sleep/suspend
+**How it works:**
 
-The task runs `scripts/startup.bat`, which waits 10 seconds for system stabilization, cleans any stale pm2 process, and starts fresh via `ecosystem.config.cjs`. `MultipleInstancesPolicy: IgnoreNew` prevents duplicates if both triggers fire simultaneously.
-
-To register (requires admin):
-```powershell
-Register-ScheduledTask -TaskName 'Wingman' -Xml (Get-Content 'scripts/wingman-task.xml' | Out-String) -Force
+`scripts/setup.js` writes `Wingman.vbs` to:
+```
+%APPDATA%\Microsoft\Windows\Start Menu\Programs\Wingman\Wingman.vbs
 ```
 
-Task definition lives in `scripts/wingman-task.xml`.
+The VBScript runs via `wscript.exe` (no console window) on every login. It:
+1. Waits 10 seconds for system stabilization (`WScript.Sleep 10000`)
+2. Cleans any stale pm2 process (`npx pm2 delete wingman`)
+3. Starts fresh via `ecosystem.config.cjs`
+
+**Sleep/wake:** pm2 daemon persists across sleep. The cron fires within 5 minutes of wake; if the gap exceeds 60 minutes the catch-up logic handles it automatically.
+
+**`npm run setup` is idempotent** — checks whether the VBScript is up to date and whether wingman is registered in pm2 before doing anything. Safe to re-run anytime.
 
 ### AI integration
 
 Claude Code CLI is used for classification and summarization — no API key needed:
 ```js
-const proc = spawn('claude', ['-p', '--output-format', 'text'], { stdio: ['pipe', 'pipe', 'pipe'] });
+const proc = spawn('claude', ['-p', '--output-format', 'text'], {
+  stdio: ['pipe', 'pipe', 'pipe'],
+  shell: true,
+  windowsHide: true,   // prevents console window flash on Windows
+});
 proc.stdin.write(prompt);
 proc.stdin.end();
 ```
 This requires Claude Code to be installed and authenticated (`claude --version`).
+
+On this system `claude` resolves to `C:\Users\Marcelo\.local\bin\claude.exe`.
 
 ### Logging
 
@@ -304,6 +317,7 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 - Logger tags: 4-char fixed width, lowercase (e.g. `createLogger('mail')`)
 - All secrets from `process.env` — never hardcoded
 - Slack output in Spanish (Slack mrkdwn format), code and logs in English
+- Always pass `windowsHide: true` to every `spawn` / `execSync` / `execFile` call — prevents console windows from flashing on screen while the scheduler runs in the background
 
 ---
 
