@@ -50,10 +50,17 @@ function parseJSONRaw(text) {
 
 function runClaude(prompt) {
   return new Promise((resolve, reject) => {
+    // Strip Claude Code session variables so nested invocations aren't blocked.
+    // Recent Claude Code versions refuse to launch inside an active session.
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith('CLAUDE'))
+    );
+
     const proc = spawn('claude', ['-p', '--output-format', 'text'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: true,
       windowsHide: true,
+      env,
     });
 
     let stdout = '';
