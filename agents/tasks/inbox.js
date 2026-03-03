@@ -61,7 +61,7 @@ export async function runInboxAgent() {
   try {
     pendingItems = await queryDatabase(dbIds.inbox, {
       property: 'status',
-      select: { equals: 'pending' },
+      select: { equals: 'received' },
     });
   } catch (err) {
     log.error(`Failed to query inbox: ${err.message}`);
@@ -95,21 +95,20 @@ export async function runInboxAgent() {
 
       log.data(`Classification for "${rawText}":`, result, 1);
       log.info(
-        `"${rawText}" → ${type} [${result.urgency || 'none'}/${result.energy || 'medium'}] ` +
-          `(${result.context || '?'}, ${result.goal || 'none'})`,
+        `"${rawText}" → ${type} [P:${result.priority ?? 0} E:${result.energy ?? 50}] ` +
+          `(${result.context || '?'}${result.goal ? `, ${result.goal}` : ''})`,
         1,
       );
 
       // Build task properties
       const taskProperties = {
         name: props.title(result.title || rawText),
-        status: props.select('pending'),
-        urgency: props.select(result.urgency || 'none'),
-        energy: props.select(result.energy || 'medium'),
-        context: props.select(result.context || 'digital'),
-        goal: props.select(result.goal || 'none'),
-        created: props.date(new Date().toISOString()),
+        progress: props.number(0),
+        priority: props.number(result.priority ?? 0),
+        energy: props.number(result.energy ?? 50),
+        context: props.select(result.context || 'personal'),
       };
+      if (result.goal) taskProperties.goal = props.select(result.goal);
 
       // Add description as block children if present
       const children = [];
@@ -135,7 +134,7 @@ export async function runInboxAgent() {
 
           const subtaskProps = {
             name: props.title(subtaskText),
-            done: props.checkbox(false),
+            progress: props.number(0),
             task: props.relation([taskPage.id]),
             order: props.number(i + 1),
           };

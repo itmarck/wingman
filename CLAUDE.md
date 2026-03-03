@@ -18,7 +18,9 @@ All agents are **implemented and functional**:
 - `shared/` — logger (dual output: terminal + daily log file), Slack webhook helper, Claude CLI wrapper
 - `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash, move to folder), seen-state tracking, orchestrator with category-based routing
 - `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), morning digest orchestrator, Reddit trending detector
+- `agents/tasks/` — Notion inbox processor, schema management, task/subtask creation via Claude classification
 - `config/profile.md` — email classification rules in Spanish (editable, loaded dynamically)
+- `config/goals.md` — task classification rules and personal goals (editable, loaded dynamically)
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
 - `scripts/dev.js` — dev runner CLI (argument-based dispatch: agents, catchup, tests)
 - `scripts/log.js` — log viewer CLI with filtering and oneline mode
@@ -111,6 +113,68 @@ sources → fetcher → classifier (Claude CLI) → notifier (Slack)
 - **Email agent** (`agents/email/`): OAuth → fetch unread → filter (isRead + seen.json) → classify each (with category) → execute actions (folder moves / archive / trash) → mark all as read → route notifications by category to Slack
 - **Trends digest** (`agents/trends/index.js`): RSS + Reddit → summarize via Claude → post digest to `#news-digest`
 - **Reddit trending** (`agents/trends/trending.js`): fetch Reddit → calculate trending score → if above threshold → summarize via Claude → post to `#news-digest`
+- **Task inbox** (`agents/tasks/inbox.js`): fetch pending Notion inbox items → classify via Claude using `config/goals.md` → create task with subtasks in Notion → mark inbox item as processed
+
+### Notion task management
+
+The task system uses 4 Notion databases managed by `agents/tasks/schema.js`. The schema is defined using JS native types and expanded to Notion API format at runtime:
+
+```js
+// Schema shorthand → Notion API expansion
+Boolean    → { checkbox: {} }
+Number     → { number: { format: 'number' } }
+String     → { rich_text: {} }
+Date       → { date: {} }
+['a','b']  → { select: { options: [{name:'a'}, {name:'b'}] } }
+Rel('Db')  → { relation: { database_id, single_property: {} } }
+
+// Auto-added to all databases:
+// name (title), created (created_time), updated (last_edited_time)
+```
+
+Shared options (`GOALS`, `CONTEXTS`) are defined once as arrays and referenced by multiple databases.
+
+**Numeric property model** — priority, energy, and progress use 0–100 numbers instead of text labels:
+
+| Property | Scale | Purpose |
+|----------|-------|---------|
+| `progress` | 0=pending, 1–99=in_progress, 100=done | Replaces status select, propagates up (subtask → task → project) |
+| `priority` | 0=none, 1–25=low, 26–50=medium, 51–75=high, 76–100=critical | Continuous ranking, sortable |
+| `energy` | 0–25=quick, 26–50=moderate, 51–75=significant, 76–100=deep work | Effort estimation |
+
+**Database structure:**
+
+| Database | Key properties | Relations |
+|----------|---------------|-----------|
+| Projects | active, progress, goal, context, description | — |
+| Tasks | priority, energy, progress, goal, context, due, description | project → Projects |
+| Subtasks | progress, order | task → Tasks |
+| Inbox | source, status (received/processed/failed) | — |
+
+Creation order matters for relations: Projects → Tasks → Subtasks → Inbox. Database IDs are persisted in `state/notion-dbs.json` and validated on each run.
+
+### Task classification flow
+
+1. Fetch items with status `received` from Inbox database
+2. Classify each item via Claude CLI using `config/goals.md` rules
+3. Create task in Tasks database with numeric priority/energy/progress
+4. Create subtasks if provided by Claude
+5. Mark inbox item as `processed` (or `failed` on error)
+
+Classification output schema:
+```json
+{
+  "type": "task | project | idea",
+  "title": "string (Spanish)",
+  "description": "string (Spanish)",
+  "priority": 0,
+  "energy": 50,
+  "context": "work | personal | family | brand",
+  "goal": "career | english | minima | automation",
+  "subtasks": ["step1", "step2"],
+  "reasoning": "string (Spanish)"
+}
+```
 
 ### Email classification flow
 
@@ -265,12 +329,13 @@ Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`
 | `state/scheduler.json` | Last execution timestamps for each agent |
 | `state/email-seen.json` | Processed email IDs (max 1000, auto-pruned) |
 | `state/reddit-trending.json` | Notified Reddit post IDs (daily cleanup) |
+| `state/notion-dbs.json` | Notion database IDs for task system |
 
 All state files are auto-generated and not committed.
 
 ### Behavior configuration
 
-`config/profile.md` defines how emails are classified. It's loaded dynamically each cycle — edit it and `pm2 restart wingman`, no code changes needed.
+`config/profile.md` defines how emails are classified. `config/goals.md` defines how inbox items are classified into tasks. Both are loaded dynamically each cycle — edit them and `pm2 restart wingman`, no code changes needed.
 
 Classification output schema:
 ```json
@@ -306,6 +371,7 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 | Email | Microsoft Graph API + OAuth 2.0 (Mail.ReadWrite) |
 | Notifications | Slack Incoming Webhooks |
 | Trends | RSS (`rss-parser`) + Reddit JSON (unauthenticated) |
+| Tasks | Notion API (`@notionhq/client`) |
 
 ---
 
@@ -342,6 +408,8 @@ SLACK_WEBHOOK_EMAIL_IMPORTANT / _EMAIL_DIGEST / _NEWS / _ALERTS / _LOGS  ← Sla
 EMAIL_LOOKBACK_HOURS=1
 REDDIT_TRENDING_THRESHOLD=500  ← base trending score (filtered by interests)
 REDDIT_TRENDING_VIRAL=5000     ← viral threshold (always notified, no interest filter)
+NOTION_TOKEN=                  ← Notion internal integration token
+NOTION_ROOT_PAGE_ID=           ← parent page ID where task databases are created
 ```
 
 `MS_REFRESH_TOKEN` is generated via `node agents/email/auth.js` (device-code flow).
