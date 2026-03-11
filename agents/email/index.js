@@ -23,20 +23,17 @@ async function loadProfile() {
 function buildPrompt(profile, email) {
   const from = email.from?.emailAddress?.address || 'unknown';
   const name = email.from?.emailAddress?.name || '';
-  const body = email.bodyPreview || email.body?.content?.slice(0, 2000) || '';
+  const body = (email.bodyPreview || email.body?.content || '').slice(0, 500);
 
   return [
     profile,
     '',
     '---',
     '',
-    'Classify the following email. Respond ONLY with the JSON object, no extra text.',
-    '',
     `From: ${name} <${from}>`,
     `Subject: ${email.subject || '(no subject)'}`,
     `Date: ${email.receivedDateTime}`,
     '',
-    'Body:',
     body,
   ].join('\n');
 }
@@ -285,7 +282,7 @@ export async function runEmailAgent() {
       const from = email.from?.emailAddress?.address || 'unknown';
       const fromName = email.from?.emailAddress?.name || from;
 
-      const result = await classify(buildPrompt(profile, email));
+      const result = await classify(buildPrompt(profile, email), { effort: 'low' });
       seen.add(email.id);
       counts[result.classification] = (counts[result.classification] || 0) + 1;
       classified.push({ email, classification: result });
@@ -361,7 +358,7 @@ export async function runEmailCatchup() {
       const fromName = email.from?.emailAddress?.name || from;
       const folderTag = email._folder === 'junk' ? ' [JUNK]' : '';
 
-      const result = await classify(buildPrompt(profile, email));
+      const result = await classify(buildPrompt(profile, email), { effort: 'low' });
       seen.add(email.id);
       counts[result.classification] = (counts[result.classification] || 0) + 1;
       classified.push({ email, classification: result });

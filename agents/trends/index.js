@@ -18,40 +18,26 @@ async function loadSources() {
 
 function buildPrompt(rssItems, redditItems, categories) {
   const lines = [
-    'Eres mi curador personal de noticias. Resume los items más interesantes e importantes en un resumen matutino conciso.',
-    'IMPORTANTE: Escribe todo el resumen en español. Usa inglés solo para nombres propios, marcas y términos técnicos sin equivalente natural en español.',
-    `Enfócate en estas categorías de interés: ${categories.join(', ')}.`,
-    '',
-    'FORMATO — usa Slack mrkdwn (NO markdown estándar):',
-    '- Negrita: *texto* (un solo asterisco)',
-    '- Cursiva: _texto_',
-    '- Links: <URL|texto> (ej: <https://example.com|leer más>)',
-    '- Bullet points: • o -',
-    '- Emojis para encabezados de sección (ej: 🤖 *IA & Tecnología*)',
-    '- NO uses ##, ###, ---, **, ```, ni ningún otro markdown estándar',
-    '- Separa secciones con una línea vacía',
-    '',
-    'LINKS: Cada item incluye su URL. Al mencionarlo en el resumen, incluye un link con <URL|texto corto> para que pueda abrirlo directamente desde Slack. Es clave que los items más relevantes tengan su link.',
-    '',
-    'FUENTES OFICIALES PERÚ: Los items de fuentes como Congreso, Presidencia, PCM, Poder Judicial, Tribunal Constitucional, SUNAT, Gob. Regional Lambayeque y Muni Chiclayo son normas y hechos oficiales, no noticias. Incluye solo lo que tenga impacto real (leyes aprobadas, decretos importantes, sentencias relevantes, cambios tributarios, obras/ordenanzas locales). Ignora trámites administrativos rutinarios (designaciones de personal, resoluciones de archivo, licencias individuales). Descríbelos como hechos concretos en lenguaje natural, idealmente en una línea.',
-    '',
-    'Máximo 2500 caracteres. Prioriza calidad sobre cantidad — omite lo que no aporte valor.',
+    `Resumen matutino en español. Intereses: ${categories.join(', ')}.`,
+    'Formato: Slack mrkdwn. *negrita*, _cursiva_, <URL|texto>, bullets con •. Emojis en encabezados de sección. NO uses ##, **, ```, ---.',
+    'Incluye <URL|link> en cada item relevante. Máx 2500 chars. Omite lo que no aporte valor.',
+    'Fuentes oficiales Perú: solo lo de impacto real (leyes, decretos, sentencias, cambios tributarios). Ignora trámites rutinarios.',
     '',
   ];
 
   if (rssItems.length > 0) {
-    lines.push('## RSS Feed Items', '');
+    lines.push('RSS:');
     for (const item of rssItems) {
-      lines.push(`- [${item.source}] ${item.title} → ${item.link}`);
-      if (item.snippet) lines.push(`  ${item.snippet.slice(0, 150)}`);
+      const snippet = item.snippet ? ` | ${item.snippet.slice(0, 100)}` : '';
+      lines.push(`- [${item.source}] ${item.title} → ${item.link}${snippet}`);
     }
     lines.push('');
   }
 
   if (redditItems.length > 0) {
-    lines.push('## Reddit Posts', '');
+    lines.push('Reddit:');
     for (const item of redditItems) {
-      lines.push(`- [r/${item.subreddit}] ${item.title} (⬆ ${item.score}, 💬 ${item.num_comments}) → ${item.url}`);
+      lines.push(`- [r/${item.subreddit}] ${item.title} (${item.score}↑ ${item.num_comments}c) → ${item.url}`);
     }
     lines.push('');
   }
@@ -81,7 +67,7 @@ export async function runTrendsDigest() {
   const prompt = buildPrompt(rssItems, redditItems, sources.interest_categories || []);
   log.info(`Calling Claude (${prompt.length} chars)...`);
 
-  const digest = await summarize(prompt);
+  const digest = await summarize(prompt, { effort: 'low' });
   log.info(`Digest generated (${digest.length} chars). Posting to Slack...`);
 
   await sendSlack(WEBHOOK_NEWS, formatTrendsDigest(digest));

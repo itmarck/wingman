@@ -44,32 +44,17 @@ function trendingScore(post) {
 
 function buildTrendingPrompt(posts, interestCategories) {
   const lines = [
-    'Los siguientes posts de Reddit están en tendencia ahora mismo.',
-    '',
-    'TAREA:',
-    '- Los posts marcados [VIRAL] son eventos masivos — inclúyelos siempre.',
-    '- Los posts marcados [CANDIDATO] solo deben incluirse si coinciden con mis intereses. Si no coinciden, OMÍTELOS completamente.',
-    '',
-    'MIS INTERESES:',
-    ...interestCategories.map((c) => `- ${c}`),
-    '',
-    'FORMATO — usa Slack mrkdwn (NO markdown estándar):',
-    '- Negrita: *texto* (un solo asterisco)',
-    '- Cursiva: _texto_',
-    '- NO uses ##, ###, ---, **, ```, ni ningún otro markdown estándar',
-    '- Un bullet por post con este formato exacto:',
-    '  • Título traducido al español (<URL|r/SUBREDDIT>): resumen breve',
-    '- El link va entre paréntesis justo después del título, usando formato Slack: (<url|r/sub>)',
-    '- No agregues nada más fuera de los bullets (sin header ni footer)',
-    '- Si después de filtrar no queda ningún post relevante, responde exactamente: NINGUNO',
-    '',
-    'Máximo 1000 caracteres en total.',
+    'Posts trending en Reddit. [VIRAL]=incluir siempre. [CANDIDATO]=solo si coincide con mis intereses, sino omitir.',
+    `Intereses: ${interestCategories.join(', ')}`,
+    'Formato: Slack mrkdwn. Un bullet por post: • Título en español (<URL|r/SUB>): resumen breve. Sin header/footer. NO uses ##, **, ```, ---.',
+    'Si ninguno es relevante responde: NINGUNO',
+    'Máx 1000 chars.',
     '',
   ];
 
   for (const p of posts) {
     const tag = p.trendingScore >= VIRAL_THRESHOLD ? 'VIRAL' : 'CANDIDATO';
-    lines.push(`- [${tag}] [r/${p.subreddit}] "${p.title}" (⬆ ${p.score}, 💬 ${p.num_comments}, ${p.ageLabel}) → ${p.url}`);
+    lines.push(`- [${tag}] [r/${p.subreddit}] "${p.title}" (${p.score}↑ ${p.num_comments}c ${p.ageLabel}) → ${p.url}`);
   }
 
   return lines.join('\n');
@@ -132,7 +117,7 @@ export async function runRedditTrending() {
     const prompt = buildTrendingPrompt(scored, interestCategories);
     log.info(`Calling Claude (${prompt.length} chars) for trending summary...`);
 
-    const summary = await summarize(prompt);
+    const summary = await summarize(prompt, { effort: 'low' });
 
     // Claude responds NINGUNO when no candidates match interests and there are no viral posts
     if (summary.trim() === 'NINGUNO') {

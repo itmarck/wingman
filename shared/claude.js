@@ -5,19 +5,19 @@ import { createLogger } from './logger.js';
 const log = createLogger('clde');
 const TIMEOUT_MS = 120_000;
 
-export async function classify(prompt) {
+export async function classify(prompt, options = {}) {
   log.verb(`Classify prompt (${prompt.length} chars):`);
   log.verb(prompt.slice(0, 500) + '...', 1);
-  const output = await runClaude(prompt);
+  const output = await runClaude(prompt, options);
   const parsed = parseJSON(output);
   log.data('Classification result:', parsed);
   return parsed;
 }
 
-export async function summarize(prompt) {
+export async function summarize(prompt, options = {}) {
   log.verb(`Summarize prompt (${prompt.length} chars):`);
   log.verb(prompt.slice(0, 500) + '...', 1);
-  const output = await runClaude(prompt);
+  const output = await runClaude(prompt, options);
   log.data(`Summarize response (${output.length} chars):`);
   log.data(output.slice(0, 500) + (output.length > 500 ? '...' : ''), 1);
   return output;
@@ -27,10 +27,10 @@ export async function summarize(prompt) {
  * classifyRaw — parse JSON from Claude without field validation.
  * Used by agents whose schema differs from the email classifier.
  */
-export async function classifyRaw(prompt) {
+export async function classifyRaw(prompt, options = {}) {
   log.verb(`ClassifyRaw prompt (${prompt.length} chars):`);
   log.verb(prompt.slice(0, 500) + '...', 1);
-  const output = await runClaude(prompt);
+  const output = await runClaude(prompt, options);
   const parsed = parseJSONRaw(output);
   log.data('Classification result:', parsed);
   return parsed;
@@ -48,7 +48,7 @@ function parseJSONRaw(text) {
   }
 }
 
-function runClaude(prompt) {
+function runClaude(prompt, options = {}) {
   return new Promise((resolve, reject) => {
     // Strip Claude Code session variables so nested invocations aren't blocked.
     // Recent Claude Code versions refuse to launch inside an active session.
@@ -56,7 +56,11 @@ function runClaude(prompt) {
       Object.entries(process.env).filter(([k]) => !k.startsWith('CLAUDE'))
     );
 
-    const proc = spawn('claude', ['-p', '--output-format', 'text'], {
+    const args = ['-p', '--output-format', 'text'];
+    if (options.effort) args.push('--effort', options.effort);
+    if (options.model) args.push('--model', options.model);
+
+    const proc = spawn('claude', args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       shell: true,
       windowsHide: true,

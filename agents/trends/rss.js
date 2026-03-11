@@ -29,7 +29,7 @@ export async function fetchRSS(sources) {
       return sliced.map((item) => ({
         title: item.title || '(untitled)',
         link: item.link || '',
-        snippet: item.contentSnippet?.slice(0, 200) || '',
+        snippet: item.contentSnippet?.slice(0, 100) || '',
         source: source.name,
         category: source.category,
       }));

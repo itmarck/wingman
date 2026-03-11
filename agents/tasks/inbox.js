@@ -24,10 +24,7 @@ function buildPrompt(goals, rawText) {
     '',
     '---',
     '',
-    'Clasifica el siguiente item del inbox. Responde SOLO con el objeto JSON, sin texto adicional.',
-    '',
     `Texto: ${rawText}`,
-    `Capturado: ${new Date().toISOString()}`,
   ].join('\n');
 }
 
@@ -89,7 +86,7 @@ export async function runInboxAgent() {
       log.info(`Processing: "${rawText}"`, 1);
 
       // Classify via Claude
-      const result = await classifyRaw(buildPrompt(goals, rawText));
+      const result = await classifyRaw(buildPrompt(goals, rawText), { effort: 'low' });
       const type = result.type || 'task';
       counts[type] = (counts[type] || 0) + 1;
 
