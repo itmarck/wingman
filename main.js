@@ -14,6 +14,8 @@ const DIGEST_HOUR = 8; // Local hour for morning digest
 const CATCHUP_HOUR = 8; // Local hour for morning catch-up (retry each tick until success)
 const INBOX_INTERVAL = 30; // Process Notion inbox every 30 min
 
+const DISABLE_INBOX = true;
+
 async function loadState() {
   try {
     const data = await readFile(STATE_FILE, 'utf-8');
@@ -58,6 +60,7 @@ function shouldRunTrending(state, force) {
 }
 
 function shouldRunInbox(state, force) {
+  if (DISABLE_INBOX) return false;
   if (force) return true;
   return minutesSince(state.lastInboxTick) >= INBOX_INTERVAL;
 }
