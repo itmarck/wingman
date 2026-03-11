@@ -31,9 +31,9 @@ export async function fetchReddit(subreddits) {
       }
 
       const data = await res.json();
-      const posts = data.data.children.filter((c) => !c.data.stickied);
+      const posts = data.data.children.filter((c) => !c.data.stickied && c.data.score >= 3);
 
-      log.ok(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering stickied`, 1);
+      log.ok(`Reddit r/${sub.subreddit}: ${data.data.children.length} total, ${posts.length} after filtering`, 1);
 
       // Log each post as data
       for (const c of posts) {
@@ -43,7 +43,7 @@ export async function fetchReddit(subreddits) {
       return posts.map((c) => ({
         id: c.data.id,
         title: c.data.title,
-        url: `https://reddit.com${c.data.permalink}`,
+        url: `https://redd.it/${c.data.id}`,
         score: c.data.score,
         subreddit: c.data.subreddit,
         num_comments: c.data.num_comments,

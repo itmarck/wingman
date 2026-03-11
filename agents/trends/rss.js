@@ -18,7 +18,7 @@ export async function fetchRSS(sources) {
       log.verb(`RSS URL: ${source.url}`, 1);
 
       const feed = await parser.parseURL(source.url);
-      const sliced = feed.items.slice(0, 10);
+      const sliced = feed.items.slice(0, 5);
       log.ok(`RSS "${source.name}": ${feed.items.length} items, using top ${sliced.length}`, 1);
 
       // Log each item as data
@@ -29,7 +29,6 @@ export async function fetchRSS(sources) {
       return sliced.map((item) => ({
         title: item.title || '(untitled)',
         link: item.link || '',
-        snippet: item.contentSnippet?.slice(0, 100) || '',
         source: source.name,
         category: source.category,
       }));

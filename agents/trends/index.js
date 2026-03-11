@@ -16,7 +16,16 @@ async function loadSources() {
   return JSON.parse(raw);
 }
 
+// Max items sent to Claude to keep prompt under ~15K chars
+const MAX_RSS_ITEMS = 75;
+const MAX_REDDIT_ITEMS = 50;
+
 function buildPrompt(rssItems, redditItems, categories) {
+  const rss = rssItems.slice(0, MAX_RSS_ITEMS);
+  const reddit = redditItems
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_REDDIT_ITEMS);
+
   const lines = [
     `Resumen matutino en español. Intereses: ${categories.join(', ')}.`,
     'Formato: Slack mrkdwn. *negrita*, _cursiva_, <URL|texto>, bullets con •. Emojis en encabezados de sección. NO uses ##, **, ```, ---.',
@@ -25,19 +34,18 @@ function buildPrompt(rssItems, redditItems, categories) {
     '',
   ];
 
-  if (rssItems.length > 0) {
+  if (rss.length > 0) {
     lines.push('RSS:');
-    for (const item of rssItems) {
-      const snippet = item.snippet ? ` | ${item.snippet.slice(0, 100)}` : '';
-      lines.push(`- [${item.source}] ${item.title} → ${item.link}${snippet}`);
+    for (const item of rss) {
+      lines.push(`[${item.source}] ${item.title} ${item.link}`);
     }
     lines.push('');
   }
 
-  if (redditItems.length > 0) {
+  if (reddit.length > 0) {
     lines.push('Reddit:');
-    for (const item of redditItems) {
-      lines.push(`- [r/${item.subreddit}] ${item.title} (${item.score}↑ ${item.num_comments}c) → ${item.url}`);
+    for (const item of reddit) {
+      lines.push(`[r/${item.subreddit}] ${item.title} (${item.score}↑) ${item.url}`);
     }
     lines.push('');
   }
