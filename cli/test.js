@@ -1,22 +1,41 @@
+import chalk from 'chalk';
 import { exec } from './helpers.js';
 
 const TARGETS = {
-  slack: 'shared/slack.js',
-  claude: 'shared/claude.js',
-  notion: 'shared/notion.js',
+  slack: {
+    script: 'shared/slack.js',
+    description: 'Slack webhook delivery',
+  },
+  claude: {
+    script: 'shared/claude.js',
+    description: 'Claude CLI connection',
+  },
+  notion: {
+    script: 'shared/notion.js',
+    description: 'Notion API connection',
+  },
 };
 
 export function register(program) {
   program
     .command('test')
-    .description('Verify integrations')
-    .argument('<integration>', Object.keys(TARGETS).join(' | '))
+    .description('Verify integrations with external systems')
+    .argument('[integration]', Object.keys(TARGETS).join(' | '))
     .action((integration) => {
-      const script = TARGETS[integration];
-      if (!script) {
-        console.error(`Unknown integration: ${integration}. Use: ${Object.keys(TARGETS).join(', ')}`);
+      if (!integration) {
+        console.log(chalk.bold('\nAvailable integrations\n'));
+        for (const [id, { description }] of Object.entries(TARGETS)) {
+          console.log(`  ${chalk.bold(id.padEnd(12))} ${description}`);
+        }
+        console.log(chalk.dim('\nRun: wingman test <integration>\n'));
+        return;
+      }
+
+      const target = TARGETS[integration];
+      if (!target) {
+        console.error(`Unknown integration: ${integration}. Available: ${Object.keys(TARGETS).join(', ')}`);
         process.exit(1);
       }
-      exec(script);
+      exec(target.script);
     });
 }
