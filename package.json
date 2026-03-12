@@ -1,8 +1,11 @@
 {
   "name": "wingman",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Personal automation system: email, news, and Slack notifications",
   "type": "module",
+  "bin": {
+    "wingman": "./cli.js"
+  },
   "scripts": {
     "start": "pm2 start ecosystem.config.cjs",
     "stop": "pm2 delete wingman",
@@ -13,11 +16,12 @@
     "setup": "node scripts/setup.js"
   },
   "dependencies": {
+    "@notionhq/client": "^2.2.0",
     "chalk": "^5.6.2",
+    "commander": "^14.0.3",
     "dotenv": "^16.4.5",
     "node-fetch": "^3.3.2",
-    "rss-parser": "^3.13.0",
-    "@notionhq/client": "^2.2.0"
+    "rss-parser": "^3.13.0"
   },
   "devDependencies": {
     "pm2": "^6.0.14"
