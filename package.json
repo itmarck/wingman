@@ -1,6 +1,6 @@
 {
   "name": "wingman",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Personal automation system: email, news, and Slack notifications",
   "type": "module",
   "bin": {

@@ -1,7 +1,12 @@
-import 'dotenv/config';
+import { loadConfig } from './shared/env.js';
+import { existsSync } from 'fs';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { execSync } from 'child_process';
 import { createLogger, flushLogs } from './shared/logger.js';
+
+loadConfig();
+
+if (existsSync('state/disabled')) process.exit(0);
 
 const log = createLogger('main');
 

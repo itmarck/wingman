@@ -1,4 +1,5 @@
 import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import chalk from 'chalk';
@@ -17,6 +18,12 @@ export function register(program) {
     .command('status')
     .description('System overview')
     .action(async () => {
+      // Disabled flag
+      if (existsSync(resolve(ROOT, 'state/disabled'))) {
+        console.log(chalk.yellow.bold('\n⏸  Wingman is stopped'));
+        console.log(chalk.dim('   Run: wingman start  to resume'));
+      }
+
       // pm2
       console.log(chalk.bold('\npm2'));
       try {

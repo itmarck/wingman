@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import 'dotenv/config';
 import { createLogger } from './logger.js';
 
 const log = createLogger('clde');

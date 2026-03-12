@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
 import { createDatabase, getDatabaseSchema } from '../../shared/notion.js';

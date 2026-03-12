@@ -11,7 +11,6 @@
  *   4. Add MS_CLIENT_ID and MS_TENANT_ID to your .env
  */
 
-import 'dotenv/config';
 import { createLogger } from '../../shared/logger.js';
 
 const log = createLogger('auth');
@@ -112,7 +111,11 @@ async function main() {
   log.ok('Done. You can now run the email agent.');
 }
 
-main().catch((err) => {
-  log.error(err.message);
-  process.exit(1);
-});
+export { requestDeviceCode, pollForToken };
+
+if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
+  main().catch((err) => {
+    log.error(err.message);
+    process.exit(1);
+  });
+}

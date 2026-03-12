@@ -1,5 +1,4 @@
 import { Client } from '@notionhq/client';
-import 'dotenv/config';
 import { createLogger } from './logger.js';
 
 const log = createLogger('notn');

@@ -7,8 +7,10 @@
  * Grouped by context, sorted by priority (highest first).
  */
 
-import 'dotenv/config';
+import { loadConfig } from '../shared/env.js';
 import chalk from 'chalk';
+
+loadConfig();
 import { queryDatabase } from '../shared/notion.js';
 import { loadDbIds } from '../agents/tasks/schema.js';
 

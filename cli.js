@@ -1,11 +1,15 @@
 #!/usr/bin/env node
-import 'dotenv/config';
+import { createRequire } from 'module';
+import { loadConfig } from './shared/env.js';
 import { Command } from 'commander';
 
-const program = new Command();
-program.name('wingman').description('Personal automation system').version('1.2.0');
+loadConfig();
 
-const cmds = ['run', 'log', 'status', 'task', 'test', 'config', 'setup', 'state'];
+const { version } = createRequire(import.meta.url)('./package.json');
+const program = new Command();
+program.name('wingman').description('Personal automation system').version(version);
+
+const cmds = ['run', 'log', 'status', 'task', 'test', 'config', 'setup', 'teardown', 'reset', 'state', 'stop'];
 await Promise.all(cmds.map(async (c) => (await import(`./cli/${c}.js`)).register(program)));
 
 program.parse();

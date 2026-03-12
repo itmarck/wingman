@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { createLogger } from './logger.js';
 
 const log = createLogger('slck');

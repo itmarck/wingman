@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
 import { summarize } from '../../shared/claude.js';
