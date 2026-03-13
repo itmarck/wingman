@@ -2,7 +2,7 @@
  * Configuration management
  *
  * Three data sources, each with its own storage:
- *   - Secrets (MS_*, NOTION_*) → Windows: user env vars (setx) / Linux: state/secrets.json
+ *   - Secrets (MS_*, NOTION_*) → state/secrets.json (chmod 600 on Linux)
  *   - Settings                 → state/settings.json
  *   - Slack webhooks           → state/slack.json
  *
@@ -10,9 +10,8 @@
  * so existing agent code reads everything from process.env unchanged.
  */
 
-import { readFileSync, writeFileSync, chmodSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, chmodSync } from 'fs';
 import { readFile, writeFile } from 'fs/promises';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 
@@ -22,6 +21,7 @@ const SLACK_FILE = resolve(ROOT, 'state/slack.json');
 const SECRETS_FILE = resolve(ROOT, 'state/secrets.json');
 
 const IS_WIN = process.platform === 'win32';
+const IS_LINUX = !IS_WIN;
 
 const SLACK_MAP = {
   email_important: 'SLACK_WEBHOOK_EMAIL_IMPORTANT',
@@ -50,13 +50,11 @@ async function writeJson(path, data) {
 // ─── Startup loader (sync) ──────────────────────────────────
 
 export function loadConfig() {
-  // Secrets (Linux only — Windows has them in system env already)
-  if (!IS_WIN) {
-    const secrets = readJsonSync(SECRETS_FILE);
-    if (secrets) {
-      for (const [key, value] of Object.entries(secrets)) {
-        process.env[key] = String(value);
-      }
+  // Secrets from state/secrets.json (all platforms)
+  const secrets = readJsonSync(SECRETS_FILE);
+  if (secrets) {
+    for (const [key, value] of Object.entries(secrets)) {
+      process.env[key] = String(value);
     }
   }
 
@@ -77,26 +75,14 @@ export function loadConfig() {
   }
 }
 
-// ─── System env vars (secrets) ───────────────────────────────
+// ─── Secrets (state/secrets.json) ────────────────────────────
 
 export function setSystemEnv(key, value) {
-  if (IS_WIN) {
-    try {
-      execSync(`setx ${key} "${value}"`, { windowsHide: true, stdio: 'pipe' });
-    } catch {
-      const b64 = Buffer.from(value).toString('base64');
-      execSync(
-        `powershell -NoProfile -Command "$v=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${b64}'));[Environment]::SetEnvironmentVariable('${key}',$v,'User')"`,
-        { windowsHide: true, stdio: 'pipe' },
-      );
-    }
-  } else {
-    // Linux/Mac: persist in state/secrets.json (chmod 600)
-    const secrets = readJsonSync(SECRETS_FILE) || {};
-    secrets[key] = value;
-    writeFileSync(SECRETS_FILE, JSON.stringify(secrets, null, 2));
-    chmodSync(SECRETS_FILE, 0o600);
-  }
+  mkdirSync(resolve(ROOT, 'state'), { recursive: true });
+  const secrets = readJsonSync(SECRETS_FILE) || {};
+  secrets[key] = value;
+  writeFileSync(SECRETS_FILE, JSON.stringify(secrets, null, 2));
+  if (IS_LINUX) chmodSync(SECRETS_FILE, 0o600);
   process.env[key] = value;
 }
 
