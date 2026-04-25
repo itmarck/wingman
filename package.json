@@ -11,9 +11,10 @@
     "stop": "pm2 delete wingman",
     "restart": "npm run stop && npm start",
     "status": "pm2 list",
-    "dev": "node scripts/dev.js",
-    "log": "node scripts/log.js",
-    "setup": "node scripts/setup.js"
+    "dev": "tsx scripts/dev.js",
+    "log": "tsx scripts/log.js",
+    "setup": "tsx scripts/setup.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.0",
@@ -24,7 +25,11 @@
     "rss-parser": "^3.13.0"
   },
   "devDependencies": {
-    "pm2": "^6.0.14"
+    "@types/node": "^25.6.0",
+    "pm2": "^6.0.14",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   },
   "engines": {
     "node": ">=18.0.0"

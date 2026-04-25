@@ -42,16 +42,16 @@ if (args[0] === 'test') {
     process.exit(1);
   }
 
-  run('node', [tests[target]]);
+  run('npx', ['tsx', tests[target]]);
 } else if (args[0] === 'schema') {
-  run('node', ['agents/tasks/schema.js']);
+  run('npx', ['tsx', 'agents/tasks/schema.js']);
 } else if (args[0] === 'notion') {
-  run('node', ['scripts/notion.js', ...args.slice(1)]);
+  run('npx', ['tsx', 'scripts/notion.js', ...args.slice(1)]);
 } else {
   // --- scheduler with optional force flags ---
 
   const agents = ['all', 'email', 'digest', 'trending', 'catchup', 'inbox'];
   const flags = args.filter((a) => agents.includes(a)).map((a) => `--force-${a}`);
 
-  run('node', ['main.js', ...flags]);
+  run('npx', ['tsx', 'main.js', ...flags]);
 }

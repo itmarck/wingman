@@ -5,7 +5,8 @@ module.exports = {
   apps: [
     {
       name: 'wingman',
-      script: './main.js',
+      script: 'node_modules/tsx/dist/cli.mjs',
+      args: 'main.js',
       // Tick every 5 minutes — scheduler decides which agents to run
       cron_restart: '*/5 * * * *',
       // Not a server — run once per tick, then exit
