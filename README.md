@@ -1,73 +1,81 @@
 # Wingman
 
-A personal automation system that filters emails, news, and social media,
-delivering only what matters to Slack. Runs in the background on your main PC using pm2.
+Personal automation that filters emails, news, and social media — delivering only what matters to Slack. Runs silently in the background via pm2.
 
 ## Quick setup
 
 ```bash
-# 1. Clone and install dependencies
-git clone <your-repo>
-cd wingman
-npm install
+# 1. Clone and install
+git clone <your-repo> && cd wingman && npm install
 
-# 2. Configure environment variables
-cp .env.example .env
-# → Edit .env with your credentials
-
-# 3. Make sure Claude Code is installed and authenticated
+# 2. Verify Claude Code is installed
 claude --version
 
-# 4. Authenticate with Microsoft (device-code flow)
-node agents/email/auth.js
+# 3. Configure services interactively
+wingman setup          # shows checklist
+wingman setup outlook  # OAuth device-code flow for email
+wingman setup notion   # Notion integration token + root page
+wingman setup slack    # webhook URLs per channel
 
-# 5. Start the scheduler and register auto-start on login
-npm run setup
+# 4. Test connections
+wingman test slack
+wingman test claude
 
-# 6. Test connections
-npm run dev -- test slack
-npm run dev -- test claude
+# 5. Register auto-start and start the scheduler
+wingman setup autostart
 
-# 7. Run all agents manually to verify
-npm run dev -- all
+# 6. Run all agents manually to verify
+wingman run all
 ```
 
-## Commands
+> Credentials are stored in `state/secrets.json` and `state/slack.json` (excluded from git).
+
+## CLI reference
 
 ```bash
-# Scheduler
-npm run dev                    # run one tick (respects timing)
-npm run dev -- all             # force all agents now
-npm run dev -- email           # email agent only
-npm run dev -- digest          # morning digest only
-npm run dev -- trending        # Reddit trending only
-npm run dev -- catchup         # catch-up: all unread today + junk
-
-# Testing
-npm run dev -- test slack      # verify Slack webhook
-npm run dev -- test claude     # verify Claude CLI
-
-# Log viewer
-npm run log                    # view today's log
-npm run log -- oneline         # compact view
-npm run log -- ayer            # yesterday's log
-npm run log -- urgente         # filter by classification
-npm run log -- verbose         # include technical lines
-
-# pm2
-npm run setup                  # register auto-start + start pm2 (idempotent)
-npm start                      # start scheduler (pm2 only, no auto-start)
-npm run status                 # check status
-npm run logs                   # live log stream
-npm run restart                # restart scheduler
+wingman run [agent]         # run an agent (no arg = list available)
+wingman test [integration]  # test a connection (no arg = list available)
+wingman status              # pm2 status + last run times
+wingman log [options]       # view logs (--help for filter options)
+wingman config              # view/edit settings and config files
+wingman setup [service]     # guided setup checklist
+wingman stop / start        # pause/resume the scheduler
+wingman teardown / reset    # remove setup or clear state
 ```
 
-## Configuration
+## Configuration files
 
-- `config/profile.md` — email classification rules (edit to tune behavior)
-- `config/sources.json` — RSS feeds and Reddit sources for trends
-- `.env` — credentials, webhook URLs, and trending thresholds
+| File | Purpose |
+|------|---------|
+| `config/profile.md` | Email classification rules (edit to tune behavior) |
+| `config/goals.md` | Task classification rules and personal goals |
+| `config/sources.json` | RSS feeds and Reddit subreddits for trends |
+
+## How it works
+
+A pm2 cron process (`main.js`) ticks every 5 minutes and runs agents on their schedule:
+
+| Agent | Schedule | Output |
+|-------|----------|--------|
+| Email | every 15 min | `#email-important`, `#email-digest` |
+| Reddit trending | every 10 min | `#news-digest` |
+| Morning digest | once at 8am | `#news-digest` |
+| Inbox (Notion) | every 30 min | Notion tasks |
+
+If the PC was suspended for >60 min, a catch-up scan runs automatically on wake.
+
+## Credentials
+
+Stored in `state/` (git-ignored), never in `.env`:
+
+| File | Contents |
+|------|---------|
+| `state/secrets.json` | MS OAuth tokens, Notion token |
+| `state/slack.json` | Slack webhook URLs |
+| `state/settings.json` | Thresholds and intervals |
+
+Run `wingman setup <service>` to configure or reconfigure any of these.
 
 ## Full documentation
 
-See `CLAUDE.md` for architecture, data flow, and code conventions.
+See `CLAUDE.md` for architecture, agent data flows, and code conventions.
