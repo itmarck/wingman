@@ -245,7 +245,9 @@ async function runLoop() {
   }
 }
 
-const looping = process.env.WINGMAN_LOOP === '1';
+const flags = parseFlags();
+const hasForceFlag = Object.values(flags).some(Boolean);
+const looping = process.env.WINGMAN_LOOP === '1' && !hasForceFlag;
 (looping ? runLoop() : runOnce())
   .then(() => { if (!looping) process.exit(0); })
   .catch(async (err) => {
