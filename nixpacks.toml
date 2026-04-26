@@ -5,9 +5,7 @@
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
-[start]
-cmd = "tsx main.js"
-
 [variables]
 WINGMAN_LOOP = "1"
 NODE_ENV = "production"
+TZ = "America/Lima"

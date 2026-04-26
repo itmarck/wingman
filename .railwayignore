@@ -1,0 +1,5 @@
+logs/
+state/
+.pm2/
+.claude/
+*.log
