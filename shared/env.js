@@ -50,27 +50,26 @@ async function writeJson(path, data) {
 // ─── Startup loader (sync) ──────────────────────────────────
 
 export function loadConfig() {
-  // Secrets from state/secrets.json (all platforms)
+  // Files only fill what env vars have not already provided.
+  // This makes Railway/Docker env vars win over local state/*.json files.
+  const setIfMissing = (key, value) => {
+    if (process.env[key] === undefined) process.env[key] = String(value);
+  };
+
   const secrets = readJsonSync(SECRETS_FILE);
   if (secrets) {
-    for (const [key, value] of Object.entries(secrets)) {
-      process.env[key] = String(value);
-    }
+    for (const [key, value] of Object.entries(secrets)) setIfMissing(key, value);
   }
 
-  // Settings → process.env
   const settings = readJsonSync(SETTINGS_FILE);
   if (settings) {
-    for (const [key, value] of Object.entries(settings)) {
-      process.env[key.toUpperCase()] = String(value);
-    }
+    for (const [key, value] of Object.entries(settings)) setIfMissing(key.toUpperCase(), value);
   }
 
-  // Slack webhooks → process.env
   const slack = readJsonSync(SLACK_FILE);
   if (slack) {
     for (const [key, url] of Object.entries(slack)) {
-      if (SLACK_MAP[key]) process.env[SLACK_MAP[key]] = url;
+      if (SLACK_MAP[key]) setIfMissing(SLACK_MAP[key], url);
     }
   }
 }

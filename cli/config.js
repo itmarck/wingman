@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import { spawn } from 'child_process';
+import { readFileSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
-import { readSettings, writeSetting } from '../shared/env.js';
+import { readSettings, readSlack, setSystemEnv, writeSetting } from '../shared/env.js';
 import { ROOT } from './helpers.js';
 
 const FILES = {
@@ -88,5 +89,55 @@ export function register(program) {
       }
       const settings = await readSettings();
       console.log(settings[key] ?? SETTINGS[key].default);
+    });
+
+  cmd
+    .command('export')
+    .description('Print all config in .env format (paste into Railway Raw Editor)')
+    .option('--mask', 'mask secret values (safe to share)')
+    .action(async ({ mask }) => {
+      const SLACK_KEYS = {
+        email_important: 'SLACK_WEBHOOK_EMAIL_IMPORTANT',
+        email_digest: 'SLACK_WEBHOOK_EMAIL_DIGEST',
+        news: 'SLACK_WEBHOOK_NEWS',
+        logs: 'SLACK_WEBHOOK_LOGS',
+        alerts: 'SLACK_WEBHOOK_ALERTS',
+      };
+      const out = [];
+
+      let secrets = {};
+      try { secrets = JSON.parse(readFileSync(resolve(ROOT, 'state/secrets.json'), 'utf8')); }
+      catch { /* none yet */ }
+      const slack = await readSlack();
+      const settings = await readSettings();
+
+      const fmt = (v) => mask && v.length > 8 ? `${v.slice(0, 4)}…${v.slice(-4)}` : v;
+
+      if (Object.keys(secrets).length) {
+        out.push('# Secrets');
+        for (const [k, v] of Object.entries(secrets)) out.push(`${k}=${fmt(String(v))}`);
+      }
+      const slackEnv = Object.entries(slack).filter(([k]) => SLACK_KEYS[k]);
+      if (slackEnv.length) {
+        out.push('', '# Slack webhooks');
+        for (const [k, v] of slackEnv) out.push(`${SLACK_KEYS[k]}=${fmt(String(v))}`);
+      }
+      if (Object.keys(settings).length) {
+        out.push('', '# Settings');
+        for (const [k, v] of Object.entries(settings)) out.push(`${k.toUpperCase()}=${v}`);
+      }
+
+      console.log(out.join('\n'));
+    });
+
+  cmd
+    .command('secret')
+    .description('Set a secret in state/secrets.json (e.g. GROQ_API_KEY, OLLAMA_HOST)')
+    .argument('<key>', 'env var name (uppercase)')
+    .argument('<value>', 'secret value')
+    .action((key, value) => {
+      setSystemEnv(key, value);
+      const masked = value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : '***';
+      console.log(chalk.green('✓'), `${key} saved (${masked})`);
     });
 }

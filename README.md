@@ -33,14 +33,18 @@ wingman run all
 ## CLI reference
 
 ```bash
-wingman run [agent]         # run an agent (no arg = list available)
-wingman test [integration]  # test a connection (no arg = list available)
-wingman status              # pm2 status + last run times
-wingman log [options]       # view logs (--help for filter options)
-wingman config              # view/edit settings and config files
-wingman setup [service]     # guided setup checklist
-wingman stop / start        # pause/resume the scheduler
-wingman teardown / reset    # remove setup or clear state
+wingman run [agent]                  # run an agent (no arg = list available)
+wingman test [integration]           # test a connection (no arg = list available)
+wingman status                       # pm2 status + last run times
+wingman log [options]                # view logs (--help for filter options)
+wingman config                       # view/edit settings and config files
+wingman config secret <KEY> <VALUE>  # write an env var to state/secrets.json
+wingman config export [--mask]       # print all config in .env format
+wingman setup [service]              # guided setup checklist
+wingman stop / start                 # pause/resume the scheduler
+wingman teardown / reset             # remove setup or clear state
+npm test                             # run vitest suite
+
 ```
 
 ## Configuration files
@@ -75,6 +79,21 @@ Stored in `state/` (git-ignored), never in `.env`:
 | `state/settings.json` | Thresholds and intervals |
 
 Run `wingman setup <service>` to configure or reconfigure any of these.
+
+## AI provider
+
+Selectable via `AI_PROVIDER` env var:
+
+| Value | Backend | Use case |
+|-------|---------|----------|
+| `local` (default) | Ollama at `OLLAMA_HOST` (default `qwen2.5:7b-instruct`) | Local dev |
+| `groq` | Groq API (`llama-3.3-70b-versatile`) | Production / Railway |
+| `claude` | Claude Code CLI | Legacy / fallback |
+
+```bash
+wingman config secret GROQ_API_KEY gsk_...
+wingman config secret AI_PROVIDER groq
+```
 
 ## Full documentation
 
