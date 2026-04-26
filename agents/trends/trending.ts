@@ -60,6 +60,11 @@ function buildTrendingPrompt(posts, interestCategories) {
 }
 
 export async function runRedditTrending() {
+  if (process.env.REDDIT_ENABLED === '0') {
+    log.info('Reddit disabled via REDDIT_ENABLED=0');
+    return { summary: 'trending: disabled' };
+  }
+
   log.head(`Reddit trending scan (threshold: ${THRESHOLD}, viral: ${VIRAL_THRESHOLD})`);
 
   const sources = await loadSources();
