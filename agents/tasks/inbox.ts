@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
-import { classifyRaw } from '../../shared/claude.js';
+import { classifyRaw } from '../../shared/ai/index.js';
 import { sendSlack } from '../../shared/slack.js';
 import { queryDatabase, createPage, updatePage, props } from '../../shared/notion.js';
 import { ensureSchema } from './schema.js';
@@ -30,7 +30,7 @@ function buildPrompt(goals, rawText) {
 // ─── Helpers ────────────────────────────────────────────────────
 
 function extractTitle(page) {
-  for (const [, prop] of Object.entries(page.properties)) {
+  for (const [, prop] of Object.entries(page.properties) as [string, any][]) {
     if (prop.type === 'title' && prop.title.length > 0) {
       return prop.title.map((t) => t.plain_text).join('');
     }
@@ -53,9 +53,9 @@ export async function runInboxAgent() {
   }
 
   // 2. Fetch pending inbox items
-  let pendingItems;
+  let pendingItems: any[];
   try {
-    pendingItems = await queryDatabase(dbIds.inbox, {
+    pendingItems = await (queryDatabase as any)(dbIds.inbox, {
       property: 'status',
       select: { equals: 'received' },
     });
@@ -75,7 +75,7 @@ export async function runInboxAgent() {
   const goals = await loadGoals();
 
   // 4. Process each item
-  const counts = { task: 0, project: 0, idea: 0, error: 0 };
+  const counts: Record<string, number> = { task: 0, project: 0, idea: 0, error: 0 };
 
   for (const item of pendingItems) {
     const rawText = extractTitle(item);
@@ -86,7 +86,7 @@ export async function runInboxAgent() {
 
       // Classify via Claude
       const result = await classifyRaw(buildPrompt(goals, rawText), { effort: 'low' });
-      const type = result.type || 'task';
+      const type = (result.type as string) || 'task';
       counts[type] = (counts[type] || 0) + 1;
 
       log.data(`Classification for "${rawText}":`, result, 1);
@@ -97,7 +97,7 @@ export async function runInboxAgent() {
       );
 
       // Build task properties
-      const taskProperties = {
+      const taskProperties: Record<string, any> = {
         name: props.title(result.title || rawText),
         progress: props.number(0),
         priority: props.number(result.priority ?? 0),
@@ -107,7 +107,7 @@ export async function runInboxAgent() {
       if (result.goal) taskProperties.goal = props.select(result.goal);
 
       // Add description as block children if present
-      const children = [];
+      const children: any[] = [];
       if (result.description) {
         children.push({
           object: 'block',
@@ -123,9 +123,10 @@ export async function runInboxAgent() {
       log.ok(`Created task: "${result.title || rawText}" → ${taskPage.id.slice(0, 8)}...`, 1);
 
       // Create subtasks if any
-      if (result.subtasks && result.subtasks.length > 0) {
-        for (let i = 0; i < result.subtasks.length; i++) {
-          const subtaskText = result.subtasks[i];
+      const subtasks = (result.subtasks as any[]) || [];
+      if (subtasks.length > 0) {
+        for (let i = 0; i < subtasks.length; i++) {
+          const subtaskText = subtasks[i];
           if (!subtaskText) continue;
 
           const subtaskProps = {
@@ -136,7 +137,7 @@ export async function runInboxAgent() {
           };
           await createPage(dbIds.subtasks, subtaskProps);
         }
-        log.ok(`Created ${result.subtasks.length} subtasks`, 2);
+        log.ok(`Created ${subtasks.length} subtasks`, 2);
       }
 
       // Mark inbox item as processed
@@ -156,7 +157,7 @@ export async function runInboxAgent() {
   }
 
   // 5. Summary
-  const parts = [];
+  const parts: string[] = [];
   if (counts.task > 0) parts.push(`${counts.task} tasks`);
   if (counts.project > 0) parts.push(`${counts.project} projects`);
   if (counts.idea > 0) parts.push(`${counts.idea} ideas`);

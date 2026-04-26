@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
-import { summarize } from '../../shared/claude.js';
+import { summarize } from '../../shared/ai/index.js';
 import { sendSlack, formatTrendingPosts } from '../../shared/slack.js';
 import { fetchReddit } from './reddit.js';
 

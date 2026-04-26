@@ -1,6 +1,6 @@
 import { readFile } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
-import { classify } from '../../shared/claude.js';
+import { classify } from '../../shared/ai/index.js';
 import { sendSlack, formatEmailDigest, formatUnknownEmails } from '../../shared/slack.js';
 import { getAccessToken, fetchEmails, fetchUnreadRecent, markAsRead, archiveEmail, moveToTrash, moveToInbox, moveToFolder } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
@@ -172,8 +172,8 @@ async function processClassified(accessToken, classified, counts) {
   log.ok(`Marked ${classified.length} emails as read`);
 
   // 3. Route notifications to Slack
-  const toNotify = [];
-  const unknowns = [];
+  const toNotify: any[] = [];
+  const unknowns: any[] = [];
 
   for (const item of classified) {
     const notification = resolveNotification(item.classification);
@@ -273,8 +273,8 @@ export async function runEmailAgent() {
   }
 
   const profile = await loadProfile();
-  const classified = [];
-  const counts = { urgent: 0, important: 0, informational: 0, noise: 0, unknown: 0, error: 0 };
+  const classified: any[] = [];
+  const counts: Record<string, number> = { urgent: 0, important: 0, informational: 0, noise: 0, unknown: 0, error: 0 };
 
   for (const email of unseen) {
     try {
@@ -301,7 +301,7 @@ export async function runEmailAgent() {
   await processClassified(accessToken, classified, counts);
   await saveSeen(seen);
 
-  const parts = [];
+  const parts: string[] = [];
   if (counts.urgent > 0) parts.push(`${counts.urgent} urg`);
   if (counts.important > 0) parts.push(`${counts.important} imp`);
   if (counts.informational > 0) parts.push(`${counts.informational} info`);
@@ -348,8 +348,8 @@ export async function runEmailCatchup() {
   }
 
   const profile = await loadProfile();
-  const classified = [];
-  const counts = { urgent: 0, important: 0, informational: 0, noise: 0, unknown: 0, error: 0 };
+  const classified: any[] = [];
+  const counts: Record<string, number> = { urgent: 0, important: 0, informational: 0, noise: 0, unknown: 0, error: 0 };
 
   for (const email of unseen) {
     try {
@@ -386,7 +386,7 @@ export async function runEmailCatchup() {
   await processClassified(accessToken, classified, counts);
   await saveSeen(seen);
 
-  const parts = [];
+  const parts: string[] = [];
   if (counts.urgent > 0) parts.push(`${counts.urgent} urg`);
   if (counts.important > 0) parts.push(`${counts.important} imp`);
   if (counts.informational > 0) parts.push(`${counts.informational} info`);

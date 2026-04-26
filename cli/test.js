@@ -6,9 +6,9 @@ const TARGETS = {
     script: 'shared/slack.js',
     description: 'Slack webhook delivery',
   },
-  claude: {
-    script: 'shared/claude.js',
-    description: 'Claude CLI connection',
+  ai: {
+    script: 'shared/ai/test.ts',
+    description: 'Active AI provider (AI_PROVIDER env)',
   },
   notion: {
     script: 'shared/notion.js',

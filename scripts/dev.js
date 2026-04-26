@@ -31,7 +31,7 @@ function run(cmd, cmdArgs) {
 if (args[0] === 'test') {
   const tests = {
     slack: 'shared/slack.js',
-    claude: 'shared/claude.js',
+    ai: 'shared/ai/test.ts',
     notion: 'shared/notion.js',
   };
 
