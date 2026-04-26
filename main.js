@@ -97,15 +97,7 @@ async function isGaming() {
   return null;
 }
 
-async function main() {
-  const args = process.argv.slice(2);
-  const forceAll = args.includes('--force-all');
-  const forceEmail = forceAll || args.includes('--force-email');
-  const forceDigest = forceAll || args.includes('--force-digest');
-  const forceTrending = forceAll || args.includes('--force-trending');
-  const forceCatchup = forceAll || args.includes('--force-catchup');
-  const forceInbox = forceAll || args.includes('--force-inbox');
-
+async function tick({ forceAll, forceEmail, forceDigest, forceTrending, forceCatchup, forceInbox }) {
   const state = await loadState();
   const now = new Date();
 
@@ -200,9 +192,62 @@ async function main() {
   log.summary(`Tick — ${summaryParts.join(', ')}`);
 }
 
-main()
-  .then(() => flushLogs())
-  .then(() => process.exit(0))
+function parseFlags() {
+  const args = process.argv.slice(2);
+  const forceAll = args.includes('--force-all');
+  return {
+    forceAll,
+    forceEmail: forceAll || args.includes('--force-email'),
+    forceDigest: forceAll || args.includes('--force-digest'),
+    forceTrending: forceAll || args.includes('--force-trending'),
+    forceCatchup: forceAll || args.includes('--force-catchup'),
+    forceInbox: forceAll || args.includes('--force-inbox'),
+  };
+}
+
+const TICK_MS = 5 * 60 * 1000;
+
+async function runOnce() {
+  await tick(parseFlags());
+  await flushLogs();
+}
+
+async function runLoop() {
+  // Long-lived process (Railway). Tick every 5 min until SIGTERM.
+  const flags = parseFlags();
+  log.info(`Loop mode — tick every ${TICK_MS / 60_000} min`);
+
+  let running = false;
+  const safeTick = async () => {
+    if (running) {
+      log.warn('Previous tick still running — skipping');
+      return;
+    }
+    running = true;
+    try { await tick(flags); }
+    catch (err) { log.error(`Tick error: ${err.message}`); }
+    finally {
+      await flushLogs();
+      running = false;
+    }
+  };
+
+  await safeTick();
+  const interval = setInterval(safeTick, TICK_MS);
+
+  for (const sig of ['SIGINT', 'SIGTERM']) {
+    process.on(sig, async () => {
+      log.info(`${sig} received — exiting loop`);
+      clearInterval(interval);
+      await flushLogs();
+      process.exit(0);
+    });
+  }
+}
+
+const looping = process.env.WINGMAN_LOOP === '1';
+(looping ? runLoop() : runOnce())
+  .then(() => { if (!looping) process.exit(0); })
   .catch(async (err) => {
     log.error(`Scheduler fatal error: ${err.message}`);
     await flushLogs();

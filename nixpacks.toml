@@ -1,0 +1,13 @@
+# Railway / Nixpacks build config.
+# Railway runs `npm ci` automatically; we only declare the start command
+# and ensure WINGMAN_LOOP is on so main.js runs as a long-lived process.
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[start]
+cmd = "tsx main.js"
+
+[variables]
+WINGMAN_LOOP = "1"
+NODE_ENV = "production"
