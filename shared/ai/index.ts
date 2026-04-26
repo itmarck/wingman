@@ -1,25 +1,27 @@
 import { createLogger } from '../logger.js';
 import type { AIOptions, AIProvider, ClassificationResult, RawResult } from './types.js';
 import { ClaudeProvider } from './providers/claude.js';
-import { MockProvider } from './providers/mock.js';
+import { LocalProvider } from './providers/local.js';
+import { GroqProvider } from './providers/groq.js';
 
 const log = createLogger('clde');
 
-export type ProviderName = 'claude' | 'mock' | 'ollama' | 'groq' | 'gemini';
+export type ProviderName = 'local' | 'groq' | 'claude';
 
 let cached: AIProvider | null = null;
 
 function selectProvider(): AIProvider {
-  const name = (process.env.AI_PROVIDER || 'claude').toLowerCase() as ProviderName;
+  const name = (process.env.AI_PROVIDER || 'local').toLowerCase() as ProviderName;
   switch (name) {
+    case 'local':
+      return new LocalProvider();
+    case 'groq':
+      return new GroqProvider();
     case 'claude':
       return new ClaudeProvider();
-    case 'mock':
-      return new MockProvider();
-    // case 'ollama' | 'groq' | 'gemini' wired in once the remote choice is final
     default:
-      log.warn(`Unknown AI_PROVIDER="${name}", falling back to claude`);
-      return new ClaudeProvider();
+      log.warn(`Unknown AI_PROVIDER="${name}", falling back to local`);
+      return new LocalProvider();
   }
 }
 
