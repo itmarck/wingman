@@ -81,6 +81,7 @@ function shouldRunCatchup(state, force) {
 }
 
 async function isGaming() {
+  if (process.platform !== 'win32') return null;
   try {
     const config = JSON.parse(await readFile('config/games.json', 'utf-8'));
     const exes = config.executables.map(e => e.toLowerCase());
