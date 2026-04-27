@@ -192,7 +192,9 @@ export async function moveToInbox(accessToken, messageId) {
     throw new Error(`moveToInbox failed (${res.status}): ${text}`);
   }
 
-  log.verb(`moveToInbox OK (${res.status})`);
+  const data = await res.json();
+  log.verb(`moveToInbox OK (${res.status}) — new id: ${data.id?.slice(0, 20)}...`);
+  return data.id;
 }
 
 export async function markAsRead(accessToken, messageId) {
@@ -214,6 +216,27 @@ export async function markAsRead(accessToken, messageId) {
   }
 
   log.verb(`markAsRead OK (${res.status})`);
+}
+
+export async function flagEmail(accessToken, messageId) {
+  log.verb(`PATCH /me/messages/${messageId.slice(0, 20)}... → flagStatus: flagged`);
+
+  const res = await fetch(`${GRAPH_URL}/me/messages/${messageId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ flag: { flagStatus: 'flagged' } }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    log.verb(`flagEmail response (${res.status}): ${text}`);
+    throw new Error(`flagEmail failed (${res.status}): ${text}`);
+  }
+
+  log.verb(`flagEmail OK (${res.status})`);
 }
 
 export async function archiveEmail(accessToken, messageId) {

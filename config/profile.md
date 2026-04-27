@@ -11,7 +11,8 @@ Clasifica cada email. Responde SOLO con JSON:
   "amount": null,
   "amount_currency": null,
   "group_key": "short-english-keyword",
-  "email_action": "read | archive | trash | folder-tickets | folder-orders | folder-investments | none"
+  "email_action": "read | archive | trash | folder-tickets | folder-orders | folder-investments | none",
+  "needs_action": false
 }
 ```
 
@@ -24,6 +25,10 @@ Clasifica cada email. Responde SOLO con JSON:
 - `folder-orders` — mover a Orders (pedidos, envíos, tracking)
 - `folder-investments` — mover a Investments (transacciones de inversión)
 - `none` — no tocar (solo si no estás seguro)
+
+## needs_action
+
+`true` cuando el email requiere que yo haga algo: responder, pagar, decidir, o esperar una acción futura (deadline, confirmación pendiente). En Outlook se marca con flag para revisar después. `false` para todo lo informativo o ya resuelto.
 
 ## Classification
 

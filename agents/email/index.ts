@@ -2,7 +2,7 @@ import { readFile } from 'fs/promises';
 import { createLogger } from '../../shared/logger.js';
 import { classify } from '../../shared/ai/index.js';
 import { sendSlack, formatEmailDigest, formatUnknownEmails } from '../../shared/slack.js';
-import { getAccessToken, fetchEmails, fetchUnreadRecent, markAsRead, archiveEmail, moveToTrash, moveToInbox, moveToFolder } from './graph.js';
+import { getAccessToken, fetchEmails, fetchUnreadRecent, markAsRead, flagEmail, archiveEmail, moveToTrash, moveToInbox, moveToFolder } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 
 const log = createLogger('mail');
@@ -148,7 +148,35 @@ function normalizeToPEN(amount, currency) {
  * Shared between runEmailAgent and runEmailCatchup.
  */
 async function processClassified(accessToken, classified, counts) {
-  // 1. Execute email actions
+  // 1. Mark ALL as read FIRST — must happen before moves, since /move
+  //    returns a new message ID and invalidates the original one.
+  let readCount = 0;
+  for (const { email } of classified) {
+    try {
+      await markAsRead(accessToken, email.id);
+      readCount++;
+    } catch (err) {
+      log.error(`Failed to mark as read "${email.subject}": ${err.message}`);
+    }
+  }
+  log.ok(`Marked ${readCount}/${classified.length} emails as read`);
+
+  // 2. Flag emails that need action (user must do something now or later).
+  let flagCount = 0;
+  for (const { email, classification } of classified) {
+    if (classification.needs_action) {
+      try {
+        await flagEmail(accessToken, email.id);
+        flagCount++;
+        log.ok(`Flagged: "${email.subject}"`, 1);
+      } catch (err) {
+        log.error(`Failed to flag "${email.subject}": ${err.message}`);
+      }
+    }
+  }
+  if (flagCount > 0) log.ok(`Flagged ${flagCount} emails needing action`);
+
+  // 3. Execute email actions (moves) AFTER read/flag — moves change the ID.
   for (const { email, classification } of classified) {
     const action = classification.email_action || 'none';
     if (action !== 'none' && action !== 'read') {
@@ -161,17 +189,7 @@ async function processClassified(accessToken, classified, counts) {
     }
   }
 
-  // 2. Mark ALL processed emails as read (after actions complete)
-  for (const { email } of classified) {
-    try {
-      await markAsRead(accessToken, email.id);
-    } catch (err) {
-      log.verb(`Failed to mark as read: "${email.subject}": ${err.message}`, 1);
-    }
-  }
-  log.ok(`Marked ${classified.length} emails as read`);
-
-  // 3. Route notifications to Slack
+  // 4. Route notifications to Slack
   const toNotify: any[] = [];
   const unknowns: any[] = [];
 
@@ -367,10 +385,12 @@ export async function runEmailCatchup() {
       log.info(`"${email.subject}" from ${fromName}${folderTag} -- ${result.classification}${cat} [${result.email_action || 'none'}]${amt}`, 1);
       log.data(`Classification for "${email.subject}":`, result, 1);
 
-      // Rescue: if a junk email is not noise/spam, move it to inbox
+      // Rescue: if a junk email is not noise/spam, move it to inbox.
+      // Update email.id with the new ID so subsequent markAsRead/flag/move work.
       if (email._folder === 'junk' && result.classification !== 'noise') {
         try {
-          await moveToInbox(accessToken, email.id);
+          const newId = await moveToInbox(accessToken, email.id);
+          if (newId) email.id = newId;
           log.ok(`Rescued from junk: "${email.subject}"`, 1);
         } catch (err) {
           log.error(`Failed to rescue from junk: ${err.message}`);
