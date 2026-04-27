@@ -3,6 +3,7 @@ import { createLogger } from '../../shared/logger.js';
 import { classifyRaw } from '../../shared/ai/index.js';
 import { sendSlack } from '../../shared/slack.js';
 import { queryDatabase, createPage, updatePage, props } from '../../shared/notion.js';
+import { createEvent } from '../../shared/google/calendar.js';
 import { ensureSchema } from './schema.js';
 
 const log = createLogger('task');
@@ -84,15 +85,18 @@ export async function runInboxAgent() {
     try {
       log.info(`Processing: "${rawText}"`, 1);
 
-      // Classify via Claude
-      const result = await classifyRaw(buildPrompt(goals, rawText), { effort: 'low' });
+      // Classify — `medium` effort: more time on server is fine for richer output.
+      const result = await classifyRaw(buildPrompt(goals, rawText), { effort: 'medium' });
       const type = (result.type as string) || 'task';
       counts[type] = (counts[type] || 0) + 1;
 
       log.data(`Classification for "${rawText}":`, result, 1);
       log.info(
         `"${rawText}" → ${type} [P:${result.priority ?? 0} E:${result.energy ?? 50}] ` +
-          `(${result.context || '?'}${result.goal ? `, ${result.goal}` : ''})`,
+          `(${result.context || '?'}${result.goal ? `, ${result.goal}` : ''})` +
+          `${result.due_at ? ` due:${result.due_at}` : ''}` +
+          `${result.calendar ? ' [cal]' : ''}` +
+          `${result.confidence ? ` conf:${result.confidence}` : ''}`,
         1,
       );
 
@@ -105,9 +109,22 @@ export async function runInboxAgent() {
         context: props.select(result.context || 'personal'),
       };
       if (result.goal) taskProperties.goal = props.select(result.goal);
+      if (result.due_at && typeof result.due_at === 'string') {
+        taskProperties.due = props.date(result.due_at);
+      }
 
-      // Add description as block children if present
+      // Compose page body: next_action + description.
       const children: any[] = [];
+      if (result.next_action) {
+        children.push({
+          object: 'block',
+          type: 'callout',
+          callout: {
+            icon: { emoji: '➡️' },
+            rich_text: [{ type: 'text', text: { content: `Próximo paso: ${result.next_action}` } }],
+          },
+        });
+      }
       if (result.description) {
         children.push({
           object: 'block',
@@ -138,6 +155,23 @@ export async function runInboxAgent() {
           await createPage(dbIds.subtasks, subtaskProps);
         }
         log.ok(`Created ${subtasks.length} subtasks`, 2);
+      }
+
+      // Create Google Calendar event for time-bound items.
+      if (result.calendar === true && typeof result.due_at === 'string') {
+        try {
+          await createEvent({
+            title: (result.title as string) || rawText,
+            description: [
+              result.next_action ? `Próximo paso: ${result.next_action}` : '',
+              result.description || '',
+            ].filter(Boolean).join('\n\n'),
+            startIso: result.due_at,
+            durationMinutes: typeof result.duration_minutes === 'number' ? result.duration_minutes : 30,
+          });
+        } catch (err) {
+          log.error(`Calendar event creation failed for "${result.title || rawText}": ${err.message}`);
+        }
       }
 
       // Mark inbox item as processed

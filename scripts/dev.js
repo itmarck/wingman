@@ -45,6 +45,8 @@ if (args[0] === 'test') {
   run('npx', ['tsx', tests[target]]);
 } else if (args[0] === 'schema') {
   run('npx', ['tsx', 'agents/tasks/schema.js']);
+} else if (args[0] === 'google-auth') {
+  run('npx', ['tsx', 'scripts/google-auth.js']);
 } else if (args[0] === 'notion') {
   run('npx', ['tsx', 'scripts/notion.js', ...args.slice(1)]);
 } else {

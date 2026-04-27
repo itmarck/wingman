@@ -17,9 +17,6 @@ const EMAIL_INTERVAL = 15;
 const TRENDING_INTERVAL = 10;
 const DIGEST_HOUR = 8; // Local hour for morning digest
 const CATCHUP_HOUR = 8; // Local hour for morning catch-up (retry each tick until success)
-const INBOX_INTERVAL = 30; // Process Notion inbox every 30 min
-
-const DISABLE_INBOX = true;
 
 async function loadState() {
   try {
@@ -64,10 +61,9 @@ function shouldRunTrending(state, force) {
   return minutesSince(state.lastRedditTrending) >= TRENDING_INTERVAL;
 }
 
-function shouldRunInbox(state, force) {
-  if (DISABLE_INBOX) return false;
-  if (force) return true;
-  return minutesSince(state.lastInboxTick) >= INBOX_INTERVAL;
+function shouldRunInbox(_state, _force) {
+  // Inbox runs every tick — agent skips quickly if no pending items.
+  return true;
 }
 
 function shouldRunCatchup(state, force) {
