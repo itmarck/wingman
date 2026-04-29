@@ -1,100 +1,90 @@
 # Wingman
 
-Personal automation that filters emails, news, and social media — delivering only what matters to Slack. Runs silently in the background via pm2.
+Personal automation that filters emails, news, and social media — delivering only what matters to Slack.
+
+The agents are the same in both environments; only the entry point differs:
+
+- **Server (Railway):** `tsx main.js` — long-lived loop, ticks every 5 minutes and decides which agents to run.
+- **Local:** `wingman` CLI — runs each agent one-shot, on demand. No scheduler, no background processes.
 
 ## Quick setup
 
 ```bash
-# 1. Clone and install
 git clone <your-repo> && cd wingman && npm install
-
-# 2. Verify Claude Code is installed
-claude --version
-
-# 3. Configure services interactively
-wingman setup          # shows checklist
-wingman setup outlook  # OAuth device-code flow for email
-wingman setup notion   # Notion integration token + root page
-wingman setup slack    # webhook URLs per channel
-
-# 4. Test connections
-wingman test slack
-wingman test claude
-
-# 5. Register auto-start and start the scheduler
-wingman setup autostart
-
-# 6. Run all agents manually to verify
-wingman run all
+wingman setup            # interactive checklist (outlook, notion, slack, schema)
+wingman test slack       # verify a connection
+wingman run email        # run an agent once
 ```
 
-> Credentials are stored in `state/secrets.json` and `state/slack.json` (excluded from git).
+Credentials live in `state/secrets.json` and `state/slack.json` (git-ignored).
 
-## CLI reference
+## Commands
+
+Every command supports `--help` for full details and flags. For example:
 
 ```bash
-wingman run [agent]                  # run an agent (no arg = list available)
-wingman test [integration]           # test a connection (no arg = list available)
-wingman status                       # pm2 status + last run times
-wingman log [options]                # view logs (--help for filter options)
-wingman config                       # view/edit settings and config files
-wingman config secret <KEY> <VALUE>  # write an env var to state/secrets.json
-wingman config export [--mask]       # print all config in .env format
-wingman setup [service]              # guided setup checklist
-wingman stop / start                 # pause/resume the scheduler
-wingman teardown / reset             # remove setup or clear state
-npm test                             # run vitest suite
-
+wingman run --help
+wingman run email --help
+wingman config set --help
 ```
+
+| Command | Purpose |
+|---------|---------|
+| `wingman run [agent]` | Run an agent once (`email`, `catchup`, `digest`, `trending`, `inbox`, `all`). No arg lists available agents. |
+| `wingman setup [service]` | Configure credentials for a service (`outlook`, `notion`, `slack`, `schema`). No arg shows the checklist. |
+| `wingman test [integration]` | Verify a connection (`slack`, `ai`, `notion`). |
+| `wingman log` | View today's log with filters. See `--help` for `--yesterday`, `--oneline`, `--tag`, `--filter`, etc. |
+| `wingman config` | Inspect, edit, or set configuration files and runtime settings. Subcommands: `show`, `edit`, `get`, `set`, `secret`, `export`. |
+| `wingman state` | Inspect state files (`show`) or delete them (`reset <target>`). Credentials are never touched. |
+
+Notion task management is normally done from the web/app. For occasional terminal access there is a standalone script: `tsx scripts/task.js list` / `tsx scripts/task.js add "<text>"`.
 
 ## Configuration files
 
 | File | Purpose |
 |------|---------|
-| `config/profile.md` | Email classification rules (edit to tune behavior) |
+| `config/profile.md` | Email classification rules |
 | `config/goals.md` | Task classification rules and personal goals |
-| `config/sources.json` | RSS feeds and Reddit subreddits for trends |
+| `config/sources.json` | RSS feeds and Reddit subreddits |
 
-## How it works
+Edit and re-run — they are loaded dynamically.
 
-A pm2 cron process (`main.js`) ticks every 5 minutes and runs agents on their schedule:
+## State files
 
-| Agent | Schedule | Output |
-|-------|----------|--------|
-| Email | every 15 min | `#email-important`, `#email-digest` |
-| Reddit trending | every 10 min | `#news-digest` |
-| Morning digest | once at 8am | `#news-digest` |
-| Inbox (Notion) | every 30 min | Notion tasks |
-
-If the PC was suspended for >60 min, a catch-up scan runs automatically on wake.
-
-## Credentials
-
-Stored in `state/` (git-ignored), never in `.env`:
+Stored in `state/` (git-ignored):
 
 | File | Contents |
 |------|---------|
-| `state/secrets.json` | MS OAuth tokens, Notion token |
+| `state/secrets.json` | OAuth tokens, API keys |
 | `state/slack.json` | Slack webhook URLs |
 | `state/settings.json` | Thresholds and intervals |
-
-Run `wingman setup <service>` to configure or reconfigure any of these.
+| `state/scheduler.json` | Last-run timestamps (server only) |
+| `state/email-seen.json` | Processed email IDs |
+| `state/reddit-trending.json` | Notified Reddit posts |
+| `state/notion-dbs.json` | Notion database IDs |
 
 ## AI provider
 
-Selectable via `AI_PROVIDER` env var:
+Selectable via `AI_PROVIDER`:
 
-| Value | Backend | Use case |
-|-------|---------|----------|
-| `local` (default) | Ollama at `OLLAMA_HOST` (default `qwen2.5:7b-instruct`) | Local dev |
-| `groq` | Groq API (`llama-3.3-70b-versatile`) | Production / Railway |
-| `claude` | Claude Code CLI | Legacy / fallback |
+| Value | Backend |
+|-------|---------|
+| `local` (default) | Ollama at `OLLAMA_HOST` |
+| `groq` | Groq API |
+| `claude` | Claude Code CLI |
 
 ```bash
 wingman config secret GROQ_API_KEY gsk_...
 wingman config secret AI_PROVIDER groq
 ```
 
-## Full documentation
+## Scripts
 
-See `CLAUDE.md` for architecture, agent data flows, and code conventions.
+```bash
+npm test            # vitest suite
+npm run typecheck   # tsc --noEmit
+```
+
+## Architecture
+
+See `CLAUDE.md` for agent data flows, classification schemas, and code conventions.

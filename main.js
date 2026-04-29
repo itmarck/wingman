@@ -1,32 +1,30 @@
+// Long-lived scheduler for Railway. Ticks every 5 min and decides which agents to run.
+// For local one-shot execution, use the `wingman run <agent>` CLI instead.
+
 import { loadConfig } from './shared/env.js';
-import { existsSync } from 'fs';
 import { readFile, writeFile, mkdir } from 'fs/promises';
-import { execSync } from 'child_process';
 import { createLogger, flushLogs } from './shared/logger.js';
 
 loadConfig();
 
-if (existsSync('state/disabled')) process.exit(0);
-
 const log = createLogger('main');
 
 const STATE_FILE = 'state/scheduler.json';
+const TICK_MS = 5 * 60 * 1000;
 
-// Intervals in minutes
 const EMAIL_INTERVAL = 15;
 const TRENDING_INTERVAL = 10;
-const DIGEST_HOUR = 8; // Local hour for morning digest
-const CATCHUP_HOUR = 8; // Local hour for morning catch-up (retry each tick until success)
+const DIGEST_HOUR = 8;
+const CATCHUP_HOUR = 8;
 
 async function loadState() {
   try {
-    const data = await readFile(STATE_FILE, 'utf-8');
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
+    return JSON.parse(await readFile(STATE_FILE, 'utf-8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') {
       return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null, lastCatchup: null, lastInboxTick: null };
     }
-    throw err;
+    throw error;
   }
 }
 
@@ -40,100 +38,43 @@ function minutesSince(isoString) {
   return (Date.now() - new Date(isoString).getTime()) / 60_000;
 }
 
-function shouldRunEmail(state, force) {
-  if (force) return true;
+function shouldRunEmail(state) {
   return minutesSince(state.lastEmailTick) >= EMAIL_INTERVAL;
 }
 
-function shouldRunDigest(state, force) {
-  if (force) return true;
+function shouldRunDigest(state) {
   const now = new Date();
-  const localHour = now.getHours();
-  const today = now.toISOString().slice(0, 10);
-
-  if (localHour < DIGEST_HOUR) return false;
-  if (state.lastDigest === today) return false;
+  if (now.getHours() < DIGEST_HOUR) return false;
+  if (state.lastDigest === now.toISOString().slice(0, 10)) return false;
   return true;
 }
 
-function shouldRunTrending(state, force) {
-  if (force) return true;
+function shouldRunTrending(state) {
   return minutesSince(state.lastRedditTrending) >= TRENDING_INTERVAL;
 }
 
-function shouldRunInbox(_state, _force) {
-  // Inbox runs every tick — agent skips quickly if no pending items.
-  return true;
-}
-
-function shouldRunCatchup(state, force) {
-  if (force) return true;
+function shouldRunCatchup(state) {
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  if (state.lastCatchup === today) return false;
+  if (state.lastCatchup === now.toISOString().slice(0, 10)) return false;
   if (now.getHours() < CATCHUP_HOUR) return false;
   log.info('Morning catch-up — scanning for missed emails');
   return true;
 }
 
-async function isGaming() {
-  if (process.platform !== 'win32') return null;
-  try {
-    const config = JSON.parse(await readFile('config/games.json', 'utf-8'));
-    const exes = config.executables.map(e => e.toLowerCase());
-    const output = execSync('tasklist /FO CSV /NH', { encoding: 'utf-8', timeout: 5000, windowsHide: true });
-    for (const line of output.split('\n')) {
-      const match = line.match(/^"([^"]+)"/);
-      if (match && exes.includes(match[1].toLowerCase())) {
-        return match[1];
-      }
-    }
-  } catch {
-    // If tasklist fails or config missing, don't block
-  }
-  return null;
-}
-
-async function tick({ forceAll, forceEmail, forceDigest, forceTrending, forceCatchup, forceInbox }) {
+async function tick() {
   const state = await loadState();
   const now = new Date();
 
   log.tick(`Tick at ${now.toLocaleTimeString()}`);
 
-  // Pause while gaming (bypass with --force-*)
-  if (!forceAll) {
-    const game = await isGaming();
-    if (game) {
-      log.info(`Gaming detected (${game}) — skipping tick`);
-      log.summary(`Tick — paused (gaming: ${game})`);
-      return;
-    }
-  }
-
   const plan = [];
+  if (shouldRunCatchup(state)) plan.push('catchup');
+  else if (shouldRunEmail(state)) plan.push('email');
+  if (shouldRunDigest(state)) plan.push('digest');
+  if (shouldRunTrending(state)) plan.push('trending');
+  plan.push('inbox');
 
-  if (shouldRunCatchup(state, forceCatchup)) {
-    plan.push('catchup');
-  } else if (shouldRunEmail(state, forceEmail)) {
-    plan.push('email');
-  }
-  if (shouldRunDigest(state, forceDigest)) {
-    plan.push('digest');
-  }
-  if (shouldRunTrending(state, forceTrending)) {
-    plan.push('trending');
-  }
-  if (shouldRunInbox(state, forceInbox)) {
-    plan.push('inbox');
-  }
-
-  if (plan.length === 0) {
-    log.info('Nothing to run this tick');
-    log.summary('Tick — nothing to run');
-    return;
-  }
-
-  log.info(`Agents: ${plan.join(', ')}${forceAll ? ' (forced)' : ''}`);
+  log.info(`Agents: ${plan.join(', ')}`);
 
   const summaryParts = [];
 
@@ -177,9 +118,9 @@ async function tick({ forceAll, forceEmail, forceDigest, forceTrending, forceCat
           break;
         }
       }
-    } catch (err) {
-      log.error(`Agent "${agent}" failed: ${err.message}`);
-      log.verb(`Agent "${agent}" stack: ${err.stack}`);
+    } catch (error) {
+      log.error(`Agent "${agent}" failed: ${error.message}`);
+      log.verb(`Agent "${agent}" stack: ${error.stack}`);
       summaryParts.push(`${agent}: FAILED`);
     }
   }
@@ -189,66 +130,31 @@ async function tick({ forceAll, forceEmail, forceDigest, forceTrending, forceCat
   log.summary(`Tick — ${summaryParts.join(', ')}`);
 }
 
-function parseFlags() {
-  const args = process.argv.slice(2);
-  const forceAll = args.includes('--force-all');
-  return {
-    forceAll,
-    forceEmail: forceAll || args.includes('--force-email'),
-    forceDigest: forceAll || args.includes('--force-digest'),
-    forceTrending: forceAll || args.includes('--force-trending'),
-    forceCatchup: forceAll || args.includes('--force-catchup'),
-    forceInbox: forceAll || args.includes('--force-inbox'),
-  };
-}
+log.info(`Loop mode — tick every ${TICK_MS / 60_000} min`);
 
-const TICK_MS = 5 * 60 * 1000;
-
-async function runOnce() {
-  await tick(parseFlags());
-  await flushLogs();
-}
-
-async function runLoop() {
-  // Long-lived process (Railway). Tick every 5 min until SIGTERM.
-  const flags = parseFlags();
-  log.info(`Loop mode — tick every ${TICK_MS / 60_000} min`);
-
-  let running = false;
-  const safeTick = async () => {
-    if (running) {
-      log.warn('Previous tick still running — skipping');
-      return;
-    }
-    running = true;
-    try { await tick(flags); }
-    catch (err) { log.error(`Tick error: ${err.message}`); }
-    finally {
-      await flushLogs();
-      running = false;
-    }
-  };
-
-  await safeTick();
-  const interval = setInterval(safeTick, TICK_MS);
-
-  for (const sig of ['SIGINT', 'SIGTERM']) {
-    process.on(sig, async () => {
-      log.info(`${sig} received — exiting loop`);
-      clearInterval(interval);
-      await flushLogs();
-      process.exit(0);
-    });
+let running = false;
+const safeTick = async () => {
+  if (running) {
+    log.warn('Previous tick still running — skipping');
+    return;
   }
-}
-
-const flags = parseFlags();
-const hasForceFlag = Object.values(flags).some(Boolean);
-const looping = process.env.WINGMAN_LOOP === '1' && !hasForceFlag;
-(looping ? runLoop() : runOnce())
-  .then(() => { if (!looping) process.exit(0); })
-  .catch(async (err) => {
-    log.error(`Scheduler fatal error: ${err.message}`);
+  running = true;
+  try { await tick(); }
+  catch (error) { log.error(`Tick error: ${error.message}`); }
+  finally {
     await flushLogs();
-    process.exit(1);
+    running = false;
+  }
+};
+
+await safeTick();
+const interval = setInterval(safeTick, TICK_MS);
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, async () => {
+    log.info(`${signal} received — exiting loop`);
+    clearInterval(interval);
+    await flushLogs();
+    process.exit(0);
   });
+}

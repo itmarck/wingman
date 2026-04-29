@@ -1,4 +1,4 @@
-import { exec } from './helpers.js';
+import { exec } from './lib/helpers.js';
 
 export function register(program) {
   program

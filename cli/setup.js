@@ -1,9 +1,7 @@
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
 import { resolve } from 'path';
 import chalk from 'chalk';
-import os from 'os';
-import { ROOT, exec, ask, openUrl } from './helpers.js';
+import { ROOT, exec, ask, openUrl } from './lib/helpers.js';
 import { setSystemEnv, readSlack, writeSlack } from '../shared/env.js';
 
 // ─── Service definitions ─────────────────────────────────────
@@ -39,18 +37,6 @@ const SERVICES = [
       }
     },
     deps: 'notion',
-  },
-  {
-    id: 'autostart',
-    label: 'Auto-start on login + pm2',
-    check: () => {
-      if (process.platform === 'win32') {
-        const vbs = resolve(os.homedir(), 'AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Wingman/Wingman.vbs');
-        return existsSync(vbs);
-      }
-      // Linux: check if pm2 dump exists (pm2 startup + pm2 save)
-      return existsSync(resolve(os.homedir(), '.pm2/dump.pm2'));
-    },
   },
 ];
 
@@ -189,27 +175,22 @@ async function setupSlack() {
 
 // ─── Register command ────────────────────────────────────────
 
-export function register(program) {
-  program
-    .command('setup')
-    .description('Setup checklist and guided configuration')
-    .argument('[service]', SERVICES.map((s) => s.id).join(' | '))
-    .action(async (service) => {
-      if (!service) return showChecklist();
+const HELP = {
+  outlook: 'OAuth device-code flow for Microsoft Graph (Mail.ReadWrite + offline_access). Stores MS_CLIENT_ID, MS_TENANT_ID, and MS_REFRESH_TOKEN in state/secrets.json.',
+  notion: 'Captures NOTION_TOKEN (internal integration token) and NOTION_ROOT_PAGE_ID (parent page where task databases live). Both go into state/secrets.json.',
+  slack: 'Prompts for one Incoming Webhook URL per channel (email_important, email_digest, news, logs, alerts). Stored in state/slack.json.',
+  schema: 'Creates the Notion databases (Projects, Tasks, Subtasks, Inbox) under NOTION_ROOT_PAGE_ID and writes their IDs to state/notion-dbs.json. Idempotent — safe to re-run.',
+};
 
-      switch (service) {
-        case 'outlook':
-          return setupOutlook();
-        case 'notion':
-          return setupNotion();
-        case 'slack':
-          return setupSlack();
-        case 'schema':
-          return exec('agents/tasks/schema.js');
-        case 'autostart':
-          return exec('scripts/setup.js');
-        default:
-          console.error(`Unknown: ${service}. Available: ${SERVICES.map((s) => s.id).join(', ')}`);
-      }
-    });
+export function register(program) {
+  const cmd = program
+    .command('setup')
+    .description('Guided configuration for credentials and Notion schema');
+
+  cmd.command('outlook').description('Microsoft Graph email access').addHelpText('after', `\n${HELP.outlook}\n`).action(setupOutlook);
+  cmd.command('notion').description('Notion integration token + root page').addHelpText('after', `\n${HELP.notion}\n`).action(setupNotion);
+  cmd.command('slack').description('Slack webhook URLs per channel').addHelpText('after', `\n${HELP.slack}\n`).action(setupSlack);
+  cmd.command('schema').description('Notion database schema').addHelpText('after', `\n${HELP.schema}\n`).action(() => exec('agents/tasks/schema.js'));
+
+  cmd.action(showChecklist);
 }
