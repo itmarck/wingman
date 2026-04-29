@@ -17,10 +17,22 @@ const TRENDING_INTERVAL = 10;
 const DIGEST_HOUR = 8;
 const CATCHUP_HOUR = 8;
 
-async function loadState() {
+type SchedulerState = {
+  lastEmailTick: string | null;
+  lastDigest: string | null;
+  lastRedditTrending: string | null;
+  lastCatchup: string | null;
+  lastInboxTick: string | null;
+};
+
+type AgentResult = { summary?: string } | undefined | void;
+
+type AgentName = 'email' | 'catchup' | 'digest' | 'trending' | 'inbox';
+
+async function loadState(): Promise<SchedulerState> {
   try {
     return JSON.parse(await readFile(STATE_FILE, 'utf-8'));
-  } catch (error) {
+  } catch (error: any) {
     if (error.code === 'ENOENT') {
       return { lastEmailTick: null, lastDigest: null, lastRedditTrending: null, lastCatchup: null, lastInboxTick: null };
     }
@@ -28,32 +40,32 @@ async function loadState() {
   }
 }
 
-async function saveState(state) {
+async function saveState(state: SchedulerState): Promise<void> {
   await mkdir('state', { recursive: true });
   await writeFile(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
-function minutesSince(isoString) {
+function minutesSince(isoString: string | null): number {
   if (!isoString) return Infinity;
   return (Date.now() - new Date(isoString).getTime()) / 60_000;
 }
 
-function shouldRunEmail(state) {
+function shouldRunEmail(state: SchedulerState): boolean {
   return minutesSince(state.lastEmailTick) >= EMAIL_INTERVAL;
 }
 
-function shouldRunDigest(state) {
+function shouldRunDigest(state: SchedulerState): boolean {
   const now = new Date();
   if (now.getHours() < DIGEST_HOUR) return false;
   if (state.lastDigest === now.toISOString().slice(0, 10)) return false;
   return true;
 }
 
-function shouldRunTrending(state) {
+function shouldRunTrending(state: SchedulerState): boolean {
   return minutesSince(state.lastRedditTrending) >= TRENDING_INTERVAL;
 }
 
-function shouldRunCatchup(state) {
+function shouldRunCatchup(state: SchedulerState): boolean {
   const now = new Date();
   if (state.lastCatchup === now.toISOString().slice(0, 10)) return false;
   if (now.getHours() < CATCHUP_HOUR) return false;
@@ -61,13 +73,13 @@ function shouldRunCatchup(state) {
   return true;
 }
 
-async function tick() {
+async function tick(): Promise<void> {
   const state = await loadState();
   const now = new Date();
 
   log.tick(`Tick at ${now.toLocaleTimeString()}`);
 
-  const plan = [];
+  const plan: AgentName[] = [];
   if (shouldRunCatchup(state)) plan.push('catchup');
   else if (shouldRunEmail(state)) plan.push('email');
   if (shouldRunDigest(state)) plan.push('digest');
@@ -76,49 +88,46 @@ async function tick() {
 
   log.info(`Agents: ${plan.join(', ')}`);
 
-  const summaryParts = [];
+  const summaryParts: string[] = [];
 
   for (const agent of plan) {
     try {
+      let result: AgentResult;
       switch (agent) {
         case 'email': {
           const { runEmailAgent } = await import('./agents/email/index.js');
-          const result = await runEmailAgent();
+          result = await runEmailAgent();
           state.lastEmailTick = now.toISOString();
-          summaryParts.push(result?.summary || 'email: done');
           break;
         }
         case 'catchup': {
           const { runEmailCatchup } = await import('./agents/email/index.js');
-          const result = await runEmailCatchup();
+          result = await runEmailCatchup();
           state.lastEmailTick = now.toISOString();
           state.lastCatchup = now.toISOString().slice(0, 10);
-          summaryParts.push(result?.summary || 'catchup: done');
           break;
         }
         case 'digest': {
           const { runTrendsDigest } = await import('./agents/trends/index.js');
-          const result = await runTrendsDigest();
+          result = await runTrendsDigest();
           state.lastDigest = now.toISOString().slice(0, 10);
-          summaryParts.push(result?.summary || 'digest: done');
           break;
         }
         case 'trending': {
           const { runRedditTrending } = await import('./agents/trends/trending.js');
-          const result = await runRedditTrending();
+          result = await runRedditTrending();
           state.lastRedditTrending = now.toISOString();
-          summaryParts.push(result?.summary || 'trending: done');
           break;
         }
         case 'inbox': {
           const { runInboxAgent } = await import('./agents/tasks/inbox.js');
-          const result = await runInboxAgent();
+          result = await runInboxAgent();
           state.lastInboxTick = now.toISOString();
-          summaryParts.push(result?.summary || 'inbox: done');
           break;
         }
       }
-    } catch (error) {
+      summaryParts.push((result as { summary?: string } | undefined)?.summary || `${agent}: done`);
+    } catch (error: any) {
       log.error(`Agent "${agent}" failed: ${error.message}`);
       log.verb(`Agent "${agent}" stack: ${error.stack}`);
       summaryParts.push(`${agent}: FAILED`);
@@ -133,14 +142,14 @@ async function tick() {
 log.info(`Loop mode — tick every ${TICK_MS / 60_000} min`);
 
 let running = false;
-const safeTick = async () => {
+const safeTick = async (): Promise<void> => {
   if (running) {
     log.warn('Previous tick still running — skipping');
     return;
   }
   running = true;
   try { await tick(); }
-  catch (error) { log.error(`Tick error: ${error.message}`); }
+  catch (error: any) { log.error(`Tick error: ${error.message}`); }
   finally {
     await flushLogs();
     running = false;
@@ -150,7 +159,7 @@ const safeTick = async () => {
 await safeTick();
 const interval = setInterval(safeTick, TICK_MS);
 
-for (const signal of ['SIGINT', 'SIGTERM']) {
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {
     log.info(`${signal} received — exiting loop`);
     clearInterval(interval);

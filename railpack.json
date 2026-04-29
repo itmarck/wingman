@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "startCommand": "tsx main.js"
+    "startCommand": "tsx main.ts"
   }
 }
