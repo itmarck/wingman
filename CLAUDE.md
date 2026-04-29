@@ -384,6 +384,7 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 - All secrets from `process.env` — never hardcoded
 - Slack output in Spanish (Slack mrkdwn format), code and logs in English
 - Always pass `windowsHide: true` to every `spawn` / `execSync` / `execFile` call — prevents console windows from flashing on screen while the scheduler runs in the background
+- **No abbreviations in variable names**. Use full descriptive words. Prefer a single word when the meaning is obvious; otherwise use as many words as needed for clarity. Do NOT use shortened forms like `cfg`, `ctx`, `msg`, `req`, `res`, `addr`, `cmd`, `cnt`, `tmp`, `idx`, `el`, `e`, `err`, `i`, `j` (loop counters are an exception in tight loops) — write `config`, `context`, `message`, `request`, `response`, `address`, `command`, `count`, `temporary`, `index`, `element`, `error`. Domain acronyms are fine (`url`, `id`, `api`, `db`, `json`, `dom`, `oauth`).
 
 ---
 
