@@ -84,6 +84,11 @@ async function executeAction(accessToken, emailId, action) {
 function resolveNotification(result) {
   const { classification, category, amount, amount_currency } = result;
 
+  // Scam → alert in #email-important (already moved to trash by email_action)
+  if (classification === 'scam' || category === 'scam') {
+    return { notify: true, channel: 'important', reason: 'scam alert' };
+  }
+
   // Urgent → always notify in #email-important
   if (classification === 'urgent') {
     return { notify: true, channel: 'important', reason: 'urgent' };
@@ -300,6 +305,10 @@ export async function runEmailAgent() {
       const fromName = email.from?.emailAddress?.name || from;
 
       const result = await classify(buildPrompt(profile, email), { effort: 'low' });
+      // Force scam to trash regardless of model output.
+      if (result.classification === 'scam' || result.category === 'scam') {
+        result.email_action = 'trash';
+      }
       seen.add(email.id);
       counts[result.classification] = (counts[result.classification] || 0) + 1;
       classified.push({ email, classification: result });
@@ -376,6 +385,9 @@ export async function runEmailCatchup() {
       const folderTag = email._folder === 'junk' ? ' [JUNK]' : '';
 
       const result = await classify(buildPrompt(profile, email), { effort: 'low' });
+      if (result.classification === 'scam' || result.category === 'scam') {
+        result.email_action = 'trash';
+      }
       seen.add(email.id);
       counts[result.classification] = (counts[result.classification] || 0) + 1;
       classified.push({ email, classification: result });

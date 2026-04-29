@@ -35,39 +35,80 @@ const CHANNEL_EMOJI = {
   digest: '📬',
 };
 
+const ACTION_LABELS = {
+  read: 'leído (queda en Inbox)',
+  archive: 'archivado',
+  trash: 'movido a Trash',
+  'folder-tickets': 'movido a Tickets',
+  'folder-orders': 'movido a Orders',
+  'folder-investments': 'movido a Investments',
+  none: 'sin mover',
+};
+
+function actionLabel(action) {
+  return ACTION_LABELS[action] || action || 'sin mover';
+}
+
+function senderLabel(email) {
+  const address = email.from?.emailAddress;
+  return address?.name || address?.address || 'Desconocido';
+}
+
+function leadEmoji(item, fallback) {
+  const draft = item.classification || {};
+  if (draft.classification === 'scam' || draft.category === 'scam') return '⚠️';
+  return fallback;
+}
+
+function summaryText(c) {
+  const isScam = c.classification === 'scam' || c.category === 'scam';
+  const base = (c.summary || '').trim() || c.reason || 'sin resumen';
+  if (isScam && !/estafa|scam|phishing/i.test(base)) {
+    return `POSIBLE ESTAFA — ${base}`;
+  }
+  return base;
+}
+
 /**
  * Format classified emails for Slack — concise natural language output.
- * Single emails: one-liner. Groups: bullet list.
+ * Single emails: bold sender + summary + action footer.
+ * Groups: bullet list with the same structure per item.
  */
 export function formatEmailDigest(group, timeAgo) {
-  const emoji = group.channel === 'important' ? CHANNEL_EMOJI.important : CHANNEL_EMOJI.digest;
+  const channelEmoji = group.channel === 'important' ? CHANNEL_EMOJI.important : CHANNEL_EMOJI.digest;
   const items = group.items;
 
   if (items.length === 1) {
-    const { email, classification } = items[0];
+    const item = items[0];
+    const { email, classification } = item;
+    const emoji = leadEmoji(item, channelEmoji);
+    const sender = senderLabel(email);
     const ago = timeAgo(email.receivedDateTime);
-    const text = `${emoji} ${classification.summary} _(${ago})_`;
-    return {
-      blocks: [
-        { type: 'section', text: { type: 'mrkdwn', text } },
-      ],
-    };
+    const flag = classification.needs_action ? ' · 🚩 acción pendiente' : '';
+    const action = actionLabel(classification.email_action);
+
+    const text = [
+      `${emoji} *${sender}* — ${summaryText(classification)}`,
+      `_${ago} · ${action}${flag}_`,
+    ].join('\n');
+
+    return { blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] };
   }
 
-  // Grouped: bullet list with shared header
-  const bulletLines = items.map(({ email, classification }) => {
+  const bulletLines = items.map((item) => {
+    const { email, classification } = item;
+    const emoji = leadEmoji(item, '•');
+    const sender = senderLabel(email);
     const ago = timeAgo(email.receivedDateTime);
-    return `• ${classification.summary} _(${ago})_`;
+    const flag = classification.needs_action ? ' · 🚩' : '';
+    const action = actionLabel(classification.email_action);
+    return `${emoji} *${sender}* — ${summaryText(classification)}\n   _${ago} · ${action}${flag}_`;
   });
 
-  const header = `${emoji} *${items.length} correos — ${group.groupKey || 'varios'}*`;
-  const text = [header, ...bulletLines].join('\n');
+  const header = `${channelEmoji} *${items.length} correos — ${group.groupKey || 'varios'}*`;
+  const text = [header, '', ...bulletLines].join('\n');
 
-  return {
-    blocks: [
-      { type: 'section', text: { type: 'mrkdwn', text } },
-    ],
-  };
+  return { blocks: [{ type: 'section', text: { type: 'mrkdwn', text } }] };
 }
 
 /**
@@ -76,9 +117,10 @@ export function formatEmailDigest(group, timeAgo) {
  */
 export function formatUnknownEmails(unknowns, timeAgo) {
   const bulletLines = unknowns.map(({ email, classification }) => {
-    const from = email.from?.emailAddress?.name || email.from?.emailAddress?.address || 'Desconocido';
+    const from = senderLabel(email);
     const ago = timeAgo(email.receivedDateTime);
-    return `• *${email.subject}* de _${from}_ (${ago})\n  ${classification.summary}`;
+    const action = actionLabel(classification.email_action);
+    return `• *${from}* — ${summaryText(classification)}\n   _${ago} · asunto: ${email.subject} · ${action}_`;
   });
 
   const header = `🔍 *${unknowns.length} correo${unknowns.length > 1 ? 's' : ''} sin clasificar — revisar reglas*`;

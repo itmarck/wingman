@@ -10,7 +10,7 @@ export interface AIOptions {
  * Other fields documented in CLAUDE.md.
  */
 export interface ClassificationResult {
-  classification: 'urgent' | 'important' | 'informational' | 'noise' | 'unknown';
+  classification: 'urgent' | 'important' | 'informational' | 'noise' | 'scam' | 'unknown';
   category?: string;
   reason?: string;
   summary?: string;
