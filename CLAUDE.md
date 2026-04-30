@@ -183,29 +183,34 @@ Classification output schema:
 3. Classify each email via Claude CLI using `config/profile.md` rules (returns classification + category + email_action + amount)
 4. Execute email actions: `archive`, `trash`, `folder-tickets`, `folder-orders`, `folder-investments`, `read`, `none`
 5. Mark ALL processed emails as read (regardless of action)
-6. Route notifications based on category-specific rules:
-   - urgent → `#email-important`
-   - tickets with amount >= 1000 PEN → `#email-digest`
-   - tickets under threshold → filed silently
-   - orders → filed silently (no notification)
-   - investment transactions → `#email-digest`
-   - relevant promotions → `#email-digest` (concise discount info)
+6. Route notifications based on classification + category:
+   - urgent → `#email-important` + mirrored to `#alerts` (phone push)
+   - scam → `#email-important` + mirrored to `#alerts` (already trashed)
    - unknown → `#email-digest` as review block
+   - tickets / orders → filed silently regardless of amount
+   - investment transactions (important) → `#email-digest`
+   - important / informational → `#email-digest`
    - noise → no notification
+
+The filter philosophy lives in `config/profile.md` ("Filosofía del filtro"):
+Slack should only see things that genuinely add value. Most low-signal
+emails (promotions, software updates, receipts, self-initiated config
+confirmations) are processed silently and reviewed in Outlook later.
 
 ### Email categories and folder routing
 
 | Category | Action | Folder | Notify? |
 |----------|--------|--------|---------|
-| `security` | read | inbox | Always (urgent) |
+| `security` | read or trash | inbox/deleted | Real alerts → urgent + alerts. Self-initiated config confirmations → silent trash |
 | `personal` | read/archive | inbox/archive | If important+ |
-| `promotion` | trash/read | deleted/inbox | Only relevant discounts |
-| `software-update` | archive | archive | If actively used tool |
-| `ticket` | folder-tickets | Tickets | If amount >= 1000 PEN |
+| `promotion` | trash/archive | deleted/archive | Only concrete "do X get Y" sweepstakes |
+| `software-update` | archive/trash | archive/deleted | Never |
+| `ticket` | folder-tickets | Tickets | Never (silent file) |
 | `order` | folder-orders | Orders | Never |
-| `investment` | folder-investments | Investments | Transaction confirmations |
+| `investment` | folder-investments | Investments | Real transactions only |
 | `spam` | trash | deleted | Never |
-| `unknown` | none | inbox | Always (for review) |
+| `scam` | trash | deleted | Always (important + alerts) |
+| `unknown` | none | inbox | Always (for review in digest) |
 
 ### Reddit trending detection
 
@@ -392,10 +397,16 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 
 | Channel | Content |
 |---------|---------|
-| `#email-important` | Urgent emails with summary (Spanish) |
+| `#email-important` | Urgent emails + scam alerts (Spanish) |
 | `#email-digest` | Important/informational emails (Spanish) |
 | `#news-digest` | Morning digest + Reddit trending alerts (Spanish) |
+| `#alerts` | Mirror of anything that needs immediate attention (only unmuted channel — pushes to phone) |
 | `#agent-logs` | Technical agent activity (English) |
+
+The user mutes every channel except `#alerts`. Other channels are reviewed
+manually a couple of times per day. Any agent that wants to push a
+notification to the phone should send the message to its own channel
+**and** mirror it to `#alerts` (redundancy is intentional).
 
 ---
 
