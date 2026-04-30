@@ -34,12 +34,20 @@ Clasifica cada email. Responde SOLO con JSON:
 
 `true` cuando el email requiere que yo haga algo: responder, pagar, decidir, o esperar una acción futura (deadline, confirmación pendiente). En Outlook se marca con flag para revisar después. `false` para todo lo informativo o ya resuelto.
 
+## Filosofía del filtro
+
+**Slack solo recibe lo que me genera valor o me entrega información que necesito accionar o conocer.** Todo lo demás se procesa silenciosamente (archivar, mover a carpeta, eliminar) sin notificación. El email sigue existiendo en Outlook si quiero revisarlo después; el objetivo es no contaminar Slack.
+
+Regla mental: antes de marcar algo como `informational` (o superior), pregúntate: "¿esto le aporta algo al usuario verlo ahora en Slack?". Si la respuesta es "no realmente, podría enterarse cuando revise el correo o nunca" → es `noise`.
+
+Pero **no perder correos importantes**: en duda entre `noise` e `informational`, preferir `informational` solo si hay una persona real involucrada, una decisión que tomar, o información financiera/de seguridad relevante.
+
 ## Classification
 
-- **urgent**: alertas de seguridad, pagos fallidos, deadlines inminentes, caídas de servicio
-- **important**: emails de personas reales esperando respuesta, facturas grandes, cambios significativos de cuenta, transacciones de inversión
-- **informational**: actualizaciones de software que uso, newsletters de interés, resúmenes de actividad
-- **noise**: marketing, sorteos, redes sociales, idiomas que no uso (ni español ni inglés), newsletters no solicitadas
+- **urgent**: alertas de seguridad reales, pagos fallidos, deadlines inminentes, caídas de servicio que afectan algo que uso, intentos de acceso no reconocidos
+- **important**: emails de personas reales esperando respuesta, transacciones de inversión, cambios significativos de cuenta que requieren mi atención
+- **informational**: cosas que aportan valor verlas en Slack — concursos concretos tipo "haz X y gana Y", noticias relevantes específicas, confirmaciones que necesito conocer
+- **noise**: todo lo que no aporta valor verlo en Slack — promociones, marketing, sorteos vagos, actualizaciones de apps, recibos/comprobantes/pagos rutinarios, confirmaciones de configuración auto-iniciadas, redes sociales, idiomas que no uso, newsletters no solicitadas
 - **scam**: phishing, fraude, suplantación de identidad, estafa. Ver "Detección de Scam"
 
 ## Detección de Scam
@@ -75,11 +83,21 @@ Si solo es marketing pesado / no solicitado pero **sin engaño** → `category=s
 
 ## Reglas por categoría
 
-- **promotion**: Descuentos directos en mis intereses → informational + read. Sorteos/concursos con pasos extras → noise + trash. Todo otro promo → noise + trash.
-- **software-update**: Herramientas que uso activamente → informational + archive. Herramientas que no uso → noise + archive.
-- **ticket**: Siempre folder-tickets. Extraer amount/amount_currency. Classification: important si amount >= 1000 PEN equivalente, sino informational.
-- **order**: Siempre folder-orders. Classification: informational (sin notificación).
-- **investment** (Prestamype, XTB, Renta4, etc): Transacciones (compra/venta, pagos, liquidaciones) → folder-investments + important. Extraer amount. Emails informativos de estas plataformas → aplicar reglas de software-update/informational.
+- **promotion**:
+  - Sorteos / concursos / canjes / "azar" en general → **noise + trash** por defecto.
+    - Excepción: solo si es un mecanismo concreto y accionable tipo "haz X específico y gana Y específico" (ej. "compra esta semana y recibe 20% de cashback") → `informational + read`.
+    - Promesas vagas, "participa por...", "acumula puntos", "tu chance de ganar" → noise + trash.
+  - Descuentos / promos / cupones / novedades de productos → **noise**. Si es algo claramente alineado con mis intereses → `archive`. Si no → `trash`. Nunca llegan a Slack.
+- **software-update**: Novedades, changelogs, anuncios de features. Nunca llegan a Slack.
+  - Herramientas que uso activamente (relevantes) → `noise + archive`.
+  - Herramientas que no uso → `noise + trash`.
+- **ticket**: Recibos, facturas, boletas, comprobantes, pagos de tarjeta, confirmaciones de cobro. **Siempre folder-tickets + noise** (sin notificación, no importa el monto). Extraer `amount` / `amount_currency` para registro. Solo escalar a `urgent` si es un pago **fallido** o un cobro no reconocido que requiere acción.
+- **order**: Pedidos, envíos, tracking. Siempre `folder-orders + noise`.
+- **investment** (Prestamype, XTB, Renta4, etc):
+  - Transacciones reales (compra/venta, liquidaciones, pagos recibidos) → `folder-investments + important`. Extraer amount.
+  - Emails informativos / educativos / promocionales de estas plataformas → tratar como software-update / promotion.
+- **security**: Incluye también las **confirmaciones de cambios de configuración que el usuario mismo inicia** (activar/desactivar compras por internet, cambiar límites, habilitar/deshabilitar canales de pago, etc.). Estos son rutinarios y se reconocen porque el correo confirma una acción ya hecha sin pedir nada → `noise + trash`. Las alertas de seguridad reales (login no reconocido, cambio de contraseña no iniciado, intento de acceso) → `urgent + read`.
+- **personal**: Persona real esperando algo de mí → `important + read`. Newsletters personales sin acción → `informational + archive` solo si es de alguien que sigo activamente, sino `noise + archive`.
 - **spam**: trash + noise. Marketing junk sin intento de engaño.
 - **scam**: trash + scam. Phishing, fraude, impersonación. Ver "Detección de Scam".
 - **unknown**: none + unknown (se envía a Slack para revisión).
