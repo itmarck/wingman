@@ -9,11 +9,9 @@ const log = createLogger('mail');
 
 const WEBHOOK_IMPORTANT = process.env.SLACK_WEBHOOK_EMAIL_IMPORTANT;
 const WEBHOOK_DIGEST = process.env.SLACK_WEBHOOK_EMAIL_DIGEST;
+const WEBHOOK_ALERTS = process.env.SLACK_WEBHOOK_ALERTS;
 const WEBHOOK_LOGS = process.env.SLACK_WEBHOOK_LOGS;
 const LOOKBACK_HOURS = parseInt(process.env.EMAIL_LOOKBACK_HOURS || '1', 10);
-
-// Minimum amount in PEN to trigger a Slack notification for tickets
-const TICKET_NOTIFY_THRESHOLD = 1000;
 
 async function loadProfile() {
   return readFile('config/profile.md', 'utf-8');
@@ -79,73 +77,54 @@ async function executeAction(accessToken, emailId, action) {
 
 /**
  * Decide whether this classified email should go to Slack and which channel.
- * Returns: { notify: boolean, channel: 'important'|'digest'|null, reason: string }
+ * Returns: { notify, channel, mirrorAlerts, reason }
+ *   - channel: 'important' | 'digest' | null — primary channel
+ *   - mirrorAlerts: also send a copy to #alerts (the only channel that pushes to phone)
+ *
+ * Most emails should not notify at all. Slack should only get things the user
+ * actually wants to see — see config/profile.md "Filosofía del filtro".
  */
 function resolveNotification(result) {
-  const { classification, category, amount, amount_currency } = result;
+  const { classification, category } = result;
 
-  // Scam → alert in #email-important (already moved to trash by email_action)
+  // Scam → important + alerts (phishing matters even if already trashed)
   if (classification === 'scam' || category === 'scam') {
-    return { notify: true, channel: 'important', reason: 'scam alert' };
+    return { notify: true, channel: 'important', mirrorAlerts: true, reason: 'scam alert' };
   }
 
-  // Urgent → always notify in #email-important
+  // Urgent → important + alerts (this is precisely what alerts is for)
   if (classification === 'urgent') {
-    return { notify: true, channel: 'important', reason: 'urgent' };
+    return { notify: true, channel: 'important', mirrorAlerts: true, reason: 'urgent' };
   }
 
-  // Unknown → always notify in #email-digest for review
+  // Unknown → digest for later review (no phone push)
   if (classification === 'unknown') {
-    return { notify: true, channel: 'digest', reason: 'unknown — needs review' };
+    return { notify: true, channel: 'digest', mirrorAlerts: false, reason: 'unknown — needs review' };
   }
 
-  // Tickets: only notify if amount >= threshold
-  if (category === 'ticket' && amount != null) {
-    const amountPEN = normalizeToPEN(amount, amount_currency);
-    if (amountPEN >= TICKET_NOTIFY_THRESHOLD) {
-      return { notify: true, channel: 'digest', reason: `ticket >= ${TICKET_NOTIFY_THRESHOLD} PEN` };
-    }
-    return { notify: false, channel: null, reason: `ticket < ${TICKET_NOTIFY_THRESHOLD} PEN` };
+  // Tickets / orders → always silent regardless of amount or classification.
+  // The user reviews these in Outlook folders, not in Slack.
+  if (category === 'ticket' || category === 'order') {
+    return { notify: false, channel: null, mirrorAlerts: false, reason: `${category} — filed silently` };
   }
 
-  // Orders → never notify (just file)
-  if (category === 'order') {
-    return { notify: false, channel: null, reason: 'order — filed silently' };
+  // Investment transactions classified as important → digest
+  if (category === 'investment' && classification === 'important') {
+    return { notify: true, channel: 'digest', mirrorAlerts: false, reason: 'investment transaction' };
   }
 
-  // Investment transactions → notify in digest
-  if (category === 'investment') {
-    return { notify: true, channel: 'digest', reason: 'investment transaction' };
-  }
-
-  // Promotions that survived as informational → notify briefly in digest
-  if (category === 'promotion' && classification === 'informational') {
-    return { notify: true, channel: 'digest', reason: 'relevant promotion' };
-  }
-
-  // Important → notify in digest
+  // Important (people waiting on me, account changes) → digest
   if (classification === 'important') {
-    return { notify: true, channel: 'digest', reason: 'important' };
+    return { notify: true, channel: 'digest', mirrorAlerts: false, reason: 'important' };
   }
 
-  // Informational → notify briefly in digest
+  // Informational survivors (concrete sweepstakes, relevant news) → digest
   if (classification === 'informational') {
-    return { notify: true, channel: 'digest', reason: 'informational' };
+    return { notify: true, channel: 'digest', mirrorAlerts: false, reason: 'informational' };
   }
 
-  // Noise → no notification
-  return { notify: false, channel: null, reason: 'noise' };
-}
-
-/**
- * Rough currency normalization to PEN for threshold comparison.
- * Uses approximate rates — only needs to be ballpark accurate.
- */
-function normalizeToPEN(amount, currency) {
-  if (!currency || currency === 'PEN') return amount;
-  const rates = { USD: 3.7, EUR: 4.0, GBP: 4.7 };
-  const rate = rates[currency.toUpperCase()] || 1;
-  return amount * rate;
+  // Noise → silent
+  return { notify: false, channel: null, mirrorAlerts: false, reason: 'noise' };
 }
 
 /**
@@ -206,20 +185,23 @@ async function processClassified(accessToken, classified, counts) {
       if (item.classification.classification === 'unknown') {
         unknowns.push(item);
       } else {
-        toNotify.push({ ...item, channel: notification.channel });
+        toNotify.push({ ...item, channel: notification.channel, mirrorAlerts: notification.mirrorAlerts });
       }
     }
   }
 
-  // Group by channel + group_key for concise Slack output
+  // Group by channel + alerts mirror flag + group_key for concise Slack output.
+  // Items that mirror to alerts go in their own group so the alerts copy
+  // matches exactly what landed in #email-important.
   if (toNotify.length > 0) {
     const groups = new Map();
 
     for (const item of toNotify) {
-      const key = `${item.channel}::${item.classification.group_key || item.email.id}`;
+      const key = `${item.channel}::${item.mirrorAlerts ? 'alert' : 'noalert'}::${item.classification.group_key || item.email.id}`;
       if (!groups.has(key)) {
         groups.set(key, {
           channel: item.channel,
+          mirrorAlerts: item.mirrorAlerts,
           groupKey: item.classification.group_key,
           items: [],
         });
@@ -235,6 +217,11 @@ async function processClassified(accessToken, classified, counts) {
         const payload = formatEmailDigest(group, timeAgo);
         log.verb(`Sending group "${key}" (${group.items.length} emails) → #email-${group.channel}`, 1);
         await sendSlack(webhook, payload);
+
+        if (group.mirrorAlerts && WEBHOOK_ALERTS) {
+          log.verb(`Mirroring group "${key}" → #alerts`, 1);
+          await sendSlack(WEBHOOK_ALERTS, payload);
+        }
       } catch (err) {
         log.error(`Failed to send Slack notification: ${err.message}`);
       }
