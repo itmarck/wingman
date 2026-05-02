@@ -3,10 +3,13 @@ import { dirname, resolve } from 'path';
 import { spawn } from 'child_process';
 import { createInterface } from 'readline';
 
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 export function exec(script, args = []) {
-  const child = spawn('node', [resolve(ROOT, script), ...args], {
+  const absolutePath = resolve(ROOT, script);
+  const isTypeScript = absolutePath.endsWith('.ts');
+  const runner = isTypeScript ? resolve(ROOT, 'node_modules/.bin/tsx') : 'node';
+  const child = spawn(runner, [absolutePath, ...args], {
     stdio: 'inherit',
     shell: true,
     windowsHide: true,

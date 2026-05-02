@@ -175,12 +175,12 @@ export function formatTrendingPosts(posts, summary) {
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'))) {
-  const webhookUrl = process.env.SLACK_WEBHOOK_LOGS;
+  const webhookUrl = process.env.SLACK_WEBHOOK_ALERTS;
   if (!webhookUrl) {
-    log.error('SLACK_WEBHOOK_LOGS not set in .env');
+    log.error('SLACK_WEBHOOK_ALERTS not set in .env');
     process.exit(1);
   }
-  log.head('Sending test message to #agent-logs...');
+  log.head('Sending test message to #alerts...');
   await sendSlack(webhookUrl, '🧪 Test de integración de Wingman — si ves esto, funciona!');
   log.ok('Test message sent successfully');
 }
