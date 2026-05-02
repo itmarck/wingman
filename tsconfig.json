@@ -24,7 +24,7 @@
     "shared/**/*",
     "agents/**/*",
     "scripts/**/*",
-    "cli/**/*",
+    "commands/**/*",
     "tests/**/*"
   ],
   "exclude": ["node_modules", "dist", "logs", "state"]

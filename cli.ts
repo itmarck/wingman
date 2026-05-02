@@ -13,7 +13,7 @@ type CliModule = { register: (program: Command) => void };
 
 const cmds = ['run', 'log', 'test', 'config', 'setup', 'state'] as const;
 await Promise.all(
-  cmds.map(async (name) => ((await import(`./cli/${name}.js`)) as CliModule).register(program)),
+  cmds.map(async (name) => ((await import(`./commands/${name}.js`)) as CliModule).register(program)),
 );
 
 program.parse();
