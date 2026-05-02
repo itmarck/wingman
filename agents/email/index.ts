@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
-import { createLogger } from '../../shared/logger.js';
-import { classify } from '../../shared/ai/index.js';
-import { sendSlack, formatEmailDigest, formatUnknownEmails } from '../../shared/slack.js';
+import { createLogger } from '../../lib/logger.js';
+import { classify } from '../../lib/ai/index.js';
+import { sendSlack, formatEmailDigest, formatUnknownEmails } from '../../lib/slack.js';
 import { getAccessToken, fetchEmails, fetchUnreadRecent, markAsRead, flagEmail, archiveEmail, moveToTrash, moveToInbox, moveToFolder } from './graph.js';
 import { loadSeen, saveSeen } from './state.js';
 

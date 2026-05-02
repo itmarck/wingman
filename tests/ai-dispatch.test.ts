@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { getProvider, _resetProvider } from '../shared/ai/index.js';
+import { getProvider, _resetProvider } from '../lib/ai/index.js';
 
 beforeEach(() => {
   _resetProvider();

@@ -3,17 +3,17 @@ import { exec } from './lib/helpers.js';
 
 const TARGETS = {
   slack: {
-    script: 'shared/slack.js',
+    script: 'lib/slack.js',
     description: 'Send a probe message to every configured Slack webhook',
     detail: 'Posts a short test payload to each webhook URL stored in state/slack.json (email_important, email_digest, news, logs, alerts) and prints which channels responded successfully.',
   },
   ai: {
-    script: 'shared/ai/test.ts',
+    script: 'lib/ai/test.ts',
     description: 'Verify the active AI provider responds to a prompt',
     detail: 'Reads AI_PROVIDER (local | groq | claude) and runs a sample classification prompt end-to-end. Useful to confirm credentials and connectivity before running agents.',
   },
   notion: {
-    script: 'shared/notion.js',
+    script: 'lib/notion.js',
     description: 'Verify the Notion API token and root page access',
     detail: 'Calls the Notion API with the configured NOTION_TOKEN and confirms it can read the root page referenced by NOTION_ROOT_PAGE_ID.',
   },

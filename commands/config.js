@@ -3,7 +3,7 @@ import { spawn } from 'child_process';
 import { readFileSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
-import { readSettings, readSlack, setSystemEnv, writeSetting } from '../shared/env.js';
+import { readSettings, readSlack, setSystemEnv, writeSetting } from '../lib/env.js';
 import { ROOT } from './lib/helpers.js';
 
 const FILES = {

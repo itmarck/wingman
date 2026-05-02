@@ -5,9 +5,9 @@
 // quick terminal access when convenient.
 
 import chalk from 'chalk';
-import { loadConfig } from '../shared/env.js';
+import { loadConfig } from '../lib/env.js';
 import { loadDbIds } from '../agents/tasks/schema.js';
-import { queryDatabase, createPage, props } from '../shared/notion.js';
+import { queryDatabase, createPage, props } from '../lib/notion.js';
 
 loadConfig();
 

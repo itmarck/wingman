@@ -7,11 +7,11 @@
  * Grouped by context, sorted by priority (highest first).
  */
 
-import { loadConfig } from '../shared/env.js';
+import { loadConfig } from '../lib/env.js';
 import chalk from 'chalk';
 
 loadConfig();
-import { queryDatabase } from '../shared/notion.js';
+import { queryDatabase } from '../lib/notion.js';
 import { loadDbIds } from '../agents/tasks/schema.js';
 
 function priorityColor(p) {

@@ -1,5 +1,5 @@
 import Parser from 'rss-parser';
-import { createLogger } from '../../shared/logger.js';
+import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('trnd');
 const parser = new Parser({ timeout: 15_000 });

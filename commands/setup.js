@@ -1,6 +1,6 @@
 import chalk from 'chalk'
 import { ask, openUrl } from './lib/helpers.js'
-import { setSystemEnv, readSlack, writeSlack } from '../shared/env.js'
+import { setSystemEnv, readSlack, writeSlack } from '../lib/env.js'
 
 const SERVICES = [
   {

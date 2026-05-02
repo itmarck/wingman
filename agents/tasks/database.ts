@@ -1,10 +1,10 @@
-import { createLogger } from '../../shared/logger.js'
+import { createLogger } from '../../lib/logger.js'
 import {
   createDatabase,
   getDatabaseSchema,
   getNotionClient,
   updateDatabase,
-} from '../../shared/notion.js'
+} from '../../lib/notion.js'
 import { AUTO_PROPS, DATABASES, expandSchema, type DbIds } from './schema.ts'
 
 const log = createLogger('task')

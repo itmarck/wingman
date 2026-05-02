@@ -1,9 +1,9 @@
 import { readFile } from 'fs/promises';
-import { createLogger } from '../../shared/logger.js';
-import { classifyRaw } from '../../shared/ai/index.js';
-import { sendSlack } from '../../shared/slack.js';
-import { queryDatabase, createPage, updatePage, props } from '../../shared/notion.js';
-import { createEvent } from '../../shared/google/calendar.js';
+import { createLogger } from '../../lib/logger.js';
+import { classifyRaw } from '../../lib/ai/index.js';
+import { sendSlack } from '../../lib/slack.js';
+import { queryDatabase, createPage, updatePage, props } from '../../lib/notion.js';
+import { createEvent } from '../../lib/google/calendar.js';
 import { getDbIds } from './database.ts';
 
 const log = createLogger('task');

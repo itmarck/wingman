@@ -25,8 +25,8 @@
  *   Drive (file-level access):    https://www.googleapis.com/auth/drive.file
  */
 
-import { loadConfig } from '../shared/env.js';
-import { createLogger } from '../shared/logger.js';
+import { loadConfig } from '../lib/env.js';
+import { createLogger } from '../lib/logger.js';
 
 loadConfig();
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { createRequire } from 'module';
-import { loadConfig } from './shared/env.js';
+import { loadConfig } from './lib/env.js';
 
 loadConfig();
 

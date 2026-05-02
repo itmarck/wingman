@@ -1,4 +1,4 @@
-import { createLogger } from '../../shared/logger.js';
+import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('mail');
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extractJSON, parseClassification, parseRaw } from '../shared/ai/parse.js';
+import { extractJSON, parseClassification, parseRaw } from '../lib/ai/parse.js';
 
 describe('extractJSON', () => {
   it('parses bare JSON', () => {

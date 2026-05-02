@@ -44,7 +44,7 @@ async function runAgent(id) {
 }
 
 async function flush() {
-  const { flushLogs } = await import('../shared/logger.js');
+  const { flushLogs } = await import('../lib/logger.js');
   await flushLogs();
 }
 

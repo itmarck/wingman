@@ -1,6 +1,6 @@
 import { Daemon } from './daemon.js'
-import { loadConfig } from './shared/env.js'
-import { createLogger } from './shared/logger.js'
+import { loadConfig } from './lib/env.js'
+import { createLogger } from './lib/logger.js'
 
 const log = createLogger('main')
 

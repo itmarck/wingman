@@ -11,7 +11,7 @@
  *   4. Add MS_CLIENT_ID and MS_TENANT_ID to your .env
  */
 
-import { createLogger } from '../../shared/logger.js';
+import { createLogger } from '../../lib/logger.js';
 
 const log = createLogger('auth');
 

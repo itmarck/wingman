@@ -21,7 +21,7 @@
   "include": [
     "main.ts",
     "cli.ts",
-    "shared/**/*",
+    "lib/**/*",
     "agents/**/*",
     "scripts/**/*",
     "commands/**/*",
