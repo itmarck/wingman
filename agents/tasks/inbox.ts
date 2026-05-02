@@ -10,13 +10,9 @@ const log = createLogger('task');
 
 const WEBHOOK_LOGS = process.env.SLACK_WEBHOOK_LOGS;
 
-// ─── Config loading ─────────────────────────────────────────────
-
 async function loadGoals() {
   return readFile('config/goals.md', 'utf-8');
 }
-
-// ─── Prompt building ────────────────────────────────────────────
 
 function buildPrompt(goals, rawText) {
   return [
@@ -28,8 +24,6 @@ function buildPrompt(goals, rawText) {
   ].join('\n');
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
-
 function extractTitle(page) {
   for (const [, prop] of Object.entries(page.properties) as [string, any][]) {
     if (prop.type === 'title' && prop.title.length > 0) {
@@ -38,8 +32,6 @@ function extractTitle(page) {
   }
   return '(sin título)';
 }
-
-// ─── Main agent ─────────────────────────────────────────────────
 
 export async function runInboxAgent() {
   log.head('Inbox processing cycle');
@@ -211,8 +203,6 @@ export async function runInboxAgent() {
 
   return { summary: summaryText };
 }
-
-// ─── Direct execution ───────────────────────────────────────────
 
 const isDirectRun = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '/'));
 if (isDirectRun) {
