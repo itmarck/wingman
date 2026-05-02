@@ -15,8 +15,17 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
+    "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["main.ts", "cli.ts", "shared/**/*", "agents/**/*", "scripts/**/*", "cli/**/*", "tests/**/*"],
+  "include": [
+    "main.ts",
+    "cli.ts",
+    "shared/**/*",
+    "agents/**/*",
+    "scripts/**/*",
+    "cli/**/*",
+    "tests/**/*"
+  ],
   "exclude": ["node_modules", "dist", "logs", "state"]
 }

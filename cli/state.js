@@ -8,7 +8,6 @@ const FILES = {
   email: 'email-seen.json',
   trending: 'reddit-trending.json',
   scheduler: 'scheduler.json',
-  schema: 'notion-dbs.json',
 };
 
 async function showOverview() {
