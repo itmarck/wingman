@@ -4,7 +4,7 @@ import { classifyRaw } from '../../shared/ai/index.js';
 import { sendSlack } from '../../shared/slack.js';
 import { queryDatabase, createPage, updatePage, props } from '../../shared/notion.js';
 import { createEvent } from '../../shared/google/calendar.js';
-import { ensureSchema } from './schema.js';
+import { getDbIds } from './database.ts';
 
 const log = createLogger('task');
 
@@ -44,13 +44,13 @@ function extractTitle(page) {
 export async function runInboxAgent() {
   log.head('Inbox processing cycle');
 
-  // 1. Ensure schema (creates DBs on first run, validates on subsequent)
+  // 1. Get database IDs from in-memory cache (populated by Daemon.initialize())
   let dbIds;
   try {
-    dbIds = await ensureSchema();
+    dbIds = getDbIds();
   } catch (err) {
-    log.error(`Schema validation failed: ${err.message}`);
-    return { summary: 'inbox: schema error' };
+    log.error(`Databases not initialized: ${err.message}`);
+    return { summary: 'inbox: not initialized' };
   }
 
   // 2. Fetch pending inbox items
