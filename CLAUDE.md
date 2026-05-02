@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project does
 
-A personal automation system that filters emails, news, and social media, delivering only what matters to Slack. A centralized scheduler runs via pm2 every 5 minutes and decides which agents to execute.
+A personal automation system that filters emails, news, and social media, delivering only what matters to Slack. A daemon runs a tick loop every 5 minutes and decides which agents to execute.
 
 **Core principle:** Important things come to me. I don't go looking for them.
 
@@ -14,110 +14,157 @@ A personal automation system that filters emails, news, and social media, delive
 
 All agents are **implemented and functional**:
 
-- `main.js` — centralized scheduler (tick every 5 min, manages agent timing)
-- `shared/` — logger (dual output: terminal + daily log file), Slack webhook helper, Claude CLI wrapper
+- `main.ts` — entry point: initializes Notion databases, then starts the daemon tick loop
+- `daemon.ts` — `Daemon` class: `setInterval`-based scheduler, reads/writes `state/scheduler.json`, decides which agents to run each tick
+- `cli.ts` — `wingman` CLI binary: loads sub-commands from `cli/` via Commander
+- `cli/` — CLI sub-commands: `run`, `log`, `setup`, `config`, `state`, `test`
+- `scripts/` — standalone utility programs called by CLI commands or run directly
+- `shared/` — reusable infrastructure: logger, Slack client, AI provider, Notion client, config loader, Google API clients
+- `shared/ai/` — AI provider abstraction: selects `local`, `groq`, or `claude` based on `AI_PROVIDER` env var
 - `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash, move to folder), seen-state tracking, orchestrator with category-based routing
 - `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), morning digest orchestrator, Reddit trending detector
-- `agents/tasks/` — Notion inbox processor, schema management, task/subtask creation via Claude classification
+- `agents/tasks/` — Notion inbox processor, schema management, task/subtask creation via AI classification
 - `config/profile.md` — email classification rules in Spanish (editable, loaded dynamically)
 - `config/goals.md` — task classification rules and personal goals (editable, loaded dynamically)
 - `config/sources.json` — trend source definitions (editable, loaded dynamically)
-- `scripts/dev.js` — dev runner CLI (argument-based dispatch: agents, catchup, tests)
-- `scripts/log.js` — log viewer CLI with filtering and oneline mode
-- `scripts/setup.js` — one-command setup: registers auto-start on login (no admin) + starts pm2
 
-**To get started:** fill in `.env` (copy from `.env.example`), run `node agents/email/auth.js` for OAuth, then `npm run setup` to start everything, then `npm run dev -- all` to test.
+**To get started:** run `wingman setup` to configure credentials, then `wingman run all` to test all agents.
 
 ---
 
 ## Commands
 
 ```bash
-# Scheduler
-npm run dev                          # run one tick (respects timing)
-npm run dev -- all                   # force all agents to run now
-npm run dev -- email                 # force only email
-npm run dev -- digest                # force only morning digest
-npm run dev -- trending              # force only Reddit trending
-npm run dev -- catchup               # force email catch-up (inbox + junk)
-npm run dev -- test slack            # verify Slack webhook
-npm run dev -- test claude           # verify Claude CLI
+# Run agents manually
+wingman run              # list available agents
+wingman run all          # run all agents sequentially
+wingman run email        # run only email agent
+wingman run digest       # run only morning digest
+wingman run trending     # run only Reddit trending
+wingman run catchup      # run email catch-up (inbox + junk, last 2 days)
+wingman run inbox        # run only Notion inbox processor
 
 # Log viewer
-npm run log                          # today's full log (no verb/data)
-npm run log -- oneline               # compact view (depth 00 only)
-npm run log -- ayer                  # yesterday's log
-npm run log -- verbose               # include verb (technical) lines
-npm run log -- data                  # include data (payload) lines
-npm run log -- all                   # include everything (verb + data)
-npm run log -- depth 0               # only top-level lines
-npm run log -- depth 1               # up to item-level detail
-npm run log -- urgente               # only urgent classifications
-npm run log -- noise                 # only noise
-npm run log -- mail                  # only email agent lines
-npm run log -- summary               # show tick summaries (output.log)
-npm run log -- ayer oneline          # combinable
+wingman log              # today's full log (no verb/data)
+wingman log -1           # compact view (depth 0 only)
+wingman log -y           # yesterday's log
+wingman log -v           # include verb (technical) lines
+wingman log -d           # include data (payload) lines
+wingman log -a           # include everything (verb + data)
+wingman log -s           # tick summaries (output.log)
+wingman log -t mail      # filter by tag (mail, trnd, clde, slck, task)
+wingman log --depth 0    # only top-level lines
+wingman log --depth 1    # up to item-level detail
+wingman log -e           # only error lines
+wingman log -f urgente   # text search
 
-# Setup (run once on a new machine)
-npm run setup                        # register auto-start + start pm2 (no admin, idempotent)
+# Setup (run once on a new machine or to re-configure)
+wingman setup            # show setup checklist
+wingman setup outlook    # Microsoft Graph OAuth (device-code flow)
+wingman setup notion     # Notion token + root page ID
+wingman setup slack      # Slack webhook URLs per channel
+wingman setup schema     # create/sync Notion database schema
 
-# pm2 process management
-npm start                            # pm2 start ecosystem.config.cjs
-npm run status                       # pm2 list
-npm run logs                         # pm2 logs (live stream)
-pm2 restart wingman                  # restart scheduler
+# Settings and state
+wingman config           # read/write settings (state/settings.json)
+wingman state            # inspect or reset runtime state
+
+# Tests
+wingman test slack       # verify Slack webhook
+wingman test ai          # verify AI provider
+
+# TypeScript
+npm run typecheck        # tsc --noEmit
+npm test                 # vitest run
 ```
 
 ---
 
 ## Architecture
 
-### Centralized scheduler
+### Two entry points, two programs
 
-`main.js` runs every 5 minutes via pm2 cron. Each tick it:
+The project exposes two distinct programs:
+
+**`main.ts` — the daemon**
+
+Initializes Notion databases once, then starts the `Daemon` class which runs a `setInterval` tick loop every 5 minutes. Meant to run as a long-lived background process (e.g. via pm2 or any process manager).
+
+**`cli.ts` — the `wingman` binary**
+
+Commander-based CLI that loads sub-commands from `cli/`. Used interactively by the developer. `wingman run` can execute any agent on demand, bypassing the daemon's timing logic entirely.
+
+### Daemon tick loop
+
+`daemon.ts` runs `tick()` every 5 minutes. Each tick:
 
 1. Reads `state/scheduler.json` for last execution timestamps
-2. Evaluates which agents should run based on intervals
-3. Executes them sequentially (to avoid overloading Claude)
-4. Updates timestamps and exits
+2. Calls `buildPlan()` to decide which agents to run (based on intervals and time-of-day rules)
+3. Runs each planned agent sequentially (to avoid overloading the AI provider)
+4. Updates timestamps in `state/scheduler.json`
 
-Agent schedule:
-- **Email**: every 15 min (skips 2 ticks)
+Agent schedule (configured in `main.ts`):
+- **Email**: every 15 min
 - **Morning digest**: once per day at 8:00am local time
-- **Reddit trending**: every 10 min (skips 1 tick)
-- **Email catch-up**: auto-triggers when scheduler detects >60 min gap (e.g. PC was suspended)
-
-The `--force-*` flags bypass timing checks for testing.
+- **Reddit trending**: every 10 min
+- **Morning catch-up**: once per day at 8:00am (catches emails from overnight)
+- **Notion inbox**: every tick (runs constantly)
 
 ### Email catch-up
 
-When the scheduler detects it's been offline for more than 60 minutes (e.g. PC suspended overnight), it automatically runs a catch-up scan instead of the normal email cycle:
+Runs automatically at 8am each day instead of the normal email cycle:
 
 1. Fetches **all unread emails from the last 2 days** (inbox + junk/spam folder)
-2. Classifies each one via Claude CLI
+2. Classifies each one via the AI provider
 3. Rescues misclassified junk: if an email in junk is classified as non-noise, moves it to inbox
 4. Executes email actions (folder moves, archive, trash)
 5. Marks ALL processed emails as read
 6. Routes notifications to Slack (respecting category-specific rules)
 
-Can also be triggered manually with `npm run dev -- catchup`.
+Can also be triggered manually with `wingman run catchup`.
 
 ### Agent data flow
 
 Each agent follows the same pipeline pattern:
 
 ```
-sources → fetcher → classifier (Claude CLI) → notifier (Slack)
+sources → fetcher → classifier (AI provider) → notifier (Slack)
 ```
 
 - **Email agent** (`agents/email/`): OAuth → fetch unread → filter (isRead + seen.json) → classify each (with category) → execute actions (folder moves / archive / trash) → mark all as read → route notifications by category to Slack
-- **Trends digest** (`agents/trends/index.js`): RSS + Reddit → summarize via Claude → post digest to `#news-digest`
-- **Reddit trending** (`agents/trends/trending.js`): fetch Reddit → calculate trending score → if above threshold → summarize via Claude → post to `#news-digest`
-- **Task inbox** (`agents/tasks/inbox.js`): fetch pending Notion inbox items → classify via Claude using `config/goals.md` → create task with subtasks in Notion → mark inbox item as processed
+- **Trends digest** (`agents/trends/index.ts`): RSS + Reddit → summarize via AI → post digest to `#news-digest`
+- **Reddit trending** (`agents/trends/trending.ts`): fetch Reddit → calculate trending score → if above threshold → summarize via AI → post to `#news-digest`
+- **Task inbox** (`agents/tasks/inbox.ts`): fetch pending Notion inbox items → classify via AI using `config/goals.md` → create task with subtasks in Notion → mark inbox item as processed
+
+### AI provider abstraction
+
+`shared/ai/index.ts` selects one of three providers based on the `AI_PROVIDER` environment variable (default: `local`):
+
+| Provider | Env value | Notes |
+|----------|-----------|-------|
+| Local LLM | `local` | Ollama or similar, no API key needed |
+| Groq | `groq` | Requires `GROQ_API_KEY` |
+| Claude | `claude` | Requires `ANTHROPIC_API_KEY` |
+
+All agents call `classify()`, `classifyRaw()`, or `summarize()` from `shared/ai/index.ts` — they don't know which provider is active. Switching providers requires no code changes, only the env var.
+
+### Configuration loading
+
+There is no `.env` file. `shared/env.js` → `loadConfig()` reads three JSON files from `state/` at startup and injects them into `process.env`:
+
+| File | Contains | Notes |
+|------|----------|-------|
+| `state/secrets.json` | API keys, OAuth tokens | chmod 600 on Linux |
+| `state/settings.json` | Settings (lookback hours, thresholds, etc.) | Keys mapped to uppercase env vars |
+| `state/slack.json` | Slack webhook URLs | Mapped to `SLACK_WEBHOOK_*` env vars |
+
+On Railway or Docker, env vars set on the platform always win over these files. This makes the project work identically in both environments without any code changes.
+
+`wingman setup` writes to these files interactively. They are in `.gitignore`.
 
 ### Notion task management
 
-The task system uses 4 Notion databases managed by `agents/tasks/schema.js`. The schema is defined using JS native types and expanded to Notion API format at runtime:
+The task system uses 4 Notion databases managed by `agents/tasks/schema.ts` and `agents/tasks/database.ts`. The schema is defined using JS native types and expanded to Notion API format at runtime:
 
 ```js
 // Schema shorthand → Notion API expansion
@@ -151,14 +198,14 @@ Shared options (`GOALS`, `CONTEXTS`) are defined once as arrays and referenced b
 | Subtasks | progress, order | task → Tasks |
 | Inbox | source, status (received/processed/failed) | — |
 
-Creation order matters for relations: Projects → Tasks → Subtasks → Inbox. Database IDs are persisted in `state/notion-dbs.json` and validated on each run.
+Creation order matters for relations: Projects → Tasks → Subtasks → Inbox. Database IDs are persisted in `state/notion-dbs.json` and validated on each run (via `daemon.initialize()` at startup).
 
 ### Task classification flow
 
 1. Fetch items with status `received` from Inbox database
-2. Classify each item via Claude CLI using `config/goals.md` rules
+2. Classify each item via AI provider using `config/goals.md` rules
 3. Create task in Tasks database with numeric priority/energy/progress
-4. Create subtasks if provided by Claude
+4. Create subtasks if provided by the AI
 5. Mark inbox item as `processed` (or `failed` on error)
 
 Classification output schema:
@@ -180,7 +227,7 @@ Classification output schema:
 
 1. Fetch emails from last `EMAIL_LOOKBACK_HOURS` via Microsoft Graph
 2. Double filter: skip emails already read in Outlook (`isRead`) + already processed (`state/email-seen.json`)
-3. Classify each email via Claude CLI using `config/profile.md` rules (returns classification + category + email_action + amount)
+3. Classify each email via AI provider using `config/profile.md` rules (returns classification + category + email_action + amount)
 4. Execute email actions: `archive`, `trash`, `folder-tickets`, `folder-orders`, `folder-investments`, `read`, `none`
 5. Mark ALL processed emails as read (regardless of action)
 6. Route notifications based on classification + category:
@@ -218,55 +265,13 @@ Reddit posts are scored with: `(score × comments) / post_age_hours`
 
 Two-tier threshold system:
 - **Viral** (`REDDIT_TRENDING_VIRAL`, default 5000): posts above this are always notified regardless of interests — these are massive events too big to miss.
-- **Base** (`REDDIT_TRENDING_THRESHOLD`, default 500): posts between base and viral are sent to Claude filtered by `interest_categories` from `config/sources.json`. Claude omits posts that don't match the user's interests.
+- **Base** (`REDDIT_TRENDING_THRESHOLD`, default 500): posts between base and viral are sent to the AI filtered by `interest_categories` from `config/sources.json`. The AI omits posts that don't match the user's interests.
 
-Claude tags each post as `[VIRAL]` or `[CANDIDATO]` in the prompt. If no posts survive filtering, Claude responds `NINGUNO` and nothing is posted (but posts are still marked as notified to avoid reprocessing).
+The AI tags each post as `[VIRAL]` or `[CANDIDATO]` in the prompt. If no posts survive filtering, the AI responds `NINGUNO` and nothing is posted (but posts are still marked as notified to avoid reprocessing).
 
 Slack format: each post is a single bullet with title in Spanish, link in parentheses, and brief summary. No separate header block for each post.
 
 State tracked in `state/reddit-trending.json` (daily cleanup).
-
-### pm2 scheduling
-
-Single process `wingman` runs as a cron job every 5 minutes. Not a server — runs once per tick, then exits.
-
-`autorestart: false` is intentional — pm2 only restarts on schedule, not on crash.
-
-### Windows auto-startup
-
-pm2 doesn't natively support `pm2 startup` on Windows. Instead, `npm run setup` drops a VBScript into the Windows user Startup folder — no admin required, no Task Scheduler.
-
-**How it works:**
-
-`scripts/setup.js` writes `Wingman.vbs` to:
-```
-%APPDATA%\Microsoft\Windows\Start Menu\Programs\Wingman\Wingman.vbs
-```
-
-The VBScript runs via `wscript.exe` (no console window) on every login. It:
-1. Waits 10 seconds for system stabilization (`WScript.Sleep 10000`)
-2. Cleans any stale pm2 process (`npx pm2 delete wingman`)
-3. Starts fresh via `ecosystem.config.cjs`
-
-**Sleep/wake:** pm2 daemon persists across sleep. The cron fires within 5 minutes of wake; if the gap exceeds 60 minutes the catch-up logic handles it automatically.
-
-**`npm run setup` is idempotent** — checks whether the VBScript is up to date and whether wingman is registered in pm2 before doing anything. Safe to re-run anytime.
-
-### AI integration
-
-Claude Code CLI is used for classification and summarization — no API key needed:
-```js
-const proc = spawn('claude', ['-p', '--output-format', 'text'], {
-  stdio: ['pipe', 'pipe', 'pipe'],
-  shell: true,
-  windowsHide: true,   // prevents console window flash on Windows
-});
-proc.stdin.write(prompt);
-proc.stdin.end();
-```
-This requires Claude Code to be installed and authenticated (`claude --version`).
-
-On this system `claude` resolves to `C:\Users\Marcelo\.local\bin\claude.exe`.
 
 ### Logging
 
@@ -297,7 +302,7 @@ Example:
 ✓ 2026-02-22 16:10:23 [mail] ok   00 | Cycle done: 5 fetched, 3 new — 1 imp, 1 info, 1 noise
 ```
 
-**Tick summary** (`logs/output.log`) — one line per scheduler tick, written by main.js (not pm2):
+**Tick summary** (`logs/output.log`) — one line per daemon tick:
 
 ```
 2026-02-22 11:15:00 Tick — nothing to run
@@ -306,7 +311,7 @@ Example:
 ```
 
 Log levels (symbol → label → output):
-- `━` `tick` — separator bar between scheduler ticks (terminal + file)
+- `━` `tick` — separator bar between daemon ticks (terminal + file)
 - `▸` `head` — section headers, agent starts (terminal + file)
 - ` ` `info` — details, contextual information (terminal + file)
 - `✓` `ok  ` — success confirmations (terminal + file)
@@ -322,10 +327,10 @@ Tags are 4-char fixed width, lowercase. Terminal shows colored output with chalk
 Filtering examples:
 - `grep "\[mail\] .* 00"` — only top-level mail summaries
 - `grep "info 01"` — only item-level lists
-- `grep "\[clde\] data"` — only Claude response data
+- `grep "\[clde\] data"` — only AI response data
 - `grep "verb"` — only technical details
 
-Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`
+Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`, `task`, `notn`
 
 ### Persistent state
 
@@ -335,14 +340,17 @@ Current tags: `main`, `mail`, `trnd`, `clde`, `slck`, `auth`
 | `state/email-seen.json` | Processed email IDs (max 1000, auto-pruned) |
 | `state/reddit-trending.json` | Notified Reddit post IDs (daily cleanup) |
 | `state/notion-dbs.json` | Notion database IDs for task system |
+| `state/secrets.json` | API keys and OAuth tokens (chmod 600 on Linux) |
+| `state/settings.json` | User settings (lookback hours, thresholds, etc.) |
+| `state/slack.json` | Slack webhook URLs per channel |
 
 All state files are auto-generated and not committed.
 
 ### Behavior configuration
 
-`config/profile.md` defines how emails are classified. `config/goals.md` defines how inbox items are classified into tasks. Both are loaded dynamically each cycle — edit them and `pm2 restart wingman`, no code changes needed.
+`config/profile.md` defines how emails are classified. `config/goals.md` defines how inbox items are classified into tasks. Both are loaded dynamically each cycle — edit them and restart the daemon, no code changes needed.
 
-Classification output schema:
+Email classification output schema:
 ```json
 {
   "classification": "urgent | important | informational | noise | unknown",
@@ -362,7 +370,7 @@ Classification output schema:
 - Folders (Tickets, Orders, Investments) are auto-created on first use via Graph API
 - All processed emails are marked as read after actions complete
 
-All text fields are written in **Spanish** by Claude. English only for proper nouns and technical terms.
+All text fields are written in **Spanish** by the AI. English only for proper nouns and technical terms.
 
 ---
 
@@ -370,9 +378,10 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 
 | Layer | Choice |
 |-------|--------|
+| Language | TypeScript (mixed `.ts`/`.js`, executed via `tsx`) |
 | Runtime | Node.js ≥18, ES Modules (`import/export`) |
-| Process manager | pm2 |
-| AI | Claude Code CLI (`claude -p`) |
+| CLI framework | Commander (`commander`) |
+| AI | Pluggable provider: local LLM / Groq / Claude (via `AI_PROVIDER`) |
 | Email | Microsoft Graph API + OAuth 2.0 (Mail.ReadWrite) |
 | Notifications | Slack Incoming Webhooks |
 | Trends | RSS (`rss-parser`) + Reddit JSON (unauthenticated) |
@@ -388,7 +397,7 @@ All text fields are written in **Spanish** by Claude. English only for proper no
 - Logger tags: 4-char fixed width, lowercase (e.g. `createLogger('mail')`)
 - All secrets from `process.env` — never hardcoded
 - Slack output in Spanish (Slack mrkdwn format), code and logs in English
-- Always pass `windowsHide: true` to every `spawn` / `execSync` / `execFile` call — prevents console windows from flashing on screen while the scheduler runs in the background
+- Always pass `windowsHide: true` to every `spawn` / `execSync` / `execFile` call — prevents console windows from flashing on screen while the daemon runs in the background
 - **No abbreviations in variable names**. Use full descriptive words. Prefer a single word when the meaning is obvious; otherwise use as many words as needed for clarity. Do NOT use shortened forms like `cfg`, `ctx`, `msg`, `req`, `res`, `addr`, `cmd`, `cnt`, `tmp`, `idx`, `el`, `e`, `err`, `i`, `j` (loop counters are an exception in tight loops) — write `config`, `context`, `message`, `request`, `response`, `address`, `command`, `count`, `temporary`, `index`, `element`, `error`. Domain acronyms are fine (`url`, `id`, `api`, `db`, `json`, `dom`, `oauth`).
 
 ---
@@ -412,17 +421,34 @@ notification to the phone should send the message to its own channel
 
 ## Environment variables
 
-See `.env.example`. Key variables:
+All config is stored in `state/secrets.json`, `state/settings.json`, and `state/slack.json`. Use `wingman setup` to configure. Key variables (injected into `process.env` by `loadConfig()` at startup):
 
 ```
-MS_CLIENT_ID / MS_CLIENT_SECRET / MS_TENANT_ID / MS_REFRESH_TOKEN  ← Microsoft Graph OAuth
-SLACK_WEBHOOK_EMAIL_IMPORTANT / _EMAIL_DIGEST / _NEWS / _ALERTS / _LOGS  ← Slack
+# Microsoft Graph OAuth (state/secrets.json)
+MS_CLIENT_ID
+MS_TENANT_ID       ← use "consumers" for personal Microsoft accounts
+MS_REFRESH_TOKEN   ← generated by wingman setup outlook
+
+# Notion (state/secrets.json)
+NOTION_TOKEN
+NOTION_ROOT_PAGE_ID
+
+# AI provider (state/settings.json or platform env)
+AI_PROVIDER        ← local | groq | claude (default: local)
+GROQ_API_KEY       ← required when AI_PROVIDER=groq
+ANTHROPIC_API_KEY  ← required when AI_PROVIDER=claude
+
+# Email settings (state/settings.json)
 EMAIL_LOOKBACK_HOURS=1
-REDDIT_TRENDING_THRESHOLD=500  ← base trending score (filtered by interests)
-REDDIT_TRENDING_VIRAL=5000     ← viral threshold (always notified, no interest filter)
-NOTION_TOKEN=                  ← Notion internal integration token
-NOTION_ROOT_PAGE_ID=           ← parent page ID where task databases are created
-```
 
-`MS_REFRESH_TOKEN` is generated via `node agents/email/auth.js` (device-code flow).
-Scope: `Mail.ReadWrite offline_access`. Use `MS_TENANT_ID=consumers` for personal accounts.
+# Reddit thresholds (state/settings.json)
+REDDIT_TRENDING_THRESHOLD=500   ← base score (filtered by interests)
+REDDIT_TRENDING_VIRAL=5000      ← viral threshold (always notified)
+
+# Slack webhooks (state/slack.json → mapped to SLACK_WEBHOOK_* vars)
+email_important → SLACK_WEBHOOK_EMAIL_IMPORTANT
+email_digest    → SLACK_WEBHOOK_EMAIL_DIGEST
+news            → SLACK_WEBHOOK_NEWS
+alerts          → SLACK_WEBHOOK_ALERTS
+logs            → SLACK_WEBHOOK_LOGS
+```

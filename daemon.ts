@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger, flushLogs } from './shared/logger.js';
 import { initialize as initializeNotionDatabases } from './agents/tasks/database.ts';
 
-const log = createLogger('main');
+const log = createLogger('dmon');
 
 const STATE_FILE = 'state/scheduler.json';
 
