@@ -5,7 +5,7 @@ import {
   getNotionClient,
   updateDatabase,
 } from '../../lib/notion.js'
-import { AUTO_PROPS, DATABASES, expandSchema, type DbIds } from './schema.ts'
+import { AUTO_PROPS, DATABASES, expandSchema, type DbIds } from './schema.js'
 
 const log = createLogger('task')
 

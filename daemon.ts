@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { createLogger, flushLogs } from './lib/logger.js';
-import { initialize as initializeNotionDatabases } from './agents/tasks/database.ts';
+import { initialize as initializeNotionDatabases } from './agents/tasks/database.js';
 
 const log = createLogger('dmon');
 

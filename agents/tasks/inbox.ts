@@ -4,7 +4,7 @@ import { classifyRaw } from '../../lib/ai/index.js';
 import { sendSlack } from '../../lib/slack.js';
 import { queryDatabase, createPage, updatePage, props } from '../../lib/notion.js';
 import { createEvent } from '../../lib/google/calendar.js';
-import { getDbIds } from './database.ts';
+import { getDbIds } from './database.js';
 
 const log = createLogger('task');
 
