@@ -4,12 +4,12 @@
   "description": "Personal automation system: email, news, and Slack notifications",
   "type": "module",
   "bin": {
-    "wingman": "./cli.ts"
+    "wingman": "./bin.ts"
   },
   "scripts": {
+    "init": "npm install && npm link",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "link": "npm link"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@notionhq/client": "2.2.0",

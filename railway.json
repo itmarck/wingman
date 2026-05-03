@@ -1,6 +1,7 @@
 {
   "build": {
-    "builder": "RAILPACK"
+    "builder": "RAILPACK",
+    "buildCommand": "npm install && npm link"
   },
   "deploy": {
     "startCommand": "tsx main.ts",

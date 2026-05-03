@@ -19,11 +19,12 @@
     "types": ["node"]
   },
   "include": [
-    "main.ts",
+    "bin.ts",
     "cli.ts",
-    "lib/**/*",
+    "main.ts",
     "agents/**/*",
-"commands/**/*",
+    "commands/**/*",
+    "lib/**/*",
     "tests/**/*"
   ],
   "exclude": ["node_modules", "dist", "logs", "state"]
