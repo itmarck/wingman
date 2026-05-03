@@ -17,10 +17,10 @@ All agents are **implemented and functional**:
 - `main.ts` — entry point: initializes Notion databases, then starts the daemon tick loop
 - `daemon.ts` — `Daemon` class: `setInterval`-based scheduler, reads/writes `state/scheduler.json`, decides which agents to run each tick
 - `cli.ts` — `wingman` CLI binary: loads sub-commands from `cli/` via Commander
-- `cli/` — CLI sub-commands: `run`, `log`, `setup`, `config`, `state`, `test`
-- `scripts/` — standalone utility programs called by CLI commands or run directly
-- `shared/` — reusable infrastructure: logger, Slack client, AI provider, Notion client, config loader, Google API clients
-- `shared/ai/` — AI provider abstraction: selects `local`, `groq`, or `claude` based on `AI_PROVIDER` env var
+- `commands/` — CLI sub-commands: `run`, `log`, `setup`, `config`, `state`, `test`
+- `commands/lib/` — helpers shared across commands: `helpers.js` (ask/exec/openUrl), `date.ts` (date formatting), `print.ts` (log line rendering), `google.ts` (Google OAuth flow)
+- `lib/` — reusable infrastructure: logger, Slack client, AI provider, Notion client, config loader, Google API clients
+- `lib/ai/` — AI provider abstraction: selects `local`, `groq`, or `claude` based on `AI_PROVIDER` env var
 - `agents/email/` — OAuth device-code auth, Microsoft Graph client (read, mark as read, archive, trash, move to folder), seen-state tracking, orchestrator with category-based routing
 - `agents/trends/` — RSS fetcher, Reddit JSON fetcher (unauthenticated), morning digest orchestrator, Reddit trending detector
 - `agents/tasks/` — Notion inbox processor, schema management, task/subtask creation via AI classification

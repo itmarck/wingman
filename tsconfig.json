@@ -23,8 +23,7 @@
     "cli.ts",
     "lib/**/*",
     "agents/**/*",
-    "scripts/**/*",
-    "commands/**/*",
+"commands/**/*",
     "tests/**/*"
   ],
   "exclude": ["node_modules", "dist", "logs", "state"]
