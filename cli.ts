@@ -1,19 +1,23 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
-import { createRequire } from 'module';
-import { loadConfig } from './lib/env.js';
+import { Command } from 'commander'
+import { createRequire } from 'module'
+import { loadConfig } from './lib/env.js'
 
-loadConfig();
+loadConfig()
 
-const { version } = createRequire(import.meta.url)('./package.json') as { version: string };
-const program = new Command();
-program.name('wingman').description('Personal automation system').version(version);
+const require = createRequire(import.meta.url)
+const { version } = require('./package.json') as { version: string }
+const program = new Command()
+program.name('wingman').description('Personal automation system').version(version)
 
-type CliModule = { register: (program: Command) => void };
+type CliModule = { register: (program: Command) => void }
 
-const cmds = ['run', 'log', 'test', 'config', 'setup', 'state'] as const;
+const cmds = ['run', 'log', 'test', 'config', 'setup', 'state'] as const
 await Promise.all(
-  cmds.map(async (name) => ((await import(`./commands/${name}.js`)) as CliModule).register(program)),
-);
+  cmds.map(async function (name) {
+    const cliModule: CliModule = await import(`./commands/${name}.js`)
+    cliModule.register(program)
+  }),
+)
 
-program.parse();
+program.parse()

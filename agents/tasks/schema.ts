@@ -74,7 +74,7 @@ export function expandProperty(value: SchemaValue, ids: DbIds = {}): any {
   if ((value as RelationRef)?.__relation) {
     const target = (value as RelationRef).__relation
     if (!ids[target]) return null
-    return { relation: { database_id: ids[target], single_property: {} } }
+    return { relation: { data_source_id: ids[target], single_property: {} } }
   }
 
   if (Array.isArray(value)) {

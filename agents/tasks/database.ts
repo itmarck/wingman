@@ -35,18 +35,27 @@ async function discoverDatabasesByName(rootPageId: string): Promise<Map<string, 
     cursor = response.has_more ? response.next_cursor : undefined
   } while (cursor)
 
+  // Resolve each database_id → data_source_id (needed for all schema + query operations).
   const found = new Map<string, string>()
-  for (const [title, ids] of allByTitle) {
-    found.set(title, ids[0])
-    if (ids.length > 1) {
+  for (const [title, databaseIds] of allByTitle) {
+    const databaseId = databaseIds[0]
+    if (databaseIds.length > 1) {
       log.warn(
-        `"${title}" has ${ids.length} copies under root — using ${ids[0].slice(0, 8)}. ` +
-          `Delete extras in Notion: ${ids
+        `"${title}" has ${databaseIds.length} copies under root — using ${databaseId.slice(0, 8)}. ` +
+          `Delete extras in Notion: ${databaseIds
             .slice(1)
             .map((id) => id.slice(0, 8))
             .join(', ')}`,
       )
     }
+
+    const database: any = await notion.databases.retrieve({ database_id: databaseId })
+    const dataSourceId = database.data_sources?.[0]?.id
+    if (!dataSourceId) {
+      log.warn(`"${title}" (${databaseId.slice(0, 8)}) has no data source — skipping`)
+      continue
+    }
+    found.set(title, dataSourceId)
   }
 
   log.verb(`Discovered ${found.size} databases under root page`)
