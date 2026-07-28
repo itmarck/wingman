@@ -1,4 +1,4 @@
-import { createAccessToken } from '../src/infrastructure/http/auth.js';
+import { createAccessToken } from '../src/adapters/http/auth.js';
 
 const source = process.argv[2];
 const signingSecret = process.env.SERVER_SECRET;
