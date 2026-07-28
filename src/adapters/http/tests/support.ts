@@ -1,0 +1,47 @@
+import type { InterpretationAdapter } from '../../../modules/interpretation/services/interpreter.js';
+import { createSystem } from '../../../system/system.js';
+import { createAccessToken } from '../auth.js';
+import { createHttpServer } from '../server.js';
+
+export const signingSecret = 'test-signing-secret-with-at-least-32-characters';
+
+export const token = await createAccessToken('browser', signingSecret);
+
+export const authorization = Object.freeze({
+  authorization: `Bearer ${token}`,
+  'x-mutation-mode': 'write',
+});
+
+export function createTestServer() {
+  return createHttpServer(createTestSystem(), { signingSecret });
+}
+
+export function createTestSystem() {
+  return createSystem('memory', {
+    inference: {
+      target: 'test.default',
+      provider: 'test',
+      model: 'test',
+    },
+    adapter: new EmptyInterpreter(),
+    mode: 'write',
+  });
+}
+
+export class EmptyInterpreter implements InterpretationAdapter {
+  readonly identity = Object.freeze({
+    key: 'empty',
+  });
+
+  async interpret() {
+    return {
+      kind: 'empty' as const,
+    };
+  }
+}
+
+export function alterToken(value: string): string {
+  const replacement = value.endsWith('a') ? 'b' : 'a';
+
+  return `${value.slice(0, -1)}${replacement}`;
+}
