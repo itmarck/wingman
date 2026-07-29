@@ -34,4 +34,10 @@ The API lives under `/api` and uses Bearer authentication. Mutating requests acc
 
 Knowledge storage is currently in memory. PostgreSQL stores migrations and inference telemetry.
 
+## Knowledge language
+
+Wingman preserves every Entry exactly as received, including its original language. Spanish is the canonical language for newly derived human-readable knowledge such as Concept names, aliases, definitions, Predicate definitions, Reviews, and invalid reasons.
+
+Internal Predicate keys remain stable English `camelCase`. Proper names, acronyms, quotations, and technical terms may remain in their original language when translation would lose meaning or useful context. An important original-language term may also be retained as an alias. Multilingual search and localized representations are not currently part of the system contract.
+
 Repository architecture and contribution guidance live in `AGENTS.md`.

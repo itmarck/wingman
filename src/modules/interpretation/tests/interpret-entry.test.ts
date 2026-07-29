@@ -41,11 +41,20 @@ describe('Interpreter operation contract', () => {
     expect(adapter.request).toMatchObject({
       operation: 'interpretEntry',
       reasoning: 'low',
-      instructionsVersion: 'interpretEntry.v1',
+      instructionsVersion: 'interpretEntry.v2',
       objective: 'Interpret one Entry as durable structured knowledge.',
       entry,
       context,
     });
+    expect(adapter.request?.instructions).toContain(
+      'Write all newly created human-readable knowledge in Spanish, including Concept names, aliases, definitions, Predicate definitions, and invalid reasons.',
+    );
+    expect(adapter.request?.instructions).toContain(
+      'Preserve proper names, acronyms, quotations, and technical terms in their original language when translating them would lose meaning or context.',
+    );
+    expect(adapter.request?.instructions).toContain(
+      'Use stable English lower camelCase Predicate keys such as worksAt; do not translate keys or use spaces, hyphens, underscores, or PascalCase.',
+    );
     expect(adapter.request?.instructions).toContain(
       'Return empty only when the Entry legitimately contains no durable knowledge.',
     );
@@ -80,7 +89,7 @@ describe('Interpreter operation contract', () => {
         provider: 'provider',
         requestedModel: 'requested-model',
         usedModel: 'used-model',
-        instructionsVersion: 'interpretEntry.v1',
+        instructionsVersion: 'interpretEntry.v2',
         attempt: 2,
         result: 'empty',
         inputTokens: 10,

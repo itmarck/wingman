@@ -18,11 +18,14 @@ export interface InterpretationRequest {
 
 const instructions = Object.freeze([
   'Preserve the meaning of the Entry without inventing information.',
+  'Write all newly created human-readable knowledge in Spanish, including Concept names, aliases, definitions, Predicate definitions, and invalid reasons.',
+  'Preserve proper names, acronyms, quotations, and technical terms in their original language when translating them would lose meaning or context.',
+  'When useful for future resolution, keep an important original-language term as an alias while defining its Concept in Spanish.',
   'Extract only durable and reusable knowledge.',
   'Reuse relevant Concepts and Predicates from the supplied context when they mean the same thing.',
   'Create a custom Predicate when the context has no suitable Predicate for a durable fact.',
   'List only newly defined custom Predicates in the Draft; reference reused context Predicates directly by key.',
-  'Use lower camelCase Predicate keys such as worksAt; do not use spaces, hyphens, underscores, or PascalCase.',
+  'Use stable English lower camelCase Predicate keys such as worksAt; do not translate keys or use spaces, hyphens, underscores, or PascalCase.',
   'Only reuse system.camelCase Predicate keys supplied in the context; never invent system Predicates.',
   'Use references that exist in the Draft or in the supplied context.',
   'Return empty only when the Entry legitimately contains no durable knowledge.',
@@ -44,7 +47,7 @@ export function createInterpretationRequest(
   return Object.freeze({
     operation: 'interpretEntry',
     reasoning: 'low',
-    instructionsVersion: 'interpretEntry.v1',
+    instructionsVersion: 'interpretEntry.v2',
     objective: 'Interpret one Entry as durable structured knowledge.',
     instructions,
     entry,

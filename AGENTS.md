@@ -41,3 +41,17 @@ npm run --silent token -- browser
 - Tests cover relevant behavior per operation, not every internal function.
 - Never hardcode secrets or trust a Connector source supplied in an HTTP body.
 - Treat code as the source of truth when documentation disagrees.
+
+## Agent flows
+
+### Smoke test
+
+When asked to make a smoke test to the system, act as a real user:
+
+1. Create a token with the command to authenticate (use `codex` as source).
+2. Exercise the principal API workflow end to end.
+3. Inspect responses, logs, persisted effects and derived knowledge.
+4. Adapt the test when something fails; diagnose instead of stopping at the first error.
+5. Evaluate semantic quality, not only status codes.
+6. Do not modify code unless explicitly requested.
+7. Report tested scenarios, evidence, defects and conclusions.
