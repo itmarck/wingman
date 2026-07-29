@@ -20,6 +20,8 @@ const instructions = Object.freeze([
   'Preserve the meaning of the Entry without inventing information.',
   'Extract only durable and reusable knowledge.',
   'Reuse relevant Concepts and Predicates from the supplied context when they mean the same thing.',
+  'Create a custom Predicate when the context has no suitable Predicate for a durable fact.',
+  'List only newly defined custom Predicates in the Draft; reference reused context Predicates directly by key.',
   'Use lower camelCase Predicate keys such as worksAt; do not use spaces, hyphens, underscores, or PascalCase.',
   'Only reuse system.camelCase Predicate keys supplied in the context; never invent system Predicates.',
   'Use references that exist in the Draft or in the supplied context.',

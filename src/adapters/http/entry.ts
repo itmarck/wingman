@@ -40,6 +40,7 @@ const statusSchema = Type.Object({
   availableAt: Type.Optional(Type.String()),
   error: Type.Optional(Type.String()),
   reviewIds: Type.Array(Type.String()),
+  proposalId: Type.Optional(Type.String()),
 });
 
 export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async (
@@ -178,8 +179,11 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
         },
       },
     },
-    async (request) =>
-      createStatus(await system.interpretation.getEntryStatus.execute(request.params.id)),
+    async (request) => {
+      const status = await system.interpretation.getEntryStatus.execute(request.params.id);
+
+      return createStatus(status, findInterpretationProposalId(system, status.interpretationId));
+    },
   );
 
   server.post(
@@ -232,9 +236,28 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
   );
 };
 
-function createStatus(status: EntryStatusResult) {
+function createStatus(status: EntryStatusResult, proposalId?: string) {
   return {
     ...status,
     reviewIds: [...status.reviewIds],
+    proposalId,
   };
+}
+
+function findInterpretationProposalId(
+  system: System,
+  interpretationId: string,
+): string | undefined {
+  return system.proposals
+    .list()
+    .find((proposal) =>
+      proposal.changes.some(
+        (change) =>
+          change.target === 'interpretation' &&
+          typeof change.value === 'object' &&
+          change.value !== null &&
+          'id' in change.value &&
+          change.value.id === interpretationId,
+      ),
+    )?.id;
 }

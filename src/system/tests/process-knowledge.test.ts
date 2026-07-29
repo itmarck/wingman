@@ -143,7 +143,9 @@ describe('knowledge application flow', () => {
       createdAt: runtime.now().toISOString(),
     }).start(runtime.now().toISOString());
 
-    await register.execute(reprocessing, interpretation, identity);
+    await expect(register.execute(reprocessing, interpretation, identity)).rejects.toThrow(
+      'Interpretation Draft does not produce new knowledge',
+    );
 
     const snapshot = await store.loadKnowledge();
     const axiom = requireValue(snapshot.axioms[0], 'Expected a registered Axiom');

@@ -16,7 +16,7 @@ export function createTestServer() {
   return createHttpServer(createTestSystem(), { signingSecret });
 }
 
-export function createTestSystem() {
+export function createTestSystem(mode: 'approval' | 'readonly' | 'write' = 'write') {
   return createSystem('memory', {
     inference: {
       target: 'test.default',
@@ -24,7 +24,7 @@ export function createTestSystem() {
       model: 'test',
     },
     adapter: new EmptyInterpreter(),
-    mode: 'write',
+    mode,
   });
 }
 

@@ -184,7 +184,9 @@ describe('asynchronous Entry processing', () => {
     const interpretationId = await application.commands.reinterpretEntry.execute({
       entryId,
     });
-    await application.commands.processNext.execute();
+    await expect(application.commands.processNext.execute()).rejects.toThrow(
+      'Interpretation Draft does not produce new knowledge',
+    );
 
     const history = await application.queries.listInterpretations.execute(entryId);
 
@@ -194,10 +196,11 @@ describe('asynchronous Entry processing', () => {
     });
     expect(history[1]).toMatchObject({
       id: interpretationId,
-      status: 'completed',
+      status: 'failed',
       interpreter: {
         key: 'knowledge',
       },
+      error: 'Interpretation Draft does not produce new knowledge',
     });
   });
 

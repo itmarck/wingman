@@ -23,7 +23,7 @@ export function registerErrorHandling(server: FastifyInstance): void {
       });
     }
 
-    if (error instanceof DomainError || isValidationError(error)) {
+    if (error instanceof DomainError || isValidationError(error) || isMalformedJsonError(error)) {
       return reply.code(400).send({
         error: {
           code: 'invalidInput',
@@ -54,6 +54,12 @@ export function registerErrorHandling(server: FastifyInstance): void {
 
 function isValidationError(error: unknown): error is Error & { readonly validation: unknown } {
   return error instanceof Error && 'validation' in error;
+}
+
+function isMalformedJsonError(error: unknown): error is Error {
+  return (
+    error instanceof Error && 'code' in error && error.code === 'FST_ERR_CTP_INVALID_JSON_BODY'
+  );
 }
 
 function getErrorMessage(error: unknown): string {

@@ -78,6 +78,7 @@ export class RegisterInterpretationCommand {
     }
 
     const prepared = this.createRegistration(input, snapshot, decisions);
+    assertEffectiveRegistration(prepared.registration);
 
     const completed = interpretation.completeKnowledge(
       input,
@@ -131,6 +132,7 @@ export class RegisterInterpretationCommand {
     }
 
     const prepared = this.createRegistration(input, snapshot, decisions);
+    assertEffectiveRegistration(prepared.registration);
 
     const completed = interpretation.completeReview(
       [...decisions.values()],
@@ -543,6 +545,18 @@ function uniqueEntities<Value extends { readonly id: string }>(
 interface PreparedInterpretation {
   readonly registration: InterpretationRegistration;
   readonly publication: InterpretationPublication;
+}
+
+function assertEffectiveRegistration(registration: InterpretationRegistration): void {
+  const hasChanges =
+    registration.concepts.length > 0 ||
+    registration.predicates.length > 0 ||
+    registration.axioms.length > 0 ||
+    registration.links.length > 0;
+
+  if (!hasChanges) {
+    throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
+  }
 }
 
 function uniqueIds(entities: readonly { readonly id: string }[]): readonly string[] {

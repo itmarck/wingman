@@ -106,4 +106,26 @@ describe('capture Entry through HTTP', () => {
 
     await server.close();
   });
+
+  it('reports malformed JSON as invalid input', async () => {
+    const server = createHttpServer(createTestSystem(), { signingSecret });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/entries',
+      headers: {
+        ...authorization,
+        'content-type': 'application/json',
+      },
+      payload: '{"externalId":',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'invalidInput',
+      },
+    });
+
+    await server.close();
+  });
 });

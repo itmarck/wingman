@@ -85,4 +85,60 @@ describe('approve HTTP mutation', () => {
 
     await server.close();
   });
+
+  it('exposes a pending publication Proposal only while approval is required', async () => {
+    const system = createTestSystem('approval');
+    const server = createHttpServer(system, { signingSecret });
+    const entryId = await system.capture.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'This Entry contains no durable knowledge.',
+      },
+      origin: {
+        source: 'test',
+      },
+    });
+    const processing = system.interpretation.processNext.execute();
+    const proposal = await waitForProposal(system);
+    const pending = await server.inject({
+      method: 'GET',
+      url: `/api/entries/${entryId}/status`,
+      headers: authorization,
+    });
+
+    expect(pending.json()).toMatchObject({
+      status: 'processing',
+      proposalId: proposal.id,
+    });
+
+    await system.proposals.approve(proposal.id);
+    await processing;
+
+    const completed = await server.inject({
+      method: 'GET',
+      url: `/api/entries/${entryId}/status`,
+      headers: authorization,
+    });
+
+    expect(completed.json()).toMatchObject({
+      status: 'completed',
+    });
+    expect(completed.json()).not.toHaveProperty('proposalId');
+
+    await server.close();
+  });
 });
+
+async function waitForProposal(system: ReturnType<typeof createTestSystem>) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const proposal = system.proposals.list()[0];
+
+    if (proposal) {
+      return proposal;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+
+  throw new Error('Worker did not create a Proposal');
+}
