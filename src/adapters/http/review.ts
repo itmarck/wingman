@@ -10,7 +10,7 @@ interface ReviewRoutesOptions {
 
 const summarySchema = Type.Object({
   id: Type.String(),
-  kind: Type.String(),
+  kind: Type.Literal('referenceResolution'),
   status: Type.String(),
   interpretationId: Type.String(),
   entryId: Type.String(),
@@ -24,8 +24,9 @@ const candidateSchema = Type.Object({
   definition: Type.String(),
 });
 
-const ambiguitySchema = Type.Object({
+const resolutionSchema = Type.Object({
   reference: Type.String(),
+  question: Type.String(),
   proposed: Type.Object({
     reference: Type.String(),
     name: Type.String(),
@@ -38,7 +39,12 @@ const ambiguitySchema = Type.Object({
 const decisionSchema = Type.Object(
   {
     reference: Type.String({ minLength: 1 }),
-    selectedConceptId: Type.Optional(Type.String({ minLength: 1 })),
+    selectedConceptId: Type.Optional(
+      Type.String({
+        minLength: 1,
+        description: 'Existing candidate Concept to select; omit to confirm the proposed Concept.',
+      }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -46,8 +52,8 @@ const decisionSchema = Type.Object(
 const detailSchema = Type.Intersect([
   summarySchema,
   Type.Object({
-    ambiguities: Type.Array(ambiguitySchema),
-    decisions: Type.Array(decisionSchema),
+    resolution: resolutionSchema,
+    decision: Type.Optional(decisionSchema),
     resolvedAt: Type.Optional(Type.String()),
   }),
 ]);
@@ -97,7 +103,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
   );
 
   server.post(
-    '/reviews/:id/decisions',
+    '/reviews/:id/resolution',
     {
       schema: {
         tags: ['Reviews'],
@@ -105,7 +111,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
         params: idParamsSchema,
         body: Type.Object(
           {
-            decisions: Type.Array(decisionSchema, { minItems: 1, maxItems: 1 }),
+            decision: decisionSchema,
           },
           {
             additionalProperties: false,
@@ -124,7 +130,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
       requireMutation(request.mutationMode);
       await system.interpretation.resolveReview.execute({
         reviewId: request.params.id,
-        decision: request.body.decisions[0],
+        decision: request.body.decision,
       });
 
       return reply.code(204).send(null);
@@ -146,18 +152,20 @@ function createSummary(review: Review) {
 function createDetail(review: Review) {
   return {
     ...createSummary(review),
-    ambiguities: [review.ambiguity].map((ambiguity) => ({
-      ...ambiguity,
+    resolution: {
+      ...review.resolution,
       proposed: {
-        ...ambiguity.proposed,
-        aliases: ambiguity.proposed.aliases ? [...ambiguity.proposed.aliases] : undefined,
+        ...review.resolution.proposed,
+        aliases: review.resolution.proposed.aliases
+          ? [...review.resolution.proposed.aliases]
+          : undefined,
       },
-      candidates: ambiguity.candidates.map((candidate) => ({
+      candidates: review.resolution.candidates.map((candidate) => ({
         ...candidate,
         aliases: [...candidate.aliases],
       })),
-    })),
-    decisions: review.decision ? [{ ...review.decision }] : [],
+    },
+    decision: review.decision ? { ...review.decision } : undefined,
     resolvedAt: review.resolvedAt,
   };
 }

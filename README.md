@@ -1,7 +1,8 @@
 # Wingman
 
 Personal knowledge and automation server. Wingman preserves original Entries, derives structured
-knowledge, resolves ambiguity through Reviews, and exposes Projections through an authenticated API.
+knowledge, resolves uncertain Concept references through Reviews, and exposes Projections through
+an authenticated API.
 
 ## Setup
 
@@ -33,6 +34,18 @@ npm run build
 The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; the safe default is `readonly`. The current OpenAPI document is publicly available at `/api/openapi.json` for importing into API clients.
 
 Knowledge storage is currently in memory. PostgreSQL stores migrations and inference telemetry.
+
+## Reference resolution
+
+Every Review uses the generic `referenceResolution` contract. A Review asks which Concept a Draft
+reference denotes and offers the proposed Concept plus zero or more existing candidates. This
+covers names, pronouns, authorship and other uncertain Concept references without case-specific
+Review types.
+
+Read pending Reviews through `/api/reviews` and `/api/reviews/:id`. Resolve one with
+`POST /api/reviews/:id/resolution`; provide `selectedConceptId` to select an existing candidate or
+omit it to confirm the proposed Concept. Knowledge remains unpublished until every Review for the
+Interpretation is resolved.
 
 ## Knowledge language
 

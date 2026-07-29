@@ -147,6 +147,7 @@ describe('HTTP inference Adapter', () => {
         },
       ],
       links: [],
+      referenceResolutions: [],
     };
     const adapter = createInferenceAdapter(
       createConfig('openai'),

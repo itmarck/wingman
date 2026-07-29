@@ -3,7 +3,7 @@ import { MemoryReviewStore } from '../adapters/memory/review.js';
 import { Review } from '../domain/review.js';
 
 describe('pending Review', () => {
-  it('preserves one ambiguity as an independently resolvable feed item', async () => {
+  it('preserves one reference resolution as an independently resolvable feed item', async () => {
     const store = new MemoryReviewStore();
     const review = createReview('review-rust', 'rust');
 
@@ -17,11 +17,11 @@ describe('pending Review', () => {
       review,
     ]);
     expect(review.status).toBe('pending');
-    expect(review.ambiguity.candidates).toHaveLength(2);
-    expect(Object.isFrozen(review.ambiguity)).toBe(true);
+    expect(review.resolution.candidates).toHaveLength(2);
+    expect(Object.isFrozen(review.resolution)).toBe(true);
   });
 
-  it('allows several Reviews for different ambiguities in one Interpretation', async () => {
+  it('allows several Reviews for different references in one Interpretation', async () => {
     const store = new MemoryReviewStore();
     const rust = createReview('review-rust', 'rust');
     const apple = createReview('review-apple', 'apple');
@@ -37,8 +37,9 @@ function createReview(id: string, reference: string): Review {
     id,
     interpretationId: 'interpretation-knowledge',
     entryId: 'entry-knowledge',
-    ambiguity: {
+    resolution: {
       reference,
+      question: `¿A qué Concept corresponde ${reference}?`,
       proposed: {
         reference,
         name: reference,

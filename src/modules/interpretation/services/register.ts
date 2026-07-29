@@ -9,16 +9,16 @@ import type { KnowledgeSnapshot } from '../../../core/knowledge/snapshot.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type {
-  ConceptDecision,
   InterpretationAxiom,
   InterpretationConcept,
   InterpretationLink,
   InterpretationObject,
   InterpretationPredicate,
+  ReferenceDecision,
   RegisterInterpretationInput,
 } from '../domain/input.js';
 import type { Interpretation, InterpreterIdentity } from '../domain/interpretation.js';
-import { type ConceptAmbiguity, Review, type ReviewId } from '../domain/review.js';
+import { type ReferenceResolution, Review, type ReviewId } from '../domain/review.js';
 import type { InterpretationLifecycle } from '../ports/lifecycle.js';
 import type { InterpretationClaim } from '../ports/queue.js';
 import type { ReviewStore } from '../ports/review.js';
@@ -59,11 +59,12 @@ export class RegisterInterpretationCommand {
   ): Promise<RegisterInterpretationResult> {
     const snapshot = await this.store.loadKnowledge();
     validateInterpretationDraft(input, snapshot);
-    const decisions = createDecisionMap(input);
-    const ambiguities = findAmbiguities(input, snapshot, decisions);
+    assertNoInterpreterDecisions(input);
+    const decisions = new Map<string, ReferenceDecision>();
+    const resolutions = findReferenceResolutions(input, snapshot, decisions);
 
-    if (ambiguities.length > 0) {
-      const reviews = await this.createReviews(interpretation, ambiguities);
+    if (resolutions.length > 0) {
+      const reviews = await this.createReviews(interpretation, resolutions);
       const pending = interpretation.requestReview(
         input,
         interpreter,
@@ -125,10 +126,12 @@ export class RegisterInterpretationCommand {
     const snapshot = await this.store.loadKnowledge();
     validateInterpretationDraft(input, snapshot);
     const decisions = createReviewDecisionMap(reviews);
-    const ambiguities = findAmbiguities(input, snapshot, decisions);
+    const resolutions = findReferenceResolutions(input, snapshot, decisions);
 
-    if (ambiguities.length > 0) {
-      throw new ConflictError(`Interpretation ${interpretation.id} still has ambiguities`);
+    if (resolutions.length > 0) {
+      throw new ConflictError(
+        `Interpretation ${interpretation.id} still has unresolved references`,
+      );
     }
 
     const prepared = this.createRegistration(input, snapshot, decisions);
@@ -149,7 +152,7 @@ export class RegisterInterpretationCommand {
   private createRegistration(
     input: RegisterInterpretationInput,
     snapshot: KnowledgeSnapshot,
-    decisions: ReadonlyMap<string, ConceptDecision>,
+    decisions: ReadonlyMap<string, ReferenceDecision>,
   ): PreparedInterpretation {
     const concepts = [...snapshot.concepts];
     const conceptReferences = new Map<string, Concept>();
@@ -235,7 +238,7 @@ export class RegisterInterpretationCommand {
 
   private async createReviews(
     interpretation: Interpretation,
-    ambiguities: readonly ConceptAmbiguity[],
+    resolutions: readonly ReferenceResolution[],
   ): Promise<readonly Review[]> {
     const existing = await this.reviews.findPendingReviews(interpretation.id);
 
@@ -244,12 +247,12 @@ export class RegisterInterpretationCommand {
     }
 
     const createdAt = this.clock.now().toISOString();
-    const reviews = ambiguities.map((ambiguity) =>
+    const reviews = resolutions.map((resolution) =>
       Review.createInterpretation({
         id: this.ids.generate(),
         interpretationId: interpretation.id,
         entryId: interpretation.entryId,
-        ambiguity,
+        resolution,
         createdAt,
       }),
     );
@@ -260,13 +263,13 @@ export class RegisterInterpretationCommand {
   private resolveConcept(
     draft: InterpretationConcept,
     concepts: readonly Concept[],
-    decisions: ReadonlyMap<string, ConceptDecision>,
+    decisions: ReadonlyMap<string, ReferenceDecision>,
   ): Concept {
     const resolution = resolveConcept(concepts, draft.name, draft.definition);
     const decision = decisions.get(draft.reference);
 
     if (decisions.has(draft.reference)) {
-      return resolveDecision(draft, resolution, decision, this.ids);
+      return resolveDecision(draft, resolution, decision, concepts, this.ids);
     }
 
     if (resolution.status === 'ambiguous') {
@@ -368,11 +371,15 @@ export class RegisterInterpretationCommand {
   }
 }
 
-function findAmbiguities(
+function findReferenceResolutions(
   input: RegisterInterpretationInput,
   snapshot: KnowledgeSnapshot,
-  decisions: ReadonlyMap<string, ConceptDecision>,
-): readonly ConceptAmbiguity[] {
+  decisions: ReadonlyMap<string, ReferenceDecision>,
+): readonly ReferenceResolution[] {
+  const requested = new Map(
+    (input.referenceResolutions ?? []).map((resolution) => [resolution.reference, resolution]),
+  );
+
   return Object.freeze(
     input.concepts.flatMap((concept) => {
       if (decisions.has(concept.reference)) {
@@ -380,16 +387,34 @@ function findAmbiguities(
       }
 
       const resolution = resolveConcept(snapshot.concepts, concept.name, concept.definition);
+      const request = requested.get(concept.reference);
 
-      if (resolution.status !== 'ambiguous') {
+      if (!request && resolution.status !== 'ambiguous') {
         return [];
       }
+
+      const requestedCandidates = (request?.candidateConceptIds ?? []).map((id) => {
+        const candidate = snapshot.concepts.find((concept) => concept.id === id);
+
+        if (!candidate) {
+          throw new InvalidInputError(`Concept ${id} is not a reference resolution candidate`);
+        }
+
+        return candidate;
+      });
+      const candidates =
+        resolution.status === 'ambiguous'
+          ? uniqueEntities([...requestedCandidates, ...resolution.candidates])
+          : uniqueEntities(requestedCandidates);
 
       return [
         {
           reference: concept.reference,
+          question:
+            request?.question ??
+            `¿A qué Concept corresponde la referencia "${concept.reference}" (${concept.name})?`,
           proposed: concept,
-          candidates: resolution.candidates.map((candidate) => ({
+          candidates: candidates.map((candidate) => ({
             id: candidate.id,
             name: candidate.name,
             aliases: candidate.aliases,
@@ -404,7 +429,8 @@ function findAmbiguities(
 function resolveDecision(
   draft: InterpretationConcept,
   resolution: ConceptResolution,
-  decision: ConceptDecision | undefined,
+  decision: ReferenceDecision | undefined,
+  concepts: readonly Concept[],
   ids: IdGenerator,
 ): Concept {
   if (decision?.selectedConceptId === undefined) {
@@ -421,9 +447,7 @@ function resolveDecision(
     });
   }
 
-  const selected = resolution.candidates.find(
-    (candidate) => candidate.id === decision.selectedConceptId,
-  );
+  const selected = concepts.find((candidate) => candidate.id === decision.selectedConceptId);
 
   if (!selected) {
     throw new InvalidInputError(`Concept ${decision.selectedConceptId} is not a valid candidate`);
@@ -436,28 +460,15 @@ function addDraftAliases(concept: Concept, draft: InterpretationConcept): Concep
   return concept.addAliases([draft.name, ...(draft.aliases ?? [])]);
 }
 
-function createDecisionMap(
-  input: RegisterInterpretationInput,
-): ReadonlyMap<string, ConceptDecision> {
-  const decisions = new Map<string, ConceptDecision>();
-  const references = input.concepts.map((concept) => concept.reference);
-
-  for (const decision of input.conceptDecisions ?? []) {
-    if (!references.includes(decision.reference)) {
-      throw new InvalidInputError(`Concept reference ${decision.reference} does not exist`);
-    }
-
-    if (decisions.has(decision.reference)) {
-      throw new InvalidInputError(`Concept decision ${decision.reference} is duplicated`);
-    }
-
-    decisions.set(decision.reference, decision);
+function assertNoInterpreterDecisions(input: RegisterInterpretationInput): void {
+  if ((input.referenceDecisions?.length ?? 0) > 0) {
+    throw new InvalidInputError('Interpreter Draft cannot contain Reference decisions');
   }
-
-  return decisions;
 }
 
-function createReviewDecisionMap(reviews: readonly Review[]): ReadonlyMap<string, ConceptDecision> {
+function createReviewDecisionMap(
+  reviews: readonly Review[],
+): ReadonlyMap<string, ReferenceDecision> {
   const decisions = reviews.map((review) => {
     if (review.status !== 'resolved' || !review.decision) {
       throw new ConflictError(`Review ${review.id} is still pending`);

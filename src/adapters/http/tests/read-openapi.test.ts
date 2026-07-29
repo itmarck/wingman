@@ -54,15 +54,13 @@ describe('read OpenAPI document', () => {
       },
     });
     expect(
-      document.paths['/api/reviews/{id}/decisions']?.post?.requestBody?.content['application/json']
+      document.paths['/api/reviews/{id}/resolution']?.post?.requestBody?.content['application/json']
         ?.example,
     ).toEqual({
-      decisions: [
-        {
-          reference: 'reference-from-review',
-          selectedConceptId: '<<conceptId>>',
-        },
-      ],
+      decision: {
+        reference: 'reference-from-review',
+        selectedConceptId: '<<conceptId>>',
+      },
     });
 
     await server.close();

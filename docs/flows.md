@@ -25,7 +25,8 @@ sequenceDiagram
 
 ## Interpretation state
 
-Temporary failures return to the queue, ambiguities wait for human review, and permanent outcomes preserve their final state.
+Temporary failures return to the queue, unresolved Concept references wait for human review, and
+permanent outcomes preserve their final state.
 
 ```mermaid
 stateDiagram-v2
@@ -43,24 +44,26 @@ stateDiagram-v2
 
 ## Review and publication
 
-The complete Draft is validated first; any ambiguity pauses publication until every Review is resolved, then all knowledge is committed atomically.
+The complete Draft is validated first. An uncertain Concept reference may be requested explicitly
+by inference or detected automatically while matching Concepts. Both paths create the same
+`referenceResolution` Review and pause publication until every reference is resolved.
 
 ```mermaid
 flowchart TD
     Draft[Validate complete Draft]
     Valid{Valid?}
-    Ambiguous{Ambiguities?}
-    Reviews[Create independent Reviews]
-    Resolve[Resolve every Review]
+    Unresolved{Unresolved references?}
+    Reviews[Create referenceResolution Reviews]
+    Resolve[Select candidate or confirm proposal]
     Publish[Publish knowledge atomically]
     Complete[Complete Interpretation]
     Fail[Fail Interpretation]
 
     Draft --> Valid
     Valid -- no --> Fail
-    Valid -- yes --> Ambiguous
-    Ambiguous -- no --> Publish
-    Ambiguous -- yes --> Reviews
+    Valid -- yes --> Unresolved
+    Unresolved -- no --> Publish
+    Unresolved -- yes --> Reviews
     Reviews --> Resolve
     Resolve --> Publish
     Publish --> Complete
@@ -68,6 +71,11 @@ flowchart TD
 
 Knowledge is never partially published. The final Review, publication, and completed
 Interpretation share one atomic operation.
+
+Each Review contains one reference, a human-readable question, the proposed Concept and zero or
+more existing Concept candidates. `POST /api/reviews/:id/resolution` selects a candidate by
+`selectedConceptId`; omitting it confirms the proposed Concept. Review decisions cannot be supplied
+by the Interpreter inside its Draft.
 
 ## Mutation control
 

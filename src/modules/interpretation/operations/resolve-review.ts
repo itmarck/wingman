@@ -1,6 +1,6 @@
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock } from '../../../system/runtime.js';
-import type { ConceptDecision } from '../domain/input.js';
+import type { ReferenceDecision } from '../domain/input.js';
 import type { Review } from '../domain/review.js';
 import type { InterpretationLifecycle } from '../ports/lifecycle.js';
 import type { ReviewStore } from '../ports/review.js';
@@ -9,7 +9,7 @@ import type { RegisterInterpretationCommand } from '../services/register.js';
 
 export interface ResolveReviewInput {
   readonly reviewId: string;
-  readonly decision: ConceptDecision;
+  readonly decision: ReferenceDecision;
 }
 
 /**

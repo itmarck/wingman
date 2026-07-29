@@ -1,7 +1,7 @@
 import { assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { InterpretationPublication } from '../ports/store.js';
-import type { ConceptDecision, RegisterInterpretationInput } from './input.js';
+import type { ReferenceDecision, RegisterInterpretationInput } from './input.js';
 
 export type InterpretationId = string;
 export type InterpretationStatus =
@@ -151,7 +151,7 @@ export class Interpretation {
   }
 
   completeReview(
-    decisions: readonly ConceptDecision[],
+    decisions: readonly ReferenceDecision[],
     publication: InterpretationPublication,
     completedAt: string,
   ): Interpretation {
@@ -167,7 +167,7 @@ export class Interpretation {
       updatedAt: completedAt,
       draft: {
         ...this.draft,
-        conceptDecisions: decisions,
+        referenceDecisions: decisions,
       },
       interpreter: this.interpreter,
       publication,
@@ -447,8 +447,18 @@ function freezeDraft(draft: RegisterInterpretationInput): RegisterInterpretation
           ),
         )
       : undefined,
-    conceptDecisions: draft.conceptDecisions
-      ? Object.freeze(draft.conceptDecisions.map((decision) => Object.freeze({ ...decision })))
+    referenceResolutions: draft.referenceResolutions
+      ? Object.freeze(
+          draft.referenceResolutions.map((resolution) =>
+            Object.freeze({
+              ...resolution,
+              candidateConceptIds: Object.freeze([...resolution.candidateConceptIds]),
+            }),
+          ),
+        )
+      : undefined,
+    referenceDecisions: draft.referenceDecisions
+      ? Object.freeze(draft.referenceDecisions.map((decision) => Object.freeze({ ...decision })))
       : undefined,
   });
 }

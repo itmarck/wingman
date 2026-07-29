@@ -67,12 +67,18 @@ const definitions = {
     targetReference: Type.String(),
     sourceLocators: Type.Array(ref('SourceLocator')),
   }),
+  ReferenceResolution: object({
+    reference: Type.String(),
+    question: Type.String(),
+    candidateConceptIds: Type.Array(Type.String()),
+  }),
   Draft: object({
     entryId: Type.String(),
     concepts: Type.Array(ref('Concept')),
     predicates: Type.Array(ref('Predicate')),
     axioms: Type.Array(ref('Axiom')),
     links: Type.Array(ref('Link')),
+    referenceResolutions: Type.Array(ref('ReferenceResolution')),
   }),
 };
 

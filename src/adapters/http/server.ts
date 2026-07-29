@@ -130,13 +130,11 @@ function createOpenApiDocument(server: FastifyInstance) {
       text: 'Wingman preserves knowledge from captured entries.',
     },
   });
-  setJsonRequestExample(paths['/api/reviews/{id}/decisions']?.post, {
-    decisions: [
-      {
-        reference: 'reference-from-review',
-        selectedConceptId: '<<conceptId>>',
-      },
-    ],
+  setJsonRequestExample(paths['/api/reviews/{id}/resolution']?.post, {
+    decision: {
+      reference: 'reference-from-review',
+      selectedConceptId: '<<conceptId>>',
+    },
   });
 
   return document;

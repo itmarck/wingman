@@ -41,7 +41,7 @@ describe('Interpreter operation contract', () => {
     expect(adapter.request).toMatchObject({
       operation: 'interpretEntry',
       reasoning: 'low',
-      instructionsVersion: 'interpretEntry.v3',
+      instructionsVersion: 'interpretEntry.v4',
       objective: 'Interpret one Entry as durable structured knowledge.',
       entry,
       context,
@@ -56,7 +56,7 @@ describe('Interpreter operation contract', () => {
       'Resolve first-person references to Marcelo only when the Entry is his direct personal statement.',
     );
     expect(adapter.request?.instructions).toContain(
-      'Never infer authorship from origin.source; if authorship is external or uncertain, return invalid instead of attributing claims to Marcelo.',
+      'Never infer authorship from origin.source; when authorship or any Concept reference is uncertain, request a reference resolution with a concise question and candidate Concept IDs from context.',
     );
     expect(adapter.request?.instructions).toContain(
       'Use stable English lower camelCase Predicate keys such as worksAt; do not translate keys or use spaces, hyphens, underscores, or PascalCase.',
@@ -95,7 +95,7 @@ describe('Interpreter operation contract', () => {
         provider: 'provider',
         requestedModel: 'requested-model',
         usedModel: 'used-model',
-        instructionsVersion: 'interpretEntry.v3',
+        instructionsVersion: 'interpretEntry.v4',
         attempt: 2,
         result: 'empty',
         inputTokens: 10,

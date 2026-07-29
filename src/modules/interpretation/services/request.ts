@@ -22,7 +22,7 @@ const instructions = Object.freeze([
   'Preserve proper names, acronyms, quotations, and technical terms in their original language when translating them would lose meaning or context.',
   'When useful for future resolution, keep an important original-language term as an alias while defining its Concept in Spanish.',
   'Resolve first-person references to Marcelo only when the Entry is his direct personal statement.',
-  'Never infer authorship from origin.source; if authorship is external or uncertain, return invalid instead of attributing claims to Marcelo.',
+  'Never infer authorship from origin.source; when authorship or any Concept reference is uncertain, request a reference resolution with a concise question and candidate Concept IDs from context.',
   'Extract only durable and reusable knowledge.',
   'Reuse relevant Concepts and Predicates from the supplied context when they mean the same thing.',
   'Create a custom Predicate when the context has no suitable Predicate for a durable fact.',
@@ -35,7 +35,7 @@ const instructions = Object.freeze([
 ]);
 
 const outputContract = `Return exactly one result:
-- knowledge: a Draft containing entryId, concepts, predicates, axioms and optional links.
+- knowledge: a Draft containing entryId, concepts, predicates, axioms, links and referenceResolutions.
 - empty: an explicit valid decision that the Entry contains no durable knowledge.
 - invalid: a reason explaining why the contract could not be satisfied.`;
 
@@ -49,7 +49,7 @@ export function createInterpretationRequest(
   return Object.freeze({
     operation: 'interpretEntry',
     reasoning: 'low',
-    instructionsVersion: 'interpretEntry.v3',
+    instructionsVersion: 'interpretEntry.v4',
     objective: 'Interpret one Entry as durable structured knowledge.',
     instructions,
     entry,

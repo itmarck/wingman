@@ -1,37 +1,38 @@
 import type { ConceptId } from '../../../core/knowledge/concept.js';
 import { assertText, assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
-import type { ConceptDecision, InterpretationConcept } from './input.js';
+import type { InterpretationConcept, ReferenceDecision } from './input.js';
 import type { InterpretationId } from './interpretation.js';
 
 export type ReviewId = string;
-export type ReviewKind = 'ambiguousConcept';
+export type ReviewKind = 'referenceResolution';
 export type ReviewStatus = 'pending' | 'resolved';
 
-export interface ConceptCandidate {
+export interface ReferenceCandidate {
   readonly id: ConceptId;
   readonly name: string;
   readonly aliases: readonly string[];
   readonly definition: string;
 }
 
-export interface ConceptAmbiguity {
+export interface ReferenceResolution {
   readonly reference: string;
+  readonly question: string;
   readonly proposed: InterpretationConcept;
-  readonly candidates: readonly ConceptCandidate[];
+  readonly candidates: readonly ReferenceCandidate[];
 }
 
 export interface CreateInterpretationReviewInput {
   readonly id: ReviewId;
   readonly interpretationId: InterpretationId;
   readonly entryId: string;
-  readonly ambiguity: ConceptAmbiguity;
+  readonly resolution: ReferenceResolution;
   readonly createdAt: string;
 }
 
 export interface ReviewState {
   readonly status: ReviewStatus;
-  readonly decision?: ConceptDecision;
+  readonly decision?: ReferenceDecision;
   readonly resolvedAt?: string;
 }
 
@@ -40,7 +41,7 @@ export interface RehydrateReviewInput extends CreateInterpretationReviewInput, R
 }
 
 /**
- * Durable request for one human decision that blocks an Interpretation.
+ * Durable request that resolves one Draft reference to a proposed or existing Concept.
  */
 export class Review {
   readonly id: ReviewId;
@@ -48,18 +49,18 @@ export class Review {
   readonly status: ReviewStatus;
   readonly interpretationId: InterpretationId;
   readonly entryId: string;
-  readonly ambiguity: ConceptAmbiguity;
+  readonly resolution: ReferenceResolution;
   readonly createdAt: string;
-  readonly decision?: ConceptDecision;
+  readonly decision?: ReferenceDecision;
   readonly resolvedAt?: string;
 
   private constructor(input: CreateInterpretationReviewInput, state: ReviewState) {
     this.id = input.id;
-    this.kind = 'ambiguousConcept';
+    this.kind = 'referenceResolution';
     this.status = state.status;
     this.interpretationId = input.interpretationId;
     this.entryId = input.entryId;
-    this.ambiguity = input.ambiguity;
+    this.resolution = input.resolution;
     this.createdAt = input.createdAt;
     this.decision = state.decision;
     this.resolvedAt = state.resolvedAt;
@@ -73,7 +74,7 @@ export class Review {
     return new Review(
       {
         ...input,
-        ambiguity: freezeAmbiguity(input.ambiguity),
+        resolution: freezeResolution(input.resolution),
       },
       {
         status: 'pending',
@@ -82,12 +83,12 @@ export class Review {
   }
 
   /**
-   * Reconstructs a Review exactly as persisted while checking its state invariants.
+   * Reconstructs a Review exactly as persisted while checking its invariants.
    */
   static rehydrate(input: RehydrateReviewInput): Review {
     assertIdentity(input);
 
-    if (input.kind !== 'ambiguousConcept') {
+    if (input.kind !== 'referenceResolution') {
       throw new InvalidInputError(`Review kind ${input.kind} is invalid`);
     }
 
@@ -108,11 +109,7 @@ export class Review {
     }
 
     if (input.decision) {
-      if (input.decision.reference !== input.ambiguity.reference) {
-        throw new InvalidInputError('Review decision must resolve its ambiguity');
-      }
-
-      assertSelectedCandidate(input.ambiguity, input.decision);
+      assertDecision(input.resolution, input.decision);
     }
 
     if (input.resolvedAt) {
@@ -126,7 +123,7 @@ export class Review {
     return new Review(
       {
         ...input,
-        ambiguity: freezeAmbiguity(input.ambiguity),
+        resolution: freezeResolution(input.resolution),
       },
       {
         status: input.status,
@@ -136,16 +133,12 @@ export class Review {
     );
   }
 
-  resolve(decision: ConceptDecision, resolvedAt: string): Review {
+  resolve(decision: ReferenceDecision, resolvedAt: string): Review {
     if (this.status !== 'pending') {
       throw new ConflictError(`Review ${this.id} is already resolved`);
     }
 
-    if (decision.reference !== this.ambiguity.reference) {
-      throw new InvalidInputError('Review decision must resolve its ambiguity');
-    }
-
-    assertSelectedCandidate(this.ambiguity, decision);
+    assertDecision(this.resolution, decision);
     assertUtcDateTime(resolvedAt, 'Review resolvedAt');
 
     return new Review(
@@ -153,7 +146,7 @@ export class Review {
         id: this.id,
         interpretationId: this.interpretationId,
         entryId: this.entryId,
-        ambiguity: this.ambiguity,
+        resolution: this.resolution,
         createdAt: this.createdAt,
       },
       {
@@ -169,33 +162,43 @@ function assertIdentity(input: CreateInterpretationReviewInput): void {
   assertText(input.id, 'Review id');
   assertText(input.interpretationId, 'Review interpretationId');
   assertText(input.entryId, 'Review entryId');
-  assertText(input.ambiguity.reference, 'Review ambiguity reference');
+  assertText(input.resolution.reference, 'Review reference');
+  assertText(input.resolution.question, 'Review question');
+  assertText(input.resolution.proposed.reference, 'Review proposed reference');
   assertUtcDateTime(input.createdAt, 'Review createdAt');
+
+  if (input.resolution.proposed.reference !== input.resolution.reference) {
+    throw new InvalidInputError('Review proposed Concept must match its reference');
+  }
 }
 
-function assertSelectedCandidate(ambiguity: ConceptAmbiguity, decision: ConceptDecision): void {
+function assertDecision(resolution: ReferenceResolution, decision: ReferenceDecision): void {
+  if (decision.reference !== resolution.reference) {
+    throw new InvalidInputError('Review decision must resolve its reference');
+  }
+
   if (decision.selectedConceptId === undefined) {
     return;
   }
 
-  const candidateIds = ambiguity.candidates.map((candidate) => candidate.id);
+  const candidateIds = resolution.candidates.map((candidate) => candidate.id);
 
   if (!candidateIds.includes(decision.selectedConceptId)) {
     throw new InvalidInputError(`Concept ${decision.selectedConceptId} is not a Review candidate`);
   }
 }
 
-function freezeAmbiguity(ambiguity: ConceptAmbiguity): ConceptAmbiguity {
+function freezeResolution(resolution: ReferenceResolution): ReferenceResolution {
   return Object.freeze({
-    ...ambiguity,
+    ...resolution,
     proposed: Object.freeze({
-      ...ambiguity.proposed,
-      aliases: ambiguity.proposed.aliases
-        ? Object.freeze([...ambiguity.proposed.aliases])
+      ...resolution.proposed,
+      aliases: resolution.proposed.aliases
+        ? Object.freeze([...resolution.proposed.aliases])
         : undefined,
     }),
     candidates: Object.freeze(
-      ambiguity.candidates.map((candidate) =>
+      resolution.candidates.map((candidate) =>
         Object.freeze({
           ...candidate,
           aliases: Object.freeze([...candidate.aliases]),

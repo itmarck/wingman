@@ -40,7 +40,13 @@ export interface InterpretationLink {
   readonly sourceLocators?: readonly SourceLocator[];
 }
 
-export interface ConceptDecision {
+export interface ReferenceResolutionRequest {
+  readonly reference: string;
+  readonly question: string;
+  readonly candidateConceptIds: readonly ConceptId[];
+}
+
+export interface ReferenceDecision {
   readonly reference: string;
   readonly selectedConceptId?: ConceptId;
 }
@@ -51,5 +57,6 @@ export interface RegisterInterpretationInput {
   readonly predicates: readonly InterpretationPredicate[];
   readonly axioms: readonly InterpretationAxiom[];
   readonly links?: readonly InterpretationLink[];
-  readonly conceptDecisions?: readonly ConceptDecision[];
+  readonly referenceResolutions?: readonly ReferenceResolutionRequest[];
+  readonly referenceDecisions?: readonly ReferenceDecision[];
 }

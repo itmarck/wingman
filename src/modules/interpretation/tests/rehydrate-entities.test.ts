@@ -89,12 +89,13 @@ describe('entity rehydration', () => {
     });
     const review = Review.rehydrate({
       id: 'review-rust',
-      kind: 'ambiguousConcept',
+      kind: 'referenceResolution',
       status: 'resolved',
       interpretationId: interpretation.id,
       entryId: entry.id,
-      ambiguity: {
+      resolution: {
         reference: 'rust',
+        question: '¿A qué Concept corresponde Rust?',
         proposed: {
           reference: 'rust',
           name: 'Rust',
@@ -123,7 +124,7 @@ describe('entity rehydration', () => {
     expect(interpretation.publication?.axiomIds).toEqual(['axiom-first', 'axiom-second']);
     expect(Object.isFrozen(interpretation.publication?.axiomIds)).toBe(true);
     expect(review.status).toBe('resolved');
-    expect(Object.isFrozen(review.ambiguity.candidates)).toBe(true);
+    expect(Object.isFrozen(review.resolution.candidates)).toBe(true);
   });
 
   it('rejects persisted state that violates essential invariants', () => {
@@ -141,12 +142,13 @@ describe('entity rehydration', () => {
     expect(() =>
       Review.rehydrate({
         id: 'review-corrupt',
-        kind: 'ambiguousConcept',
+        kind: 'referenceResolution',
         status: 'resolved',
         interpretationId: 'interpretation-corrupt',
         entryId: 'entry-corrupt',
-        ambiguity: {
+        resolution: {
           reference: 'rust',
+          question: '¿A qué Concept corresponde Rust?',
           proposed: {
             reference: 'rust',
             name: 'Rust',

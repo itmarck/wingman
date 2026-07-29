@@ -1,8 +1,8 @@
 # AGENTS.md
 
 Wingman is a provider-agnostic personal knowledge and automation server. It preserves immutable
-Entries, derives Concepts, Predicates, Axioms and Links, resolves ambiguity through Reviews, and
-exposes Projections through an authenticated HTTP API.
+Entries, derives Concepts, Predicates, Axioms and Links, resolves uncertain Concept references
+through Reviews, and exposes Projections through an authenticated HTTP API.
 
 ## Architecture
 
@@ -40,6 +40,8 @@ npm run --silent token -- browser
 - Add concise JSDoc to exported classes and meaningful standalone helpers.
 - Tests cover relevant behavior per operation, not every internal function.
 - Never hardcode secrets or trust a Connector source supplied in an HTTP body.
+- Keep Reviews on the single `referenceResolution` contract. Extend its generic question,
+  proposal and candidates instead of adding case-specific Review kinds.
 - Treat code as the source of truth when documentation disagrees.
 
 ## Agent flows

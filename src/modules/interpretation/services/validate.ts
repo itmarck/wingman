@@ -63,6 +63,7 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
   );
 
   validateConcepts(input);
+  validateReferenceResolutions(input, snapshot, conceptReferences);
   validateDecisions(input, conceptReferences);
 
   const predicates = validatePredicates(input, snapshot);
@@ -150,12 +151,38 @@ function validateDecisions(
   conceptReferences: ReadonlySet<string>,
 ): void {
   const decisionReferences = uniqueValues(
-    (input.conceptDecisions ?? []).map((decision) => decision.reference),
-    'Concept decision',
+    (input.referenceDecisions ?? []).map((decision) => decision.reference),
+    'Reference decision',
   );
 
   for (const reference of decisionReferences) {
     requireValue(conceptReferences, reference, 'Concept reference');
+  }
+}
+
+function validateReferenceResolutions(
+  input: RegisterInterpretationInput,
+  snapshot: KnowledgeSnapshot,
+  conceptReferences: ReadonlySet<string>,
+): void {
+  uniqueValues(
+    (input.referenceResolutions ?? []).map((resolution) => resolution.reference),
+    'Reference resolution',
+  );
+  const conceptIds = new Set(snapshot.concepts.map((concept) => concept.id));
+
+  for (const resolution of input.referenceResolutions ?? []) {
+    requireValue(conceptReferences, resolution.reference, 'Concept reference');
+    assertRequired(resolution.question, 'Reference resolution question');
+
+    const candidateIds = uniqueValues(
+      resolution.candidateConceptIds,
+      'Reference resolution candidate',
+    );
+
+    for (const candidateId of candidateIds) {
+      requireValue(conceptIds, candidateId, 'Concept');
+    }
   }
 }
 

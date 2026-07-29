@@ -30,7 +30,8 @@ Lectura rápida:
 - Un `Axiom` siempre tiene un `Predicate`.
 - Un `Link` conecta exactamente dos `Axioms` y también tiene un `Predicate`.
 - La procedencia de un `Link` puede ser una `Entry` o una inferencia respaldada por otros `Axioms`.
-- Una `Interpretation` puede producir varias `Reviews`.
+- Una `Interpretation` puede producir varias `Reviews`, cada una con una resolución genérica de
+  referencia, un Concept propuesto, candidatos y una decisión humana opcional.
 - `Interpretation` conserva estado, intentos, Draft, publicación y datos de la cola.
 - `aliases` pertenece directamente a `Concept`.
 - `pgmigrations` queda fuera porque es una tabla técnica aislada.
