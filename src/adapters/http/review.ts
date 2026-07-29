@@ -60,6 +60,8 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
     '/reviews',
     {
       schema: {
+        tags: ['Reviews'],
+        summary: 'List reviews',
         querystring: cursorQuerySchema,
         response: {
           200: pageSchema(summarySchema),
@@ -81,6 +83,8 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
     '/reviews/:id',
     {
       schema: {
+        tags: ['Reviews'],
+        summary: 'Read a review',
         params: idParamsSchema,
         response: {
           200: detailSchema,
@@ -96,12 +100,16 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
     '/reviews/:id/decisions',
     {
       schema: {
+        tags: ['Reviews'],
+        summary: 'Resolve a review',
         params: idParamsSchema,
         body: Type.Object(
           {
             decisions: Type.Array(decisionSchema, { minItems: 1, maxItems: 1 }),
           },
-          { additionalProperties: false },
+          {
+            additionalProperties: false,
+          },
         ),
         response: {
           204: Type.Null(),

@@ -20,6 +20,8 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
     '/projections',
     {
       schema: {
+        tags: ['Projections'],
+        summary: 'List available projections',
         response: {
           200: Type.Array(metadataSchema),
         },
@@ -32,6 +34,8 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
     '/projections/:key',
     {
       schema: {
+        tags: ['Projections'],
+        summary: 'Read a projection',
         params: keyParamsSchema,
         response: {
           200: Type.Object({

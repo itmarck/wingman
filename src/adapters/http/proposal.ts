@@ -35,6 +35,8 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
     '/proposals',
     {
       schema: {
+        tags: ['Proposals'],
+        summary: 'List pending proposals',
         response: {
           200: Type.Object({
             items: Type.Array(proposalSchema),
@@ -51,6 +53,8 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
     '/proposals/:id',
     {
       schema: {
+        tags: ['Proposals'],
+        summary: 'Read a pending proposal',
         params: idParamsSchema,
         response: {
           200: proposalSchema,
@@ -73,6 +77,8 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
     '/proposals/:id/approve',
     {
       schema: {
+        tags: ['Proposals'],
+        summary: 'Approve a proposal',
         params: idParamsSchema,
         response: {
           204: Type.Null(),
@@ -99,6 +105,8 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
     '/proposals/:id/reject',
     {
       schema: {
+        tags: ['Proposals'],
+        summary: 'Reject a proposal',
         params: idParamsSchema,
         response: {
           204: Type.Null(),

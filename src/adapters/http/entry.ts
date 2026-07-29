@@ -50,12 +50,16 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     '/entries',
     {
       schema: {
+        tags: ['Entries'],
+        summary: 'Capture an entry',
         body: Type.Object(
           {
             content: contentSchema,
             externalId: Type.String({ minLength: 1 }),
           },
-          { additionalProperties: false },
+          {
+            additionalProperties: false,
+          },
         ),
         response: {
           202: Type.Union([
@@ -126,6 +130,8 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     '/entries',
     {
       schema: {
+        tags: ['Entries'],
+        summary: 'List entries',
         querystring: cursorQuerySchema,
         response: {
           200: pageSchema(entrySchema),
@@ -147,6 +153,8 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     '/entries/:id',
     {
       schema: {
+        tags: ['Entries'],
+        summary: 'Read an entry',
         params: idParamsSchema,
         response: {
           200: entrySchema,
@@ -161,6 +169,8 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     '/entries/:id/status',
     {
       schema: {
+        tags: ['Entries'],
+        summary: 'Read entry interpretation status',
         params: idParamsSchema,
         response: {
           200: statusSchema,
@@ -176,6 +186,8 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     '/entries/:id/retry',
     {
       schema: {
+        tags: ['Entries'],
+        summary: 'Retry entry interpretation',
         params: idParamsSchema,
         response: {
           202: Type.Union([
