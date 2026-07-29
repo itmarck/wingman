@@ -3,6 +3,7 @@ import { type InferenceProvider, resolveInferenceTarget } from './target.js';
 
 export interface InferenceAdapterConfig extends InferenceConfig {
   readonly apiKey: string;
+  readonly endpoint: string;
 }
 
 /**
@@ -18,6 +19,7 @@ export function readInferenceConfig(environment = process.env): InferenceAdapter
     target: target.key,
     provider: target.provider,
     model: target.model,
+    endpoint: target.endpoint,
     apiKey: requireValue(environment[apiKeyName], apiKeyName),
   });
 }

@@ -1,5 +1,6 @@
 import { readConfig } from './adapters/config.js';
 import { createServer } from './adapters/http/start.js';
+import { createInferenceAdapter } from './adapters/inference/adapter.js';
 import { PostgresDatabase } from './adapters/postgres/database.js';
 import { PostgresInferenceTelemetry } from './adapters/postgres/telemetry.js';
 import { PollingWorker } from './modules/interpretation/adapters/worker.js';
@@ -9,7 +10,12 @@ import { createSystem } from './system/system.js';
 const config = readConfig();
 const database = new PostgresDatabase(config.postgres);
 const system = createSystem('memory', {
-  inference: config.inference,
+  adapter: createInferenceAdapter(config.inference),
+  inference: {
+    target: config.inference.target,
+    provider: config.inference.provider,
+    model: config.inference.model,
+  },
   mode: config.system.mode,
   telemetry: new PostgresInferenceTelemetry(database),
 });

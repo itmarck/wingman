@@ -20,6 +20,8 @@ const instructions = Object.freeze([
   'Preserve the meaning of the Entry without inventing information.',
   'Extract only durable and reusable knowledge.',
   'Reuse relevant Concepts and Predicates from the supplied context when they mean the same thing.',
+  'Use lower camelCase Predicate keys such as worksAt; do not use spaces, hyphens, underscores, or PascalCase.',
+  'Only reuse system.camelCase Predicate keys supplied in the context; never invent system Predicates.',
   'Use references that exist in the Draft or in the supplied context.',
   'Return empty only when the Entry legitimately contains no durable knowledge.',
   'Return invalid when the operation cannot satisfy the output contract.',

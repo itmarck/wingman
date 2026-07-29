@@ -24,6 +24,7 @@ describe('Runtime configuration', () => {
         target: 'openai.luna',
         provider: 'openai',
         model: 'gpt-5.6-luna',
+        endpoint: 'https://api.openai.com/v1/responses',
         apiKey: 'openai-secret',
       },
       postgres: {

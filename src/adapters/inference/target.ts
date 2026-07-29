@@ -7,6 +7,7 @@ export interface InferenceTarget {
   readonly key: InferenceTargetKey;
   readonly provider: InferenceProvider;
   readonly model: string;
+  readonly endpoint: string;
 }
 
 const targets: Readonly<Record<InferenceTargetKey, InferenceTarget>> = Object.freeze({
@@ -14,11 +15,13 @@ const targets: Readonly<Record<InferenceTargetKey, InferenceTarget>> = Object.fr
     key: 'openai.luna',
     provider: 'openai',
     model: 'gpt-5.6-luna',
+    endpoint: 'https://api.openai.com/v1/responses',
   }),
   'groq.gptoss': Object.freeze({
     key: 'groq.gptoss',
     provider: 'groq',
     model: 'openai/gpt-oss-120b',
+    endpoint: 'https://api.groq.com/openai/v1/responses',
   }),
 });
 

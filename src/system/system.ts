@@ -6,7 +6,6 @@ import { GetEntryQuery } from '../modules/capture/operations/get.js';
 import { ListEntriesQuery } from '../modules/capture/operations/list.js';
 import type { IntentModule } from '../modules/intent/module.js';
 import { ProposeIntentCommand } from '../modules/intent/operations/propose.js';
-import { UnavailableInterpreter } from '../modules/interpretation/adapters/interpreter.js';
 import { MemoryInterpretations } from '../modules/interpretation/adapters/memory/interpretation.js';
 import { MemoryInterpretationLifecycle } from '../modules/interpretation/adapters/memory/lifecycle.js';
 import { MemoryReviewStore } from '../modules/interpretation/adapters/memory/review.js';
@@ -46,7 +45,7 @@ export type StorageType = (typeof storageTypes)[number];
 
 export interface SystemOptions {
   readonly inference: InferenceConfig;
-  readonly adapter?: InterpretationAdapter;
+  readonly adapter: InterpretationAdapter;
   readonly telemetry?: InferenceTelemetry;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
@@ -75,7 +74,6 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const proposals = new ProposalRegistry(ids, () => clock.now());
   const projections = new MemoryProjectionRegistry([new CurrentAxiomsProjection()]);
   const processing = options.processing ?? defaultProcessingConfig;
-  const adapter = options.adapter ?? new UnavailableInterpreter();
   let storage: SystemStorage;
   let closeStorage: () => Promise<void>;
 
@@ -108,7 +106,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     proposals,
     options.mode ?? 'approval',
   );
-  const interpreter = new Interpreter(adapter, options.inference, options.telemetry);
+  const interpreter = new Interpreter(options.adapter, options.inference, options.telemetry);
   const registerInterpretation = new RegisterInterpretationCommand(
     knowledge,
     reviews,

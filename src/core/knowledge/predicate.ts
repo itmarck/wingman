@@ -8,8 +8,7 @@ export type PredicateMode = 'descriptive' | 'operational';
 
 export const systemSupersedesKey = 'system.supersedes';
 
-const predicateKeyPattern = /^[a-z][A-Za-z0-9]*$/;
-const systemPredicateKeyPattern = /^system\.[a-z][A-Za-z0-9]*$/;
+export const predicateKeyPattern = /^(?:[a-z][A-Za-z0-9]*|system\.[a-z][A-Za-z0-9]*)$/;
 const reservedNames = ['supersedes'];
 const operationalPredicates = [systemSupersedesKey];
 
@@ -79,7 +78,7 @@ export class Predicate {
 }
 
 function assertKey(key: string): void {
-  if (!predicateKeyPattern.test(key) && !systemPredicateKeyPattern.test(key)) {
+  if (!predicateKeyPattern.test(key)) {
     throw new DomainError('Predicate key must use camelCase or system.camelCase');
   }
 }
