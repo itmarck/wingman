@@ -21,6 +21,8 @@ const instructions = Object.freeze([
   'Write all newly created human-readable knowledge in Spanish, including Concept names, aliases, definitions, Predicate definitions, and invalid reasons.',
   'Preserve proper names, acronyms, quotations, and technical terms in their original language when translating them would lose meaning or context.',
   'When useful for future resolution, keep an important original-language term as an alias while defining its Concept in Spanish.',
+  'Resolve first-person references to Marcelo only when the Entry is his direct personal statement.',
+  'Never infer authorship from origin.source; if authorship is external or uncertain, return invalid instead of attributing claims to Marcelo.',
   'Extract only durable and reusable knowledge.',
   'Reuse relevant Concepts and Predicates from the supplied context when they mean the same thing.',
   'Create a custom Predicate when the context has no suitable Predicate for a durable fact.',
@@ -47,7 +49,7 @@ export function createInterpretationRequest(
   return Object.freeze({
     operation: 'interpretEntry',
     reasoning: 'low',
-    instructionsVersion: 'interpretEntry.v2',
+    instructionsVersion: 'interpretEntry.v3',
     objective: 'Interpret one Entry as durable structured knowledge.',
     instructions,
     entry,
