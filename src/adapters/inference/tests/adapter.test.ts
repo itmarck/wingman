@@ -29,6 +29,10 @@ const request: InterpretationRequest = Object.freeze({
     predicates: Object.freeze([]),
     axioms: Object.freeze([]),
   }),
+  predicateUsage: Object.freeze({
+    axiomKeys: Object.freeze([]),
+    linkKeys: Object.freeze([]),
+  }),
   outputContract: 'Return knowledge, empty, or invalid.',
 });
 
@@ -107,6 +111,7 @@ describe('HTTP inference Adapter', () => {
         operation: 'interpretEntry',
         entry: request.entry,
         context: request.context,
+        predicateUsage: request.predicateUsage,
       });
     },
   );

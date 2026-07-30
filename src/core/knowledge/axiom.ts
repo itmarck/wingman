@@ -14,6 +14,7 @@ export type Literal =
   | { readonly kind: 'date'; readonly value: string }
   | { readonly kind: 'dateTime'; readonly value: string }
   | { readonly kind: 'number'; readonly value: number }
+  | { readonly kind: 'quote'; readonly value: string }
   | { readonly kind: 'text'; readonly value: string }
   | { readonly kind: 'url'; readonly value: string };
 

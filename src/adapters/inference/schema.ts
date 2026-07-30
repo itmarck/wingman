@@ -28,6 +28,7 @@ const definitions = {
     object({ kind: Type.Literal('date'), value: Type.String() }),
     object({ kind: Type.Literal('dateTime'), value: Type.String() }),
     object({ kind: Type.Literal('number'), value: Type.Number() }),
+    object({ kind: Type.Literal('quote'), value: Type.String() }),
     object({ kind: Type.Literal('text'), value: Type.String() }),
     object({ kind: Type.Literal('url'), value: Type.String() }),
   ]),

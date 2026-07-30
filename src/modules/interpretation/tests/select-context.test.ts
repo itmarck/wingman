@@ -4,6 +4,7 @@ import { Concept } from '../../../core/knowledge/concept.js';
 import { Entry } from '../../../core/knowledge/entry.js';
 import { Predicate } from '../../../core/knowledge/predicate.js';
 import { MemoryKnowledgeStore } from '../../knowledge/adapters/memory/store.js';
+import { createInterpretationRequest } from '../services/request.js';
 
 describe('in-memory Interpretation context', () => {
   it('selects mentioned Concepts, one-hop knowledge, and the Predicate catalog', async () => {
@@ -75,5 +76,9 @@ describe('in-memory Interpretation context', () => {
     expect(context.predicates.some((predicate) => predicate.key === 'system.supersedes')).toBe(
       true,
     );
+    expect(createInterpretationRequest(seed, context).predicateUsage).toEqual({
+      axiomKeys: ['usesStorage'],
+      linkKeys: ['system.supersedes'],
+    });
   });
 });

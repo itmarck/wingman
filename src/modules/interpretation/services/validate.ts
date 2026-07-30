@@ -1,5 +1,6 @@
 import { DomainError } from '../../../core/error.js';
 import { Axiom } from '../../../core/knowledge/axiom.js';
+import type { Entry } from '../../../core/knowledge/entry.js';
 import { normalizeText } from '../../../core/knowledge/guard.js';
 import { Link } from '../../../core/knowledge/link.js';
 import { Predicate } from '../../../core/knowledge/predicate.js';
@@ -52,6 +53,11 @@ export function assertCompatiblePredicate(
 
 function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSnapshot): void {
   assertRequired(input.entryId, 'Interpretation entryId');
+  const entry = snapshot.entries.find((entry) => entry.id === input.entryId);
+
+  if (!entry) {
+    throw new InvalidInputError(`Entry ${input.entryId} does not exist`);
+  }
 
   const conceptReferences = uniqueValues(
     input.concepts.map((concept) => concept.reference),
@@ -69,6 +75,7 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
   const predicates = validatePredicates(input, snapshot);
 
   for (const axiom of input.axioms) {
+    validateSourceLocators(entry, axiom.sourceLocators);
     requireValue(conceptReferences, axiom.subjectReference, 'Concept reference');
 
     if (axiom.object.kind === 'concept') {
@@ -77,6 +84,7 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
 
     const predicate = requirePredicate(predicates, axiom.predicateKey);
     assertPredicateTarget(predicate, 'axiom');
+    validateQuote(entry, axiom.object);
 
     Axiom.create({
       id: `validation.${axiom.reference}`,
@@ -98,6 +106,7 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
   const links = [...snapshot.links];
 
   for (const [index, link] of (input.links ?? []).entries()) {
+    validateSourceLocators(entry, link.sourceLocators);
     requireValue(knownAxioms, link.sourceReference, 'Axiom reference');
     requireValue(knownAxioms, link.targetReference, 'Axiom reference');
 
@@ -120,6 +129,44 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
   }
 
   assertValidSupersedesGraph(links, predicates.values());
+}
+
+function validateQuote(
+  entry: Entry,
+  object: RegisterInterpretationInput['axioms'][number]['object'],
+) {
+  if (object.kind !== 'literal' || object.literal.kind !== 'quote') {
+    return;
+  }
+
+  if (entry.content.kind !== 'text' || !entry.content.text.includes(object.literal.value)) {
+    throw new InvalidInputError('Quote literal must exactly match text from its Entry');
+  }
+}
+
+function validateSourceLocators(
+  entry: Entry,
+  locators: RegisterInterpretationInput['axioms'][number]['sourceLocators'],
+): void {
+  if (!locators || locators.length === 0) {
+    return;
+  }
+
+  if (entry.content.kind === 'url') {
+    throw new InvalidInputError('URL Entry cannot contain Source locators');
+  }
+
+  const paragraphCount = entry.content.text.trim().split(/\r?\n\s*\r?\n/).length;
+
+  for (const locator of locators) {
+    if (locator.kind !== 'paragraph') {
+      throw new InvalidInputError('Text Entry supports only paragraph Source locators');
+    }
+
+    if (locator.paragraph > paragraphCount) {
+      throw new InvalidInputError(`Source paragraph ${locator.paragraph} does not exist`);
+    }
+  }
 }
 
 function validateConcepts(input: RegisterInterpretationInput): void {

@@ -53,4 +53,7 @@ Wingman preserves every Entry exactly as received, including its original langua
 
 Internal Predicate keys remain stable English `camelCase`. Proper names, acronyms, quotations, and technical terms may remain in their original language when translation would lose meaning or useful context. An important original-language term may also be retained as an alias. Multilingual search and localized representations are not currently part of the system contract.
 
+Verbatim citations use the `quote` Literal and must match the original text exactly. Plain text
+Entries support paragraph locators; URL Entries do not expose verifiable source locations yet.
+
 Repository architecture and contribution guidance live in `AGENTS.md`.

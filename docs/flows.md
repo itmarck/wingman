@@ -77,6 +77,11 @@ more existing Concept candidates. `POST /api/reviews/:id/resolution` selects a c
 `selectedConceptId`; omitting it confirms the proposed Concept. Review decisions cannot be supplied
 by the Interpreter inside its Draft.
 
+External statements may remain exact `quote` Literals without resolving their author. A Review is
+required only when an uncertain author or entity is used as a Concept reference. Predicate keys are
+supplied with their allowed Axiom/Link usage. Text Entries accept paragraph locators only; URL
+Entries currently accept none.
+
 ## Mutation control
 
 Mutation is controlled at two independent boundaries:
