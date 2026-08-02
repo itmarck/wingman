@@ -11,6 +11,7 @@ export interface InterpretationConcept {
   readonly name: string;
   readonly aliases?: readonly string[];
   readonly definition: string;
+  readonly referenceStatus?: 'identified' | 'uncertain';
 }
 
 export interface InterpretationPredicate {

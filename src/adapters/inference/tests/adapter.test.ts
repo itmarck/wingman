@@ -125,6 +125,7 @@ describe('HTTP inference Adapter', () => {
           name: 'Wingman',
           aliases: [],
           definition: 'A personal knowledge server.',
+          referenceStatus: 'identified',
         },
       ],
       predicates: [
@@ -217,7 +218,7 @@ describe('HTTP inference Adapter', () => {
     }
   });
 
-  it('retries generated JSON validation failures without retrying malformed requests', async () => {
+  it('does not retry generated JSON validation failures or malformed requests', async () => {
     const generated = createInferenceAdapter(
       createConfig('groq'),
       createFetch(
@@ -237,7 +238,13 @@ describe('HTTP inference Adapter', () => {
       createFetch(errorResponse(400, 'The request body is invalid')),
     );
 
-    await expect(generated.interpret(request)).rejects.toThrow(InterpreterUnavailableError);
+    const generatedError = await generated.interpret(request).catch((caught: unknown) => caught);
+
+    expect(generatedError).toBeInstanceOf(InferenceAdapterError);
+    expect(generatedError).not.toBeInstanceOf(InterpreterUnavailableError);
+    expect(generatedError).toMatchObject({
+      category: 'request',
+    });
     await expect(malformed.interpret(request)).rejects.toMatchObject({
       category: 'request',
     });

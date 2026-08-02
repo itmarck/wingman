@@ -155,7 +155,7 @@ export class RegisterInterpretationCommand {
     decisions: ReadonlyMap<string, ReferenceDecision>,
   ): PreparedInterpretation {
     const concepts = [...snapshot.concepts];
-    const conceptReferences = new Map<string, Concept>();
+    const conceptReferences = new Map(snapshot.concepts.map((concept) => [concept.id, concept]));
     const newConcepts: Concept[] = [];
 
     for (const draft of input.concepts) {
@@ -222,7 +222,11 @@ export class RegisterInterpretationCommand {
         links: uniqueEntities(newLinks),
       },
       publication: {
-        conceptIds: uniqueIds([...conceptReferences.values()]),
+        conceptIds: uniqueIds(
+          conceptReferencesUsedBy(input).map((reference) =>
+            requireReference(conceptReferences, reference, 'Concept'),
+          ),
+        ),
         predicateIds: uniqueIds(
           [
             ...input.predicates.map((draft) => draft.key),
@@ -572,6 +576,16 @@ function assertEffectiveRegistration(registration: InterpretationRegistration): 
 
 function uniqueIds(entities: readonly { readonly id: string }[]): readonly string[] {
   return Object.freeze([...new Set(entities.map((entity) => entity.id))]);
+}
+
+function conceptReferencesUsedBy(input: RegisterInterpretationInput): readonly string[] {
+  return [
+    ...input.concepts.map((concept) => concept.reference),
+    ...input.axioms.flatMap((axiom) => [
+      axiom.subjectReference,
+      ...(axiom.object.kind === 'concept' ? [axiom.object.conceptReference] : []),
+    ]),
+  ];
 }
 
 function replaceEntity<Value extends { readonly id: string }>(

@@ -74,6 +74,26 @@ describe('Interpretation source validation', () => {
       ),
     ).toThrow('URL Entry cannot contain Source locators');
   });
+
+  it('requires a resolution for Concepts explicitly marked as uncertain', () => {
+    const entry = createTextEntry();
+    const draft = createDraft();
+
+    expect(() =>
+      validateInterpretationDraft(
+        {
+          ...draft,
+          concepts: [
+            {
+              ...draft.concepts[0],
+              referenceStatus: 'uncertain',
+            },
+          ],
+        },
+        createSnapshot(entry),
+      ),
+    ).toThrow('Uncertain Concept reference email requires a reference resolution');
+  });
 });
 
 function createTextEntry(): Entry {

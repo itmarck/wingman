@@ -41,7 +41,7 @@ describe('Interpreter operation contract', () => {
     expect(adapter.request).toMatchObject({
       operation: 'interpretEntry',
       reasoning: 'low',
-      instructionsVersion: 'interpretEntry.v5',
+      instructionsVersion: 'interpretEntry.v6',
       objective: 'Interpret one Entry as durable structured knowledge.',
       entry,
       context,
@@ -56,7 +56,10 @@ describe('Interpreter operation contract', () => {
       'Resolve first-person references to Marcelo only when the Entry is his direct personal statement.',
     );
     expect(adapter.request?.instructions).toContain(
-      'Never infer authorship from origin.source; when authorship or any Concept reference is uncertain, request a reference resolution with a concise question and candidate Concept IDs from context.',
+      'Never infer authorship from origin.source. Mark every proposed Concept reference as identified or uncertain; an uncertain reference must request referenceResolution with a concise question and candidate Concept IDs from context.',
+    );
+    expect(adapter.request?.instructions).toContain(
+      'Every Axiom must have a unique reference. Every Link must use valid sourceReference and targetReference values.',
     );
     expect(adapter.request?.instructions).toContain(
       'Use stable English lower camelCase Predicate keys such as worksAt; do not translate keys or use spaces, hyphens, underscores, or PascalCase.',
@@ -95,7 +98,7 @@ describe('Interpreter operation contract', () => {
         provider: 'provider',
         requestedModel: 'requested-model',
         usedModel: 'used-model',
-        instructionsVersion: 'interpretEntry.v5',
+        instructionsVersion: 'interpretEntry.v6',
         attempt: 2,
         result: 'empty',
         inputTokens: 10,

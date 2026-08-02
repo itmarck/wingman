@@ -59,18 +59,22 @@ function validateDraft(input: RegisterInterpretationInput, snapshot: KnowledgeSn
     throw new InvalidInputError(`Entry ${input.entryId} does not exist`);
   }
 
-  const conceptReferences = uniqueValues(
+  const localConceptReferences = uniqueValues(
     input.concepts.map((concept) => concept.reference),
     'Concept reference',
   );
+  const conceptReferences = new Set([
+    ...localConceptReferences,
+    ...snapshot.concepts.map((concept) => concept.id),
+  ]);
   const axiomReferences = uniqueValues(
     input.axioms.map((axiom) => axiom.reference),
     'Axiom reference',
   );
 
   validateConcepts(input);
-  validateReferenceResolutions(input, snapshot, conceptReferences);
-  validateDecisions(input, conceptReferences);
+  validateReferenceResolutions(input, snapshot, localConceptReferences);
+  validateDecisions(input, localConceptReferences);
 
   const predicates = validatePredicates(input, snapshot);
 
@@ -171,6 +175,9 @@ function validateSourceLocators(
 
 function validateConcepts(input: RegisterInterpretationInput): void {
   const definitionsByName = new Map<string, Set<string>>();
+  const requestedResolutions = new Set(
+    (input.referenceResolutions ?? []).map((resolution) => resolution.reference),
+  );
 
   for (const concept of input.concepts) {
     assertRequired(concept.reference, 'Concept reference');
@@ -182,6 +189,18 @@ function validateConcepts(input: RegisterInterpretationInput): void {
 
     definitions.add(normalizeText(concept.definition));
     definitionsByName.set(name, definitions);
+
+    if (concept.referenceStatus === 'uncertain' && !requestedResolutions.has(concept.reference)) {
+      throw new InvalidInputError(
+        `Uncertain Concept reference ${concept.reference} requires a reference resolution`,
+      );
+    }
+
+    if (concept.referenceStatus === 'identified' && requestedResolutions.has(concept.reference)) {
+      throw new InvalidInputError(
+        `Identified Concept reference ${concept.reference} cannot request a reference resolution`,
+      );
+    }
   }
 
   const ambiguousName = [...definitionsByName].find(([, definitions]) => definitions.size > 1);

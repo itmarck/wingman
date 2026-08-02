@@ -46,7 +46,9 @@ stateDiagram-v2
 
 The complete Draft is validated first. An uncertain Concept reference may be requested explicitly
 by inference or detected automatically while matching Concepts. Both paths create the same
-`referenceResolution` Review and pause publication until every reference is resolved.
+`referenceResolution` Review and pause publication until every reference is resolved. Proposed
+Concepts declare `referenceStatus`; `uncertain` is invalid without a matching resolution request.
+Existing context Concepts can be referenced directly by ID.
 
 ```mermaid
 flowchart TD
@@ -76,6 +78,10 @@ Each Review contains one reference, a human-readable question, the proposed Conc
 more existing Concept candidates. `POST /api/reviews/:id/resolution` selects a candidate by
 `selectedConceptId`; omitting it confirms the proposed Concept. Review decisions cannot be supplied
 by the Interpreter inside its Draft.
+
+Provider transport, throttling and server failures may be retried automatically. Generated output
+that violates the structured schema fails immediately because repeating the same deterministic
+contract error is not treated as provider unavailability.
 
 External statements may remain exact `quote` Literals without resolving their author. A Review is
 required only when an uncertain author or entity is used as a Concept reference. Predicate keys are

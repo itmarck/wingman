@@ -46,6 +46,28 @@ describe('ambiguous Interpretation', () => {
     expect(requireValue((await currentAxioms(application))[0]).subjectConceptId).toBe(marcelo.id);
   });
 
+  it('uses a context Concept ID directly without redeclaring the Concept', async () => {
+    const application = createMemoryApplication(new ExistingConceptInterpreter());
+    const marcelo = await application.commands.registerConcept.execute({
+      name: 'Marcelo',
+      definition: 'Propietario de Wingman',
+    });
+    const entryId = await application.commands.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'Marcelo mantiene Wingman.',
+      },
+      origin: {
+        source: 'test',
+      },
+    });
+
+    await application.commands.processNext.execute();
+
+    expect((await application.queries.getEntryStatus.execute(entryId)).status).toBe('completed');
+    expect(requireValue((await currentAxioms(application))[0]).subjectConceptId).toBe(marcelo.id);
+  });
+
   it('publishes no knowledge until every independent Review is resolved', async () => {
     const application = createMemoryApplication(new AmbiguousInterpreter());
 
@@ -229,6 +251,48 @@ class AmbiguousInterpreter implements InterpretationAdapter {
               literal: {
                 kind: 'text',
                 value: 'Computer',
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+}
+
+class ExistingConceptInterpreter implements InterpretationAdapter {
+  readonly identity = Object.freeze({
+    key: 'existing-concept',
+  });
+
+  async interpret(request: InterpretationRequest) {
+    const marcelo = requireValue(
+      request.context.concepts.find((concept) => concept.name === 'Marcelo'),
+    );
+
+    return {
+      kind: 'knowledge',
+      draft: {
+        entryId: request.entry.id,
+        concepts: [],
+        predicates: [
+          {
+            key: 'maintains',
+            definition: 'Indica que el sujeto mantiene un sistema',
+            origin: 'custom',
+            scope: 'axiom',
+          },
+        ],
+        axioms: [
+          {
+            reference: 'maintenance',
+            subjectReference: marcelo.id,
+            predicateKey: 'maintains',
+            object: {
+              kind: 'literal',
+              literal: {
+                kind: 'text',
+                value: 'Wingman',
               },
             },
           },

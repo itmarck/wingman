@@ -26,7 +26,8 @@ const instructions = Object.freeze([
   'Preserve proper names, acronyms, quotations, and technical terms in their original language when translating them would lose meaning or context.',
   'When useful for future resolution, keep an important original-language term as an alias while defining its Concept in Spanish.',
   'Resolve first-person references to Marcelo only when the Entry is his direct personal statement.',
-  'Never infer authorship from origin.source; when authorship or any Concept reference is uncertain, request a reference resolution with a concise question and candidate Concept IDs from context.',
+  'Never infer authorship from origin.source. Mark every proposed Concept reference as identified or uncertain; an uncertain reference must request referenceResolution with a concise question and candidate Concept IDs from context.',
+  'Never publish unknown, unnamed, unidentified, generic-person, or similar placeholder Concepts as identified references.',
   'An external statement may remain a quote without resolving its author; resolve the author only when used as a Concept reference.',
   'Use quote literals only for exact substrings of the Entry; never translate, paraphrase, or replace quotation marks.',
   'Extract only durable and reusable knowledge.',
@@ -37,7 +38,8 @@ const instructions = Object.freeze([
   'Only reuse system.camelCase Predicate keys supplied in the context; never invent system Predicates.',
   'Use reused Predicate keys only as allowed by predicateUsage and new custom Predicates only as allowed by their scope; system.supersedes is only for Links that represent actual Axiom replacement.',
   'Text Entries may use paragraph locators only; URL Entries must use no source locators.',
-  'Use references that exist in the Draft or in the supplied context.',
+  'Every Axiom must have a unique reference. Every Link must use valid sourceReference and targetReference values.',
+  'Concept references may be local Draft references or Concept IDs from the supplied context.',
   'Return empty only when the Entry legitimately contains no durable knowledge.',
   'Return invalid when the operation cannot satisfy the output contract.',
 ]);
@@ -57,7 +59,7 @@ export function createInterpretationRequest(
   return Object.freeze({
     operation: 'interpretEntry',
     reasoning: 'low',
-    instructionsVersion: 'interpretEntry.v5',
+    instructionsVersion: 'interpretEntry.v6',
     objective: 'Interpret one Entry as durable structured knowledge.',
     instructions,
     entry,

@@ -40,7 +40,9 @@ Knowledge storage is currently in memory. PostgreSQL stores migrations and infer
 Every Review uses the generic `referenceResolution` contract. A Review asks which Concept a Draft
 reference denotes and offers the proposed Concept plus zero or more existing candidates. This
 covers names, pronouns, authorship and other uncertain Concept references without case-specific
-Review types.
+Review types. Inference marks proposed references as `identified` or `uncertain`; every uncertain
+reference must request this Review before it can be published. A Draft may also reference an
+existing Concept directly by its context ID without redeclaring it.
 
 Read pending Reviews through `/api/reviews` and `/api/reviews/:id`. Resolve one with
 `POST /api/reviews/:id/resolution`; provide `selectedConceptId` to select an existing candidate or

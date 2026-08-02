@@ -149,12 +149,7 @@ async function readBody(response: Response): Promise<unknown> {
 function throwHttpError(status: number, body: unknown): never {
   const detail = readProviderMessage(body);
   const message = `Inference provider request failed with status ${status}${detail ? `: ${detail}` : ''}`;
-  const retryable =
-    status === 408 ||
-    status === 409 ||
-    status === 429 ||
-    status >= 500 ||
-    isGeneratedOutputFailure(body);
+  const retryable = status === 408 || status === 409 || status === 429 || status >= 500;
 
   if (retryable) {
     throw new InterpreterUnavailableError(message);
@@ -177,22 +172,6 @@ function throwProviderFailure(error: Record<string, unknown>): never {
   }
 
   throw new InferenceAdapterError('provider', message);
-}
-
-function isGeneratedOutputFailure(value: unknown): boolean {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  const error = isRecord(value.error) ? value.error : value;
-  const code = optionalString(error.code)?.toLowerCase() ?? '';
-  const message = optionalString(error.message)?.toLowerCase() ?? '';
-
-  return (
-    'failed_generation' in error ||
-    code.includes('json_validate') ||
-    (message.includes('generated json') && message.includes('schema'))
-  );
 }
 
 function readProviderMessage(value: unknown): string | undefined {

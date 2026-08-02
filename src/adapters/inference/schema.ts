@@ -47,6 +47,7 @@ const definitions = {
     name: Type.String(),
     aliases: Type.Array(Type.String()),
     definition: Type.String(),
+    referenceStatus: Type.Union([Type.Literal('identified'), Type.Literal('uncertain')]),
   }),
   Predicate: object({
     key: Type.String({ pattern: predicateKeyPattern.source }),
