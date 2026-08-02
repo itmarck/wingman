@@ -1,6 +1,7 @@
 import { assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { InterpretationPublication } from '../ports/store.js';
+import { emptyPublication, freezeDraft, freezePublication } from './freeze.js';
 import type { ReferenceDecision, RegisterInterpretationInput } from './input.js';
 
 export type InterpretationId = string;
@@ -302,11 +303,6 @@ export class Interpretation {
   }
 }
 
-const emptyPublication: InterpretationPublication = Object.freeze({
-  itemIds: Object.freeze([]),
-  revisionIds: Object.freeze([]),
-});
-
 function assertIdentity(input: CreateInterpretationInput): void {
   assertValue(input.id, 'Interpretation id');
   assertValue(input.entryId, 'Interpretation entryId');
@@ -391,13 +387,6 @@ function assertState(state: RehydrateInterpretationInput): void {
   }
 }
 
-function freezePublication(publication: InterpretationPublication): InterpretationPublication {
-  return Object.freeze({
-    itemIds: Object.freeze([...publication.itemIds]),
-    revisionIds: Object.freeze([...publication.revisionIds]),
-  });
-}
-
 function assertInterpreter(identity: InterpreterIdentity): void {
   assertValue(identity.key, 'Interpreter key');
 }
@@ -406,46 +395,4 @@ function assertValue(value: string, name: string): void {
   if (value.trim().length === 0) {
     throw new InvalidInputError(`${name} cannot be empty`);
   }
-}
-
-function freezeDraft(draft: RegisterInterpretationInput): RegisterInterpretationInput {
-  return Object.freeze({
-    ...draft,
-    items: Object.freeze(
-      draft.items.map((item) =>
-        Object.freeze({
-          ...item,
-          profile: item.profile ? Object.freeze({ ...item.profile }) : undefined,
-        }),
-      ),
-    ),
-    components: Object.freeze(
-      draft.components.map((component) =>
-        Object.freeze({
-          ...component,
-          value: structuredClone(component.value),
-          validTime: component.validTime ? Object.freeze({ ...component.validTime }) : undefined,
-          sourceLocators: component.sourceLocators
-            ? Object.freeze(
-                component.sourceLocators.map((locator) => Object.freeze({ ...locator })),
-              )
-            : undefined,
-        }),
-      ),
-    ),
-    referenceResolutions: draft.referenceResolutions
-      ? Object.freeze(
-          draft.referenceResolutions.map((resolution) =>
-            Object.freeze({
-              ...resolution,
-              candidateItemIds: Object.freeze([...resolution.candidateItemIds]),
-            }),
-          ),
-        )
-      : undefined,
-    referenceDecisions: draft.referenceDecisions
-      ? Object.freeze(draft.referenceDecisions.map((decision) => Object.freeze({ ...decision })))
-      : undefined,
-    workflows: Object.freeze(structuredClone(draft.workflows ?? [])),
-  });
 }
