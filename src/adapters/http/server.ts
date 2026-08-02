@@ -9,6 +9,7 @@ import { readMutationMode } from './mutation.js';
 import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
 import { reviewRoutes } from './review.js';
+import { stateRoutes } from './state.js';
 
 export interface HttpServerOptions {
   readonly logger?: FastifyServerOptions['logger'];
@@ -51,6 +52,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Reviews' },
         { name: 'Projections' },
         { name: 'Proposals' },
+        { name: 'States' },
       ],
     },
   });
@@ -103,6 +105,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(reviewRoutes, { system });
       await protectedServer.register(projectionRoutes, { system });
       await protectedServer.register(proposalRoutes, { proposals: system.proposals });
+      await protectedServer.register(stateRoutes, { system });
     },
     { prefix: '/api' },
   );
@@ -133,7 +136,7 @@ function createOpenApiDocument(server: FastifyInstance) {
   setJsonRequestExample(paths['/api/reviews/{id}/resolution']?.post, {
     decision: {
       reference: 'reference-from-review',
-      selectedConceptId: '<<conceptId>>',
+      selectedItemId: '<<itemId>>',
     },
   });
 

@@ -61,7 +61,7 @@ describe('read OpenAPI document', () => {
     ).toEqual({
       decision: {
         reference: 'reference-from-review',
-        selectedConceptId: '<<conceptId>>',
+        selectedItemId: '<<itemId>>',
       },
     });
 

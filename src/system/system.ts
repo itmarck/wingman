@@ -1,6 +1,7 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
 import { createKnowledgeRegistry } from '../core/item/system.js';
+import { createOperatorRegistry } from '../core/state/registry.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
 import { GetEntryQuery } from '../modules/capture/operations/get.js';
@@ -37,6 +38,12 @@ import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
+import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
+import type { StateModule } from '../modules/state/module.js';
+import { CreateStateCommand } from '../modules/state/operations/create.js';
+import { DerivedStateRegistry } from '../modules/state/operations/define.js';
+import { ListStateViewQuery } from '../modules/state/operations/list.js';
+import { StateEvaluator } from '../modules/state/services/evaluator.js';
 import { ApprovalInterpretationLifecycle } from './approval.js';
 import { type MutationMode, ProposalRegistry } from './proposal.js';
 import type { SystemStorage } from './storage.js';
@@ -61,6 +68,7 @@ export interface System {
   readonly interpretation: InterpretationModule;
   readonly projection: ProjectionModule;
   readonly intent: IntentModule;
+  readonly state: StateModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -75,6 +83,10 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const clock = new SystemClock();
   const proposals = new ProposalRegistry(ids, () => clock.now());
   const registry = createKnowledgeRegistry();
+  const operators = createOperatorRegistry();
+  const stateStore = new MemoryStateStore();
+  const stateEvaluator = new StateEvaluator(operators, clock);
+  const derivedStates = new DerivedStateRegistry(operators);
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -163,6 +175,12 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     intent: Object.freeze({
       proposeIntent: new ProposeIntentCommand(knowledge, ids),
+    }),
+    state: Object.freeze({
+      createState: new CreateStateCommand(stateStore, knowledge, operators, ids, clock),
+      listView: new ListStateViewQuery(stateStore, derivedStates, knowledge, stateEvaluator, clock),
+      evaluate: stateEvaluator,
+      derived: derivedStates,
     }),
     proposals,
     async close(): Promise<void> {
