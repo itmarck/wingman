@@ -1,5 +1,7 @@
 import type { ProcessingConfig } from '../../modules/interpretation/config.js';
 import type { InterpretationAdapter } from '../../modules/interpretation/services/interpreter.js';
+import type { DetectorThresholds } from '../../modules/proactivity/detectors/builtins.js';
+import type { ProactivityPolicy } from '../../modules/proactivity/operations/service.js';
 import type { NotificationPort } from '../../modules/reminder/ports/notification.js';
 import type { MutationMode } from '../proposal.js';
 import { createSystem, type System } from '../system.js';
@@ -9,6 +11,8 @@ interface TestSystemOptions {
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
   readonly notification?: NotificationPort;
+  readonly proactivity?: ProactivityPolicy;
+  readonly detectorThresholds?: DetectorThresholds;
 }
 
 export function createTestSystem(options: TestSystemOptions): System {
@@ -22,5 +26,7 @@ export function createTestSystem(options: TestSystemOptions): System {
     mode: options.mode ?? 'write',
     processing: options.processing,
     notification: options.notification,
+    proactivity: options.proactivity,
+    detectorThresholds: options.detectorThresholds,
   });
 }

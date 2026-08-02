@@ -36,6 +36,7 @@ describe('system composition', () => {
       'rule',
       'planning',
       'reminder',
+      'proactivity',
       'proposals',
       'close',
     ]);

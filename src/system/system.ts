@@ -42,6 +42,16 @@ import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store
 import type { PlanningModule } from '../modules/planning/module.js';
 import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
 import { PlanningCommandService } from '../modules/planning/operations/write.js';
+import { MemoryProactivityStore } from '../modules/proactivity/adapters/memory/store.js';
+import {
+  createDetectorRegistry,
+  type DetectorThresholds,
+} from '../modules/proactivity/detectors/builtins.js';
+import type { ProactivityModule } from '../modules/proactivity/module.js';
+import {
+  type ProactivityPolicy,
+  ProactivityService,
+} from '../modules/proactivity/operations/service.js';
 import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/registry.js';
 import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
 import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
@@ -80,6 +90,8 @@ export interface SystemOptions {
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
   readonly notification?: NotificationPort;
+  readonly proactivity?: ProactivityPolicy;
+  readonly detectorThresholds?: DetectorThresholds;
 }
 
 /**
@@ -94,6 +106,7 @@ export interface System {
   readonly rule: RuleModule;
   readonly planning: PlanningModule;
   readonly reminder: ReminderModule;
+  readonly proactivity: ProactivityModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -120,6 +133,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const triggers = createTriggerRegistry();
   const ruleStore = new MemoryRuleStore();
   const reminderStore = new MemoryReminderStore();
+  const proactivityStore = new MemoryProactivityStore();
+  const detectors = createDetectorRegistry(options.detectorThresholds);
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -177,6 +192,14 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   );
   const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
   const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock);
+  const planningQueries = new PlanningQueryService(knowledge, () => clock.now());
+  const stateViews = new ListStateViewQuery(
+    stateStore,
+    derivedStates,
+    knowledge,
+    stateEvaluator,
+    clock,
+  );
   const proposeIntent = new ProposeIntentCommand(
     executionStore,
     capabilities,
@@ -185,6 +208,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
+  const authorizeIntent = new AuthorizeIntentCommand(executionStore);
   const registerRule = new RegisterRuleCommand(
     ruleStore,
     triggers,
@@ -252,7 +276,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     execution: Object.freeze({
       proposeIntent,
-      authorizeIntent: new AuthorizeIntentCommand(executionStore),
+      authorizeIntent,
       cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
       executeIntent,
       capabilities,
@@ -260,7 +284,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     state: Object.freeze({
       createState,
-      listView: new ListStateViewQuery(stateStore, derivedStates, knowledge, stateEvaluator, clock),
+      listView: stateViews,
       evaluate: stateEvaluator,
       derived: derivedStates,
     }),
@@ -272,7 +296,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     planning: Object.freeze({
       commands: planningCommands,
-      queries: new PlanningQueryService(knowledge, () => clock.now()),
+      queries: planningQueries,
       views: planningViews,
     }),
     reminder: Object.freeze({
@@ -286,6 +310,22 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         createState,
         clock,
       ),
+    }),
+    proactivity: Object.freeze({
+      service: new ProactivityService(
+        proactivityStore,
+        detectors,
+        knowledge,
+        planningQueries,
+        stateViews,
+        capabilities,
+        proposeIntent,
+        authorizeIntent,
+        options.proactivity ?? { global: 'propose' },
+        ids,
+        clock,
+      ),
+      detectors,
     }),
     proposals,
     async close(): Promise<void> {
