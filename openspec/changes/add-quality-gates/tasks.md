@@ -16,9 +16,9 @@
 
 ## 3. Real-model quality
 
-- [ ] 3.1 Preserve and extend exact deterministic expectations for quotes, Reviews, planning, reminders, unsupported events, and destructive requests
-- [ ] 3.2 Report model identity, attempts, structured-output failures, tokens, duration, pass rate, and cross-repetition instability
-- [ ] 3.3 Ensure the real lane is explicit, bounded by filters/repetitions, memory-only, and never persists telemetry or effects
+- [x] 3.1 Preserve and extend exact deterministic expectations for quotes, Reviews, planning, reminders, unsupported events, and destructive requests
+- [x] 3.2 Report model identity, attempts, structured-output failures, tokens, duration, pass rate, and cross-repetition instability
+- [x] 3.3 Ensure the real lane is explicit, bounded by filters/repetitions, memory-only, and never persists telemetry or effects
 
 ## 4. Iteration and correction
 

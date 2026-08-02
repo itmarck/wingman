@@ -71,6 +71,26 @@ describe('interpretation workflow schema', () => {
           ...base.draft,
           workflows: [
             {
+              kind: 'reminderRequest',
+              version: 1,
+              reference: 'reminder',
+              subjectReference: 'task',
+              message: 'Reminder',
+              temporal: null,
+              schedule: { kind: 'occurrences', at: [] },
+              unresolved: [],
+            },
+          ],
+        },
+      }),
+    ).toBeUndefined();
+    expect(
+      parseInterpretationOutput({
+        ...base,
+        draft: {
+          ...base.draft,
+          workflows: [
+            {
               kind: 'planningRequest',
               version: 1,
               reference: 'task',
@@ -85,5 +105,59 @@ describe('interpretation workflow schema', () => {
         },
       }),
     ).toBeUndefined();
+  });
+
+  it('drops empty provider filler without publishing orphan Items', () => {
+    const output = parseInterpretationOutput({
+      kind: 'knowledge',
+      reason: null,
+      draft: {
+        entryId: 'entry-1',
+        items: [
+          { reference: 'filler', profile: null, referenceStatus: 'identified' },
+          { reference: 'unknown', profile: null, referenceStatus: 'uncertain' },
+        ],
+        components: [
+          {
+            reference: 'emptyQuote',
+            itemReference: 'filler',
+            key: 'quote',
+            schemaVersion: 1,
+            value: '',
+            sourceLocators: [],
+            validTime: null,
+            status: 'accepted',
+            supersedesReference: null,
+          },
+          {
+            reference: 'emptyStatement',
+            itemReference: 'unknown',
+            key: 'statement',
+            schemaVersion: 1,
+            value: { attribute: '', value: '' },
+            sourceLocators: [],
+            validTime: null,
+            status: 'accepted',
+            supersedesReference: null,
+          },
+        ],
+        referenceResolutions: [
+          {
+            reference: 'unknown',
+            question: 'Who is this person?',
+            candidateItemIds: [],
+          },
+        ],
+        workflows: [],
+      },
+    });
+
+    expect(output).toMatchObject({
+      kind: 'knowledge',
+      draft: {
+        items: [{ reference: 'unknown' }],
+        components: [],
+      },
+    });
   });
 });

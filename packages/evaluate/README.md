@@ -22,6 +22,12 @@ Built-in expectations are `status()`, `axioms()`, `reviews()`, and `quote()`. A 
 ```bash
 npm run evaluate
 npm run evaluate -- --repeat 5
+npm run quality
+npm run quality:real -- --repeat 2
+npm run quality:real -- --case quote --repeat 2
 ```
 
-The default repeat count is one. Any failed or unstable case exits with a non-zero status.
+`quality` is the deterministic, remote-free gate for semantic quality, simplicity,
+observability, HTTP contracts, security, and evolution. `quality:real` is explicit and uses the
+configured inference provider with a new in-memory system per case and repetition. The default
+repeat count is one. Any failed, unstable, or below-threshold required axis exits nonzero.

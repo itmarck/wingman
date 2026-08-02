@@ -9,7 +9,7 @@
     "evaluate": "node --env-file-if-exists=.env --import tsx packages/evaluate/index.ts",
     "migrate": "node --env-file-if-exists=.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up --database-url-var DATABASE_URL --migrations-dir migrations --check-order --single-transaction",
     "quality": "node --import tsx packages/evaluate/quality-cli.ts",
-    "quality:real": "node --env-file-if-exists=.env --import tsx packages/evaluate/index.ts",
+    "quality:real": "node --env-file-if-exists=.env --import tsx packages/evaluate/real-cli.ts",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "smoke": "node --import tsx tools/smoke/index.ts",
     "token": "node --env-file-if-exists=.env --import tsx tools/token.ts",

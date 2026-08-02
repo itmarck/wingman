@@ -6,9 +6,11 @@ import type {
   InferenceRun,
   InferenceTelemetry,
 } from '../../src/modules/interpretation/ports/telemetry.js';
+import type { InterpretationAdapter } from '../../src/modules/interpretation/services/interpreter.js';
 import { InterpreterUnavailableError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { GlossaryResult } from '../../src/modules/projection/domain/glossary.js';
 import type { CurrentItemsResult } from '../../src/modules/projection/domain/items.js';
+import type { ReminderExplanation } from '../../src/modules/reminder/operations/manage.js';
 import { createSystem, type System } from '../../src/system/system.js';
 
 const evaluationTimeoutMs = 3 * 60_000;
@@ -28,6 +30,12 @@ export interface EvaluationResult {
   readonly items: GlossaryResult['items'];
   readonly reviews: readonly ReviewResult[];
   readonly runs: readonly InferenceRun[];
+  readonly profiles: readonly string[];
+  readonly reminders: readonly ReminderExplanation[];
+  readonly ruleCount: number;
+  readonly intentCount: number;
+  readonly attemptCount: number;
+  readonly adapterOutputs: readonly unknown[];
 }
 
 export interface EvaluationReport {
@@ -37,6 +45,7 @@ export interface EvaluationReport {
   readonly cases: readonly CaseReport[];
   readonly passed: number;
   readonly failed: number;
+  readonly unstable: number;
 }
 
 export interface CaseReport {
@@ -44,6 +53,7 @@ export interface CaseReport {
   readonly iterations: readonly IterationReport[];
   readonly passed: number;
   readonly failed: number;
+  readonly stable: boolean;
 }
 
 export interface IterationReport {
@@ -143,17 +153,56 @@ export function quote(expected: string): Expectation {
       (component) => component.key === 'quote' && component.value === expected,
     );
 
-    return found ? undefined : `No exact quote Literal matched «${expected}»`;
+    const observed = result.components
+      .filter((component) => component.key === 'quote')
+      .map((component) => JSON.stringify(component.value));
+    return found
+      ? undefined
+      : `No exact quote Literal matched «${expected}»; observed=${observed.join(',') || 'none'}`;
   });
+}
+
+/** Expects the exact set of planning Profiles derived from this Entry. */
+export function profiles(...expected: readonly string[]): Expectation {
+  return expectation(`profiles equal ${expected.join(',') || 'none'}`, (result) =>
+    sameValues(result.profiles, expected)
+      ? undefined
+      : `Expected ${JSON.stringify(expected)}, received ${JSON.stringify(result.profiles)}`,
+  );
+}
+
+/** Expects the exact workflow outcome sequence exposed by Entry status. */
+export function workflows(...expected: readonly string[]): Expectation {
+  return expectation(`workflows equal ${expected.join(',') || 'none'}`, (result) => {
+    const actual = result.status.workflows.map((workflow) => workflow.status);
+    return sameValues(actual, expected)
+      ? undefined
+      : `Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`;
+  });
+}
+
+/** Expects the exact number of active reminder workflows. */
+export function reminders(expected: number): Expectation {
+  return count('Reminders', expected, (result) => result.reminders.length);
+}
+
+/** Requires interpretation to create no executable or proactive effect. */
+export function noExecutableEffects(): Expectation {
+  return expectation('creates no executable effects', (result) =>
+    result.intentCount === 0 && result.attemptCount === 0
+      ? undefined
+      : `Created intents=${result.intentCount} attempts=${result.attemptCount}`,
+  );
 }
 
 export interface RunOptions {
   readonly repeat?: number;
+  readonly filter?: string;
 }
 
 /** Runs every case with real inference and an isolated in-memory system per repetition. */
 export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
-  const cases = collect();
+  const cases = collect(options.filter);
   const config = readInferenceConfig();
   const repeat = readRepeat(options.repeat);
   const reports: CaseReport[] = [];
@@ -173,11 +222,13 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
         iterations: Object.freeze(iterations),
         passed: iterations.length - failed,
         failed,
+        stable: isStable(iterations),
       }),
     );
   }
 
   const failed = reports.filter((report) => report.failed > 0).length;
+  const unstable = reports.filter((report) => !report.stable).length;
 
   return Object.freeze({
     target: config.target,
@@ -186,6 +237,7 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
     cases: Object.freeze(reports),
     passed: reports.length - failed,
     failed,
+    unstable,
   });
 }
 
@@ -254,6 +306,8 @@ export function print(report: EvaluationReport): void {
       `${report.passed}/${report.cases.length} cases passed`,
     ),
   );
+  if (report.repeat > 1)
+    console.log(`Stable cases: ${report.cases.length - report.unstable}/${report.cases.length}`);
 }
 
 async function execute(
@@ -262,8 +316,9 @@ async function execute(
   iteration: number,
 ): Promise<IterationReport> {
   const telemetry = new EvaluationTelemetry();
+  const adapter = new RecordingAdapter(createInferenceAdapter(config));
   const system = createSystem('memory', {
-    adapter: createInferenceAdapter(config),
+    adapter,
     inference: config,
     mode: 'write',
     telemetry,
@@ -276,7 +331,7 @@ async function execute(
   });
 
   try {
-    const result = await interpret(system, telemetry, evaluationCase);
+    const result = await interpret(system, telemetry, adapter.outputs, evaluationCase);
     const checks = evaluationCase.expectations.map((item) => {
       const message = item.check(result);
 
@@ -306,6 +361,7 @@ async function execute(
 async function interpret(
   system: System,
   telemetry: EvaluationTelemetry,
+  adapterOutputs: readonly unknown[],
   evaluationCase: EvaluationCase,
 ): Promise<EvaluationResult> {
   const entryId = await system.capture.captureEntry.execute({
@@ -332,7 +388,7 @@ async function interpret(
     const current = await system.interpretation.getEntryStatus.execute(entryId);
 
     if (isTerminal(current.status)) {
-      return observe(system, telemetry, entryId, current);
+      return observe(system, telemetry, adapterOutputs, entryId, current);
     }
 
     if (processingError && !(processingError instanceof InterpreterUnavailableError)) {
@@ -348,18 +404,33 @@ async function interpret(
 async function observe(
   system: System,
   telemetry: EvaluationTelemetry,
+  adapterOutputs: readonly unknown[],
   entryId: string,
   current: EntryStatusResult,
 ): Promise<EvaluationResult> {
-  const [itemProjection, glossaryProjection, reviewPage] = await Promise.all([
-    system.projection.readProjection.execute('system.currentItems'),
-    system.projection.readProjection.execute('system.glossary'),
-    system.interpretation.listReviews.execute(),
-  ]);
+  const [itemProjection, glossaryProjection, reviewPage, reminders, rules, intents] =
+    await Promise.all([
+      system.projection.readProjection.execute('system.currentItems'),
+      system.projection.readProjection.execute('system.glossary'),
+      system.interpretation.listReviews.execute(),
+      system.reminder.manage.list(),
+      system.rule.store.list(),
+      system.execution.store.listIntents(),
+    ]);
   const components = (itemProjection.data as CurrentItemsResult).items
     .flatMap((item) => item.components as readonly ComponentRevision[])
     .filter((component) => component.evidence.some((evidence) => evidence.entryId === entryId));
   const items = (glossaryProjection.data as GlossaryResult).items;
+  const profiles = (itemProjection.data as CurrentItemsResult).items
+    .filter((item) =>
+      (item.components as readonly ComponentRevision[]).some((component) =>
+        component.evidence.some((evidence) => evidence.entryId === entryId),
+      ),
+    )
+    .flatMap((item) => item.profile?.key ?? []);
+  const attempts = (
+    await Promise.all(intents.map((intent) => system.execution.store.listAttempts(intent.id)))
+  ).flat();
   const reviews = reviewPage.items
     .filter((review) => review.entryId === entryId)
     .map((review) =>
@@ -376,6 +447,12 @@ async function observe(
     items: Object.freeze([...items]),
     reviews: Object.freeze(reviews),
     runs: telemetry.runs,
+    profiles: Object.freeze(profiles),
+    reminders: Object.freeze([...reminders]),
+    ruleCount: rules.length,
+    intentCount: intents.length,
+    attemptCount: attempts.length,
+    adapterOutputs: Object.freeze(structuredClone(adapterOutputs)),
   });
 }
 
@@ -402,12 +479,19 @@ function count(
   });
 }
 
-function collect(): readonly EvaluationCase[] {
+function collect(filter?: string): readonly EvaluationCase[] {
   if (registeredCases.length === 0) {
     throw new Error('Evaluation requires at least one registered case');
   }
 
-  return Object.freeze(registeredCases.map(create));
+  const cases = registeredCases.map(create);
+  const selected = filter
+    ? cases.filter((evaluationCase) =>
+        evaluationCase.description.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
+      )
+    : cases;
+  if (selected.length === 0) throw new Error(`No evaluation cases match "${filter}"`);
+  return Object.freeze(selected);
 }
 
 function readRepeat(value = 1): number {
@@ -464,6 +548,23 @@ function sum(runs: readonly InferenceRun[], key: 'inputTokens' | 'outputTokens')
   return runs.reduce((total, run) => total + (run[key] ?? 0), 0);
 }
 
+function sameValues(actual: readonly string[], expected: readonly string[]): boolean {
+  return JSON.stringify([...actual].sort()) === JSON.stringify([...expected].sort());
+}
+
+function isStable(iterations: readonly IterationReport[]): boolean {
+  const signatures = iterations.map((iteration) =>
+    JSON.stringify({
+      error: iteration.error,
+      checks: iteration.checks.map((item) => ({ name: item.name, passed: item.passed })),
+      status: iteration.result?.status.status,
+      workflows: iteration.result?.status.workflows.map((workflow) => workflow.status),
+      profiles: iteration.result?.profiles,
+    }),
+  );
+  return new Set(signatures).size <= 1;
+}
+
 class EvaluationTelemetry implements InferenceTelemetry {
   readonly #runs: InferenceRun[] = [];
 
@@ -473,5 +574,24 @@ class EvaluationTelemetry implements InferenceTelemetry {
 
   async record(run: InferenceRun): Promise<void> {
     this.#runs.push(run);
+  }
+}
+
+class RecordingAdapter implements InterpretationAdapter {
+  readonly #outputs: unknown[] = [];
+  readonly identity;
+
+  constructor(private readonly adapter: InterpretationAdapter) {
+    this.identity = adapter.identity;
+  }
+
+  get outputs(): readonly unknown[] {
+    return Object.freeze([...this.#outputs]);
+  }
+
+  async interpret(request: Parameters<InterpretationAdapter['interpret']>[0]): Promise<unknown> {
+    const output = await this.adapter.interpret(request);
+    this.#outputs.push(structuredClone(output));
+    return output;
   }
 }

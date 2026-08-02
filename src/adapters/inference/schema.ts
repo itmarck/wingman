@@ -77,11 +77,11 @@ const planningWorkflow = object({
 const reminderSchedule = Type.Union([
   object({
     kind: Type.Literal('occurrences'),
-    at: Type.Array(Type.String({ pattern: utcPattern.source })),
+    at: Type.Array(Type.String({ pattern: utcPattern.source }), { minItems: 1 }),
   }),
   object({
     kind: Type.Literal('deadlineOffsets'),
-    offsetsBeforeMs: Type.Array(Type.Integer({ minimum: 0 })),
+    offsetsBeforeMs: Type.Array(Type.Integer({ minimum: 0 }), { minItems: 1 }),
   }),
   object({ kind: Type.Literal('event'), eventKey: Type.String({ pattern: keyPattern.source }) }),
 ]);
@@ -165,15 +165,20 @@ type StrictTemporal = {
 };
 
 function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
+  const components = draft.components.filter(componentHasContent);
+  const referencedItems = new Set([
+    ...components.map((component) => component.itemReference),
+    ...(draft.referenceResolutions ?? []).map((resolution) => resolution.reference),
+  ]);
   return Object.freeze({
     entryId: draft.entryId,
     items: Object.freeze(
-      draft.items.map(({ profile, ...item }) =>
-        Object.freeze({ ...item, profile: profile ?? undefined }),
-      ),
+      draft.items
+        .filter((item) => referencedItems.has(item.reference))
+        .map(({ profile, ...item }) => Object.freeze({ ...item, profile: profile ?? undefined })),
     ),
     components: Object.freeze(
-      draft.components.map(({ validTime, supersedesReference, ...component }) =>
+      components.map(({ validTime, supersedesReference, ...component }) =>
         Object.freeze({
           ...component,
           validTime: validTime
@@ -193,6 +198,36 @@ function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
     ),
     workflows: Object.freeze(draft.workflows.map(normalizeWorkflow)),
   });
+}
+
+function meaningful(value: unknown): boolean {
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.some(meaningful);
+  if (typeof value === 'object') return Object.values(value).some(meaningful);
+  return true;
+}
+
+function componentHasContent(component: StrictDraft['components'][number]): boolean {
+  if (['name', 'description', 'quote'].includes(component.key))
+    return typeof component.value === 'string' && component.value.trim().length > 0;
+  if (component.key === 'aliases')
+    return (
+      Array.isArray(component.value) &&
+      component.value.some((value) => typeof value === 'string' && value.trim().length > 0)
+    );
+  if (component.key === 'statement') {
+    const value = component.value;
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value) &&
+      typeof (value as Record<string, unknown>).attribute === 'string' &&
+      ((value as Record<string, unknown>).attribute as string).trim().length > 0 &&
+      meaningful((value as Record<string, unknown>).value)
+    );
+  }
+  return meaningful(component.value);
 }
 
 function normalizeWorkflow(
