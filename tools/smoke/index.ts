@@ -1,14 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { createAccessToken } from '../../src/adapters/http/auth.js';
 import { createHttpServer } from '../../src/adapters/http/server.js';
-import { expectationFor, SmokeFixtureInterpreter } from '../../src/adapters/inference/smoke.js';
+import {
+  expectationFor,
+  materializeSmokeEntry,
+  SmokeFixtureInterpreter,
+} from '../../src/adapters/inference/smoke.js';
 import { UnavailableNotificationAdapter } from '../../src/adapters/notification/unavailable.js';
 import { PollingWorker } from '../../src/modules/interpretation/adapters/worker.js';
 import { createSystem } from '../../src/system/system.js';
 
 const signingSecret = 'isolated-smoke-secret-with-at-least-32-characters';
 const bankPath = readBankPath(process.argv.slice(2));
-const entries = parseEntries(await readFile(bankPath, 'utf8'));
+const entries = parseEntries(await readFile(bankPath, 'utf8')).map(materializeSmokeEntry);
 const missingFixtures = entries.filter((text) => !expectationFor(text));
 if (missingFixtures.length > 0)
   throw new Error(`Missing smoke fixtures:\n${missingFixtures.join('\n')}`);
@@ -61,6 +65,7 @@ try {
   const projection = (await getJson(base, headers, '/projections/system.currentItems')) as {
     readonly data: { readonly items: readonly ProjectedItem[] };
   };
+  const planning = (await getJson(base, headers, '/planning/pending')) as readonly PlanningRecord[];
   const results = [];
   for (const { entry, status } of statuses) {
     const expectation = expectationFor(entry.text);
@@ -73,17 +78,28 @@ try {
       )
       .map((item) => item.profile?.key ?? 'knowledge');
     const actualStatuses = status.workflows.map((outcome) => outcome.status);
-    const unresolved = status.workflows.flatMap((outcome) =>
-      Array.isArray(outcome.details?.unresolved)
-        ? outcome.details.unresolved.filter((value): value is string => typeof value === 'string')
-        : [],
+    const targetIds = new Set(
+      status.workflows.flatMap((outcome) => (outcome.targetId ? [outcome.targetId] : [])),
     );
+    const unresolved = [
+      ...new Set([
+        ...status.workflows.flatMap((outcome) =>
+          Array.isArray(outcome.details?.unresolved)
+            ? outcome.details.unresolved.filter(
+                (value): value is string => typeof value === 'string',
+              )
+            : [],
+        ),
+        ...planning.filter((item) => targetIds.has(item.itemId)).flatMap((item) => item.unresolved),
+      ]),
+    ];
     const unsupported = status.workflows
       .filter((outcome) => outcome.status === 'unsupported')
       .map((outcome) => outcome.reason ?? 'unsupported');
     const mismatches = [
       ...difference('profiles', expectation.profiles, actualProfiles),
       ...difference('workflows', expectation.workflowStatuses, actualStatuses),
+      ...difference('unresolved', expectation.unresolved, unresolved),
       ...(status.status === 'completed'
         ? []
         : [`status expected completed, received ${status.status}`]),
@@ -113,17 +129,25 @@ try {
   const mismatches = results.flatMap((result) =>
     result.mismatches.map((value) => `${result.text}: ${value}`),
   );
+  const expectedReminders = entries.reduce(
+    (total, entry) => total + (expectationFor(entry)?.reminders ?? 0),
+    0,
+  );
+  const expectedRules = entries.reduce(
+    (total, entry) => total + (expectationFor(entry)?.rules ?? 0),
+    0,
+  );
   if (entryPage.items.length !== entries.length)
     mismatches.push(`entry count expected ${entries.length}, received ${entryPage.items.length}`);
   if (
-    reminders.length !== 0 ||
-    rules.length !== 0 ||
+    reminders.length !== expectedReminders ||
+    rules.length !== expectedRules ||
     intents.length !== 0 ||
     attempts.length !== 0 ||
     proactive.length !== 0
   )
     mismatches.push(
-      `unexpected effects reminders=${reminders.length} rules=${rules.length} intents=${intents.length} attempts=${attempts.length} proactive=${proactive.length}`,
+      `effects expected reminders=${expectedReminders} rules=${expectedRules} intents=0 attempts=0 proactive=0; received reminders=${reminders.length} rules=${rules.length} intents=${intents.length} attempts=${attempts.length} proactive=${proactive.length}`,
     );
   if (workerErrors.length > 0) mismatches.push(...workerErrors.map((error) => `worker: ${error}`));
   const report = {
@@ -166,6 +190,10 @@ interface StatusResponse {
 interface ProjectedItem {
   readonly profile?: { readonly key: string };
   readonly components: readonly { readonly evidence: readonly { readonly entryId: string }[] }[];
+}
+interface PlanningRecord {
+  readonly itemId: string;
+  readonly unresolved: readonly string[];
 }
 async function waitForStatus(
   base: string,

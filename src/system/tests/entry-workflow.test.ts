@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SmokeFixtureInterpreter } from '../../adapters/inference/smoke.js';
+import { materializeSmokeEntry, SmokeFixtureInterpreter } from '../../adapters/inference/smoke.js';
 import { MemoryWorkflowRegistry } from '../../modules/interpretation/adapters/memory/workflow.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
 import { EntryWorkflowRouter } from '../workflow.js';
@@ -135,7 +135,7 @@ describe('interpreted Entry workflows', () => {
     for (const text of texts)
       ids.push(
         await system.capture.captureEntry.execute({
-          content: { kind: 'text', text },
+          content: { kind: 'text', text: materializeSmokeEntry(text) },
           origin: { source: 'test' },
         }),
       );

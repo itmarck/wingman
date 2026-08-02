@@ -39,7 +39,7 @@ This avoids fabricated precision while allowing deterministic behavior. Placehol
 
 ### Use deterministic scenario fixtures for smoke, not heuristics
 
-Add a local interpreter adapter for the smoke runner whose fixtures are keyed by the exact Entry text and contain expected structured outputs. The smoke manifest pairs each Entry with observable expectations. Unknown Entries fail with a missing-fixture report rather than being guessed.
+Add a local interpreter adapter for the smoke runner whose fixtures are keyed by the exact materialized Entry text and contain expected structured outputs. Before API capture, the runner replaces the Entry bank's template variables with deterministic test values; Wingman never receives or interprets the placeholders. The smoke manifest pairs each resulting Entry with observable expectations. Unknown Entries fail with a missing-fixture report rather than being guessed.
 
 The runner starts the real Fastify server on loopback with an ephemeral port, creates a `codex` token, runs the polling worker, uses only memory stores, polls terminal states, queries public APIs, prints a normalized report, and closes in `finally`. It never loads `.env`.
 

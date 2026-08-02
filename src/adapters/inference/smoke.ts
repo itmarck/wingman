@@ -5,6 +5,9 @@ import type { InterpretationRequest } from '../../modules/interpretation/service
 export interface SmokeExpectation {
   readonly profiles: readonly (PlanningProfile | 'knowledge')[];
   readonly workflowStatuses: readonly ('applied' | 'needsInput' | 'unsupported')[];
+  readonly unresolved: readonly string[];
+  readonly reminders: number;
+  readonly rules: number;
 }
 
 interface SmokeScenario {
@@ -27,34 +30,48 @@ export function expectationFor(text: string): SmokeExpectation | undefined {
   return scenarios.get(text)?.expectation;
 }
 
+const smokeVariables = Object.freeze({
+  bankName: 'Banco de Crédito del Perú',
+  company: 'Acme',
+  movieName: 'Arrival',
+  name: 'Ana',
+  projectName: 'Wingman',
+  specialty: 'dermatología',
+  system: 'Wingman',
+});
+
+/** Materializes the template variables in the Entry bank before API capture. */
+export function materializeSmokeEntry(template: string): string {
+  return template.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const value = smokeVariables[key as keyof typeof smokeVariables];
+    if (!value) throw new Error(`Missing smoke value for {${key}}`);
+    return value;
+  });
+}
+
 const definitions: readonly SmokeScenario[] = [
   reminderBeforeMonthEnd(
     'Recuérdame anular la tarjeta de crédito {bankName} antes de fin de mes',
     'Anular la tarjeta de crédito {bankName}',
-    ['{bankName}'],
   ),
   planning(
     'Tengo que llamar a {name} para agendar una cita',
     'task',
     'Llamar a {name} para agendar una cita',
-    { unresolved: ['{name}'] },
   ),
   eventReminder(
     'Avísame cuando llegue un correo de {company} porque es urgente',
     'Atender correo urgente de {company}',
-    ['{company}'],
   ),
   planning(
     'Necesito que {system} sirva para documentarse a sí mismo también',
     'objective',
     'Hacer que {system} se documente a sí mismo',
-    { unresolved: ['{system}'] },
   ),
   planning(
     'Todavía no he sacado consulta para {specialty}',
     'task',
     'Sacar consulta para {specialty}',
-    { unresolved: ['{specialty}'] },
   ),
   planning('Caminar después de comer', 'habit', 'Caminar después de comer', {
     recurrence: 'después de comer',
@@ -80,9 +97,8 @@ const definitions: readonly SmokeScenario[] = [
     'Eliminar la carpeta overrides en {projectName}',
     'task',
     'Eliminar la carpeta overrides en {projectName}',
-    { unresolved: ['{projectName}'] },
   ),
-  planning('Ver {movieName}', 'task', 'Ver {movieName}', { unresolved: ['{movieName}'] }),
+  planning('Ver {movieName}', 'task', 'Ver {movieName}'),
   planning('Hacer un menú semanal', 'task', 'Hacer un menú semanal', { recurrence: 'weekly' }),
   planning(
     'Definir una hora en el día para releer cosas de las que quiero aprender para reforzar',
@@ -94,13 +110,14 @@ const definitions: readonly SmokeScenario[] = [
     'Revisar el mensaje de {name} en slack',
     'task',
     'Revisar el mensaje de {name} en Slack',
-    { unresolved: ['{name}'] },
   ),
   planning('Amortizar hipoteca', 'task', 'Amortizar hipoteca'),
   quote('"Uno sufre más en la imaginación que en la realidad"'),
 ];
 
-const scenarios = new Map(definitions.map((scenario) => [scenario.text, scenario]));
+const scenarios = new Map(
+  definitions.map((scenario) => [materializeSmokeEntry(scenario.text), scenario]),
+);
 
 function planning(
   text: string,
@@ -110,7 +127,13 @@ function planning(
 ): SmokeScenario {
   return {
     text,
-    expectation: { profiles: [profile], workflowStatuses: ['applied'] },
+    expectation: {
+      profiles: [profile],
+      workflowStatuses: ['applied'],
+      unresolved: [],
+      reminders: 0,
+      rules: 0,
+    },
     draft: (request) => ({
       entryId: request.entry.id,
       items: [],
@@ -121,23 +144,25 @@ function planning(
           version: 1,
           reference: 'planning',
           profile,
-          title,
+          title: materializeSmokeEntry(title),
           recurrence: options.recurrence,
-          unresolved: options.unresolved ?? [],
+          unresolved: [],
         },
       ],
     }),
   };
 }
 
-function reminderBeforeMonthEnd(
-  text: string,
-  title: string,
-  unresolved: readonly string[],
-): SmokeScenario {
+function reminderBeforeMonthEnd(text: string, title: string): SmokeScenario {
   return {
     text,
-    expectation: { profiles: ['task'], workflowStatuses: ['applied', 'needsInput'] },
+    expectation: {
+      profiles: ['task'],
+      workflowStatuses: ['applied', 'applied'],
+      unresolved: [],
+      reminders: 1,
+      rules: 1,
+    },
     draft(request) {
       const to = endOfMonth(request.entry.capturedAt);
       return {
@@ -150,16 +175,16 @@ function reminderBeforeMonthEnd(
             version: 1,
             reference: 'subject',
             profile: 'task',
-            title,
+            title: materializeSmokeEntry(title),
             temporal: { to, precision: 'month' },
-            unresolved,
+            unresolved: [],
           },
           {
             kind: 'reminderRequest',
             version: 1,
             reference: 'reminder',
             subjectReference: 'subject',
-            message: title,
+            message: materializeSmokeEntry(title),
             temporal: { to, precision: 'month' },
             schedule: { kind: 'deadlineOffsets', offsetsBeforeMs: [86_400_000] },
             unresolved: [],
@@ -170,10 +195,16 @@ function reminderBeforeMonthEnd(
   };
 }
 
-function eventReminder(text: string, title: string, unresolved: readonly string[]): SmokeScenario {
+function eventReminder(text: string, title: string): SmokeScenario {
   return {
     text,
-    expectation: { profiles: ['task'], workflowStatuses: ['applied', 'needsInput'] },
+    expectation: {
+      profiles: ['task'],
+      workflowStatuses: ['applied', 'unsupported'],
+      unresolved: [],
+      reminders: 0,
+      rules: 0,
+    },
     draft: (request) => ({
       entryId: request.entry.id,
       items: [],
@@ -184,15 +215,15 @@ function eventReminder(text: string, title: string, unresolved: readonly string[
           version: 1,
           reference: 'subject',
           profile: 'task',
-          title,
-          unresolved,
+          title: materializeSmokeEntry(title),
+          unresolved: [],
         },
         {
           kind: 'reminderRequest',
           version: 1,
           reference: 'reminder',
           subjectReference: 'subject',
-          message: title,
+          message: materializeSmokeEntry(title),
           schedule: { kind: 'event', eventKey: 'emailReceived' },
           unresolved: [],
         },
@@ -204,7 +235,13 @@ function eventReminder(text: string, title: string, unresolved: readonly string[
 function knowledge(text: string, name: string, description: string): SmokeScenario {
   return {
     text,
-    expectation: { profiles: ['knowledge'], workflowStatuses: [] },
+    expectation: {
+      profiles: ['knowledge'],
+      workflowStatuses: [],
+      unresolved: [],
+      reminders: 0,
+      rules: 0,
+    },
     draft: (request) => ({
       entryId: request.entry.id,
       items: [{ reference: 'knowledge', referenceStatus: 'identified' }],
@@ -235,7 +272,13 @@ function quote(text: string): SmokeScenario {
   const exact = text.slice(1, -1);
   return {
     text,
-    expectation: { profiles: ['knowledge'], workflowStatuses: [] },
+    expectation: {
+      profiles: ['knowledge'],
+      workflowStatuses: [],
+      unresolved: [],
+      reminders: 0,
+      rules: 0,
+    },
     draft: (request) => ({
       entryId: request.entry.id,
       items: [{ reference: 'quote', referenceStatus: 'identified' }],

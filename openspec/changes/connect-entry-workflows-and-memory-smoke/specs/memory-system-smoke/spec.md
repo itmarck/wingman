@@ -30,5 +30,4 @@ The smoke command SHALL accept a UTF-8 Markdown Entry bank and SHALL assign dete
 
 #### Scenario: Read Spanish entries
 - **WHEN** the command reads `docs/entries.md`
-- **THEN** accents, quotations, and placeholders are captured verbatim and the source document remains unchanged
-
+- **THEN** accents and quotations are preserved, template placeholders are replaced with deterministic test values before capture, Wingman receives only materialized Entries, and the source document remains unchanged

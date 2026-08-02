@@ -7,8 +7,8 @@ The system SHALL interpret an explicit reminder Entry into preserved Entry evide
 - **WHEN** the user captures a request to be reminded to complete a task before the end of the month
 - **THEN** the system creates or references the task, preserves the end-of-month deadline separately from a documented reminder cadence policy, and keeps every artifact traceable to the Entry
 
-#### Scenario: Reminder contains unresolved placeholder
-- **WHEN** an explicit reminder contains `{bankName}` or another unresolved placeholder required to identify its subject
+#### Scenario: Reminder lacks a required resolved value
+- **WHEN** inference cannot resolve a value required to identify the reminder subject or schedule
 - **THEN** the system preserves the planning request but marks the reminder workflow as needing input and creates no executable notification Intent until resolution
 
 #### Scenario: Event source is unavailable
@@ -23,4 +23,3 @@ Reprocessing an Entry SHALL NOT create duplicate planning subjects, reminders, R
 #### Scenario: Retry completed workflow routing
 - **WHEN** the same Entry workflow is retried after a transient processing failure
 - **THEN** existing workflow artifacts are reused or the duplicate is rejected without creating a second reminder occurrence
-

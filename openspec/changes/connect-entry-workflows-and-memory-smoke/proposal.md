@@ -6,9 +6,9 @@ The HTTP capture pipeline completes Entries but currently publishes only generic
 
 - Add a closed interpretation-to-workflow contract that lets the configured interpreter select registered application commands without inventing operation names or bypassing validation.
 - Route explicit task, habit, objective, and reminder requests through the existing planning and reminder operations after preserving their Entry evidence.
-- Keep ambiguous reminder cadence or unresolved placeholders non-executable and visible for later clarification; never fabricate exact times, people, companies, systems, projects, or other placeholder values.
+- Keep ambiguous reminder cadence or genuinely missing required values non-executable and visible for later clarification; Entry-bank template variables are materialized by the smoke runner before capture and are not interpreted by Wingman.
 - Add a deterministic in-memory smoke runner that builds the real HTTP API, creates its own token, processes `docs/entries.md`, inspects operational status and derived effects, and exits without PostgreSQL, migrations, remote inference, or external notification delivery.
-- Add semantic expectations for the entry bank so regressions distinguish durable knowledge, planning requests, reminder requests, unresolved placeholders, and quotations.
+- Add semantic expectations for the entry bank so regressions distinguish durable knowledge, planning requests, reminder requests, unsupported event sources, and quotations.
 - Remove redundant orchestration code where the workflow routing can reuse existing commands and contracts directly.
 
 ## Capabilities
