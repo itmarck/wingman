@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-08-02
+goal: Prove Entry-to-notification behavior end to end with cancellation, retry,
+  and deduplication.
