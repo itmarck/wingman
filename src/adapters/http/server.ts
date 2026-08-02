@@ -39,7 +39,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       info: {
         title: 'Wingman API',
         description: 'Authenticated API for capturing, interpreting and projecting knowledge.',
-        version: '2.0.0',
+        version: '2.1.0',
       },
       components: {
         securitySchemes: {
