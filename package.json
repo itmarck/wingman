@@ -6,11 +6,12 @@
   "scripts": {
     "build": "npm run clean && tsc",
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "evaluate": "node --env-file-if-exists=.env --import tsx packages/evaluate/index.ts",
     "migrate": "node --env-file-if-exists=.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js up --database-url-var DATABASE_URL --migrations-dir migrations --check-order --single-transaction",
     "start": "node --env-file-if-exists=.env dist/main.js",
     "token": "node --env-file-if-exists=.env --import tsx tools/token.ts",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p packages/evaluate/tsconfig.json"
   },
   "dependencies": {
     "@fastify/swagger": "9.8.1",
