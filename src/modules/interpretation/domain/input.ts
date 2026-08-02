@@ -1,63 +1,44 @@
-import type { Literal, SourceLocator } from '../../../core/knowledge/axiom.js';
-import type { ConceptId } from '../../../core/knowledge/concept.js';
 import type {
-  PredicateMode,
-  PredicateOrigin,
-  PredicateScope,
-} from '../../../core/knowledge/predicate.js';
+  CandidateStatus,
+  ComponentValue,
+  ProfileReference,
+  ValidTime,
+} from '../../../core/item/types.js';
+import type { SourceLocator } from '../../../core/knowledge/source.js';
 
-export interface InterpretationConcept {
+export interface InterpretationItem {
   readonly reference: string;
-  readonly name: string;
-  readonly aliases?: readonly string[];
-  readonly definition: string;
+  readonly profile?: ProfileReference;
   readonly referenceStatus?: 'identified' | 'uncertain';
 }
 
-export interface InterpretationPredicate {
-  readonly key: string;
-  readonly definition: string;
-  readonly origin: PredicateOrigin;
-  readonly scope: PredicateScope;
-  readonly mode?: PredicateMode;
-}
-
-export type InterpretationObject =
-  | { readonly kind: 'concept'; readonly conceptReference: string }
-  | { readonly kind: 'literal'; readonly literal: Literal };
-
-export interface InterpretationAxiom {
+export interface InterpretationComponent {
   readonly reference: string;
-  readonly subjectReference: string;
-  readonly predicateKey: string;
-  readonly object: InterpretationObject;
+  readonly itemReference: string;
+  readonly key: string;
+  readonly schemaVersion: number;
+  readonly value: ComponentValue;
   readonly sourceLocators?: readonly SourceLocator[];
-}
-
-export interface InterpretationLink {
-  readonly sourceReference: string;
-  readonly predicateKey: string;
-  readonly targetReference: string;
-  readonly sourceLocators?: readonly SourceLocator[];
+  readonly validTime?: ValidTime;
+  readonly status?: CandidateStatus;
+  readonly supersedesReference?: string;
 }
 
 export interface ReferenceResolutionRequest {
   readonly reference: string;
   readonly question: string;
-  readonly candidateConceptIds: readonly ConceptId[];
+  readonly candidateItemIds: readonly string[];
 }
 
 export interface ReferenceDecision {
   readonly reference: string;
-  readonly selectedConceptId?: ConceptId;
+  readonly selectedItemId?: string;
 }
 
 export interface RegisterInterpretationInput {
   readonly entryId: string;
-  readonly concepts: readonly InterpretationConcept[];
-  readonly predicates: readonly InterpretationPredicate[];
-  readonly axioms: readonly InterpretationAxiom[];
-  readonly links?: readonly InterpretationLink[];
+  readonly items: readonly InterpretationItem[];
+  readonly components: readonly InterpretationComponent[];
   readonly referenceResolutions?: readonly ReferenceResolutionRequest[];
   readonly referenceDecisions?: readonly ReferenceDecision[];
 }

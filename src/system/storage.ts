@@ -6,12 +6,12 @@ import type { ReviewStore } from '../modules/interpretation/ports/review.js';
 import type { InterpretationStateStore } from '../modules/interpretation/ports/state.js';
 import type { InterpretationStore } from '../modules/interpretation/ports/store.js';
 import type { InterpretationContextSource } from '../modules/interpretation/services/context.js';
-import type { ConceptStore } from '../modules/knowledge/ports/store.js';
+import type { ItemStore } from '../modules/knowledge/ports/store.js';
 import type { ProjectionSource } from '../modules/projection/ports/source.js';
 
 export interface KnowledgeStorage
   extends EntryStore,
-    ConceptStore,
+    ItemStore,
     InterpretationStore,
     IntentStore,
     ProjectionSource,

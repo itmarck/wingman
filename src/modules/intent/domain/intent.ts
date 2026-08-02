@@ -1,5 +1,5 @@
 import { DomainError } from '../../../core/error.js';
-import type { AxiomId } from '../../../core/knowledge/axiom.js';
+import type { ComponentRevisionId } from '../../../core/item/component.js';
 import type { EntryId } from '../../../core/knowledge/entry.js';
 import { assertDate, assertText } from '../../../core/knowledge/guard.js';
 
@@ -9,7 +9,7 @@ export interface CreateIntentInput {
   readonly id: IntentId;
   readonly key: string;
   readonly entryId: EntryId;
-  readonly axiomIds?: readonly AxiomId[];
+  readonly revisionIds?: readonly ComponentRevisionId[];
   readonly scheduledFor?: string;
 }
 
@@ -22,14 +22,14 @@ export class Intent {
   readonly id: IntentId;
   readonly key: string;
   readonly entryId: EntryId;
-  readonly axiomIds: readonly AxiomId[];
+  readonly revisionIds: readonly ComponentRevisionId[];
   readonly scheduledFor?: string;
 
   private constructor(input: CreateIntentInput) {
     this.id = input.id;
     this.key = input.key;
     this.entryId = input.entryId;
-    this.axiomIds = Object.freeze([...(input.axiomIds ?? [])]);
+    this.revisionIds = Object.freeze([...(input.revisionIds ?? [])]);
     this.scheduledFor = input.scheduledFor;
 
     Object.freeze(this);
@@ -46,8 +46,8 @@ export class Intent {
       throw new DomainError('Intent key must use namespaced camelCase segments');
     }
 
-    for (const axiomId of input.axiomIds ?? []) {
-      assertText(axiomId, 'Intent axiomId');
+    for (const revisionId of input.revisionIds ?? []) {
+      assertText(revisionId, 'Intent revisionId');
     }
 
     if (input.scheduledFor !== undefined) {

@@ -1,4 +1,4 @@
-import type { AxiomId } from '../../../core/knowledge/axiom.js';
+import type { ComponentRevisionId } from '../../../core/item/component.js';
 import type { EntryId } from '../../../core/knowledge/entry.js';
 import type { IdGenerator } from '../../../system/runtime.js';
 import { Intent } from '../domain/intent.js';
@@ -7,7 +7,7 @@ import type { IntentStore } from '../ports/store.js';
 export interface ProposeIntentInput {
   readonly key: string;
   readonly entryId: EntryId;
-  readonly axiomIds?: readonly AxiomId[];
+  readonly revisionIds?: readonly ComponentRevisionId[];
   readonly scheduledFor?: string;
 }
 

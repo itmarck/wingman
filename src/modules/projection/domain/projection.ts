@@ -1,4 +1,4 @@
-import type { KnowledgeSnapshot } from '../../../core/knowledge/snapshot.js';
+import type { KnowledgeSnapshot } from '../../../core/item/snapshot.js';
 
 export interface ProjectionMetadata {
   readonly key: string;

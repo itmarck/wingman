@@ -45,10 +45,10 @@ export class ApprovalInterpretationLifecycle implements InterpretationLifecycle 
   ): Promise<void> {
     return this.apply(
       [
-        ...registration.concepts.map((concept) => change('upsert', 'concept', concept)),
-        ...registration.predicates.map((predicate) => change('create', 'predicate', predicate)),
-        ...registration.axioms.map((axiom) => change('create', 'axiom', axiom)),
-        ...registration.links.map((link) => change('create', 'link', link)),
+        ...registration.items.map((item) => change('upsert', 'item', item)),
+        ...registration.revisions.map((revision) =>
+          change('create', 'componentRevision', revision),
+        ),
         change('update', 'interpretation', interpretation),
       ],
       () => this.lifecycle.publish(interpretation, registration, claim),
@@ -62,10 +62,10 @@ export class ApprovalInterpretationLifecycle implements InterpretationLifecycle 
   ): Promise<void> {
     return this.apply(
       [
-        ...registration.concepts.map((concept) => change('upsert', 'concept', concept)),
-        ...registration.predicates.map((predicate) => change('create', 'predicate', predicate)),
-        ...registration.axioms.map((axiom) => change('create', 'axiom', axiom)),
-        ...registration.links.map((link) => change('create', 'link', link)),
+        ...registration.items.map((item) => change('upsert', 'item', item)),
+        ...registration.revisions.map((revision) =>
+          change('create', 'componentRevision', revision),
+        ),
         change('update', 'review', review),
         change('update', 'interpretation', interpretation),
       ],

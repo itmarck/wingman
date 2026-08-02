@@ -303,10 +303,8 @@ export class Interpretation {
 }
 
 const emptyPublication: InterpretationPublication = Object.freeze({
-  conceptIds: Object.freeze([]),
-  predicateIds: Object.freeze([]),
-  axiomIds: Object.freeze([]),
-  linkIds: Object.freeze([]),
+  itemIds: Object.freeze([]),
+  revisionIds: Object.freeze([]),
 });
 
 function assertIdentity(input: CreateInterpretationInput): void {
@@ -395,10 +393,8 @@ function assertState(state: RehydrateInterpretationInput): void {
 
 function freezePublication(publication: InterpretationPublication): InterpretationPublication {
   return Object.freeze({
-    conceptIds: Object.freeze([...publication.conceptIds]),
-    predicateIds: Object.freeze([...publication.predicateIds]),
-    axiomIds: Object.freeze([...publication.axiomIds]),
-    linkIds: Object.freeze([...publication.linkIds]),
+    itemIds: Object.freeze([...publication.itemIds]),
+    revisionIds: Object.freeze([...publication.revisionIds]),
   });
 }
 
@@ -415,44 +411,34 @@ function assertValue(value: string, name: string): void {
 function freezeDraft(draft: RegisterInterpretationInput): RegisterInterpretationInput {
   return Object.freeze({
     ...draft,
-    concepts: Object.freeze(
-      draft.concepts.map((concept) =>
+    items: Object.freeze(
+      draft.items.map((item) =>
         Object.freeze({
-          ...concept,
-          aliases: concept.aliases ? Object.freeze([...concept.aliases]) : undefined,
+          ...item,
+          profile: item.profile ? Object.freeze({ ...item.profile }) : undefined,
         }),
       ),
     ),
-    predicates: Object.freeze(draft.predicates.map((predicate) => Object.freeze({ ...predicate }))),
-    axioms: Object.freeze(
-      draft.axioms.map((axiom) =>
+    components: Object.freeze(
+      draft.components.map((component) =>
         Object.freeze({
-          ...axiom,
-          object: Object.freeze({ ...axiom.object }),
-          sourceLocators: axiom.sourceLocators
-            ? Object.freeze(axiom.sourceLocators.map((locator) => Object.freeze({ ...locator })))
+          ...component,
+          value: structuredClone(component.value),
+          validTime: component.validTime ? Object.freeze({ ...component.validTime }) : undefined,
+          sourceLocators: component.sourceLocators
+            ? Object.freeze(
+                component.sourceLocators.map((locator) => Object.freeze({ ...locator })),
+              )
             : undefined,
         }),
       ),
     ),
-    links: draft.links
-      ? Object.freeze(
-          draft.links.map((link) =>
-            Object.freeze({
-              ...link,
-              sourceLocators: link.sourceLocators
-                ? Object.freeze(link.sourceLocators.map((locator) => Object.freeze({ ...locator })))
-                : undefined,
-            }),
-          ),
-        )
-      : undefined,
     referenceResolutions: draft.referenceResolutions
       ? Object.freeze(
           draft.referenceResolutions.map((resolution) =>
             Object.freeze({
               ...resolution,
-              candidateConceptIds: Object.freeze([...resolution.candidateConceptIds]),
+              candidateItemIds: Object.freeze([...resolution.candidateItemIds]),
             }),
           ),
         )

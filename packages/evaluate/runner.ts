@@ -1,24 +1,14 @@
 import { createInferenceAdapter } from '../../src/adapters/inference/adapter.js';
 import { readInferenceConfig } from '../../src/adapters/inference/config.js';
-import type { Literal } from '../../src/core/knowledge/axiom.js';
+import type { ComponentRevision } from '../../src/core/item/component.js';
 import type { EntryStatusResult } from '../../src/modules/interpretation/operations/status.js';
 import type {
   InferenceRun,
   InferenceTelemetry,
 } from '../../src/modules/interpretation/ports/telemetry.js';
 import { InterpreterUnavailableError } from '../../src/modules/interpretation/services/interpreter.js';
-import type {
-  CurrentAxiom,
-  CurrentAxiomsResult,
-} from '../../src/modules/projection/domain/axioms.js';
-import type {
-  GlossaryConcept,
-  GlossaryResult,
-} from '../../src/modules/projection/domain/glossary.js';
-import type {
-  PredicateCatalogItem,
-  PredicateCatalogResult,
-} from '../../src/modules/projection/domain/predicates.js';
+import type { GlossaryResult } from '../../src/modules/projection/domain/glossary.js';
+import type { CurrentItemsResult } from '../../src/modules/projection/domain/items.js';
 import { createSystem, type System } from '../../src/system/system.js';
 
 const evaluationTimeoutMs = 3 * 60_000;
@@ -34,9 +24,8 @@ export interface EvaluationCase {
 export interface EvaluationResult {
   readonly entryId: string;
   readonly status: EntryStatusResult;
-  readonly axioms: readonly CurrentAxiom[];
-  readonly concepts: readonly GlossaryConcept[];
-  readonly predicates: readonly PredicateCatalogItem[];
+  readonly components: readonly ComponentRevision[];
+  readonly items: GlossaryResult['items'];
   readonly reviews: readonly ReviewResult[];
   readonly runs: readonly InferenceRun[];
 }
@@ -139,7 +128,7 @@ export function status(expected: EntryStatusResult['status']): Expectation {
 
 /** Expects the exact number of currently published Axioms. */
 export function axioms(expected: number): Expectation {
-  return count('Axioms', expected, (result) => result.axioms.length);
+  return count('Components', expected, (result) => result.components.length);
 }
 
 /** Expects the exact number of pending Reviews. */
@@ -150,15 +139,9 @@ export function reviews(expected: number): Expectation {
 /** Expects an exact verbatim quote Literal among the published Axioms. */
 export function quote(expected: string): Expectation {
   return expectation(`quote equals «${expected}»`, (result) => {
-    const found = result.axioms.some((axiom) => {
-      if (axiom.object.kind !== 'literal') {
-        return false;
-      }
-
-      const literal: Literal = axiom.object.literal;
-
-      return literal.kind === 'quote' && literal.value === expected;
-    });
+    const found = result.components.some(
+      (component) => component.key === 'quote' && component.value === expected,
+    );
 
     return found ? undefined : `No exact quote Literal matched «${expected}»`;
   });
@@ -368,17 +351,15 @@ async function observe(
   entryId: string,
   current: EntryStatusResult,
 ): Promise<EvaluationResult> {
-  const [axiomProjection, glossaryProjection, predicateProjection, reviewPage] = await Promise.all([
-    system.projection.readProjection.execute('system.currentAxioms'),
+  const [itemProjection, glossaryProjection, reviewPage] = await Promise.all([
+    system.projection.readProjection.execute('system.currentItems'),
     system.projection.readProjection.execute('system.glossary'),
-    system.projection.readProjection.execute('system.predicates'),
     system.interpretation.listReviews.execute(),
   ]);
-  const axioms = (axiomProjection.data as CurrentAxiomsResult).axioms.filter(
-    (axiom) => axiom.entryId === entryId,
-  );
-  const concepts = (glossaryProjection.data as GlossaryResult).concepts;
-  const predicates = (predicateProjection.data as PredicateCatalogResult).predicates;
+  const components = (itemProjection.data as CurrentItemsResult).items
+    .flatMap((item) => item.components as readonly ComponentRevision[])
+    .filter((component) => component.evidence.some((evidence) => evidence.entryId === entryId));
+  const items = (glossaryProjection.data as GlossaryResult).items;
   const reviews = reviewPage.items
     .filter((review) => review.entryId === entryId)
     .map((review) =>
@@ -391,9 +372,8 @@ async function observe(
   return Object.freeze({
     entryId,
     status: current,
-    axioms: Object.freeze([...axioms]),
-    concepts: Object.freeze([...concepts]),
-    predicates: Object.freeze([...predicates]),
+    components: Object.freeze([...components]),
+    items: Object.freeze([...items]),
     reviews: Object.freeze(reviews),
     runs: telemetry.runs,
   });

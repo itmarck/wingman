@@ -69,7 +69,6 @@ function createRequestBody(config: InferenceAdapterConfig, request: Interpretati
       operation: request.operation,
       entry: request.entry,
       context: request.context,
-      predicateUsage: request.predicateUsage,
     }),
     reasoning: {
       effort: request.reasoning,

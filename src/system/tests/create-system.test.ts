@@ -25,7 +25,7 @@ describe('system composition', () => {
       nextCursor: null,
     });
     expect(system.projection.listProjections.execute().map((projection) => projection.key)).toEqual(
-      ['system.currentAxioms', 'system.glossary', 'system.predicates'],
+      ['system.currentItems', 'system.glossary'],
     );
     expect(Object.keys(system)).toEqual([
       'capture',
@@ -50,9 +50,8 @@ class EmptyInterpreter {
       kind: 'knowledge',
       draft: {
         entryId: request.entry.id,
-        concepts: [],
-        predicates: [],
-        axioms: [],
+        items: [],
+        components: [],
       },
     };
   }

@@ -1,0 +1,210 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`legacy semantic parity through composable Items > translates citation 1`] = `
+ComponentRevision {
+  "evidence": [
+    {
+      "entryId": "entry-citation",
+      "sourceLocators": [],
+    },
+  ],
+  "id": "quote",
+  "itemId": "item-citation",
+  "key": "quote",
+  "recordedAt": "2026-08-02T12:00:00Z",
+  "schemaVersion": 1,
+  "status": "accepted",
+  "supersedesRevisionId": undefined,
+  "validTime": undefined,
+  "value": "citas exactas",
+}
+`;
+
+exports[`legacy semantic parity through composable Items > translates conflict 1`] = `
+[
+  ComponentRevision {
+    "evidence": [
+      {
+        "entryId": "entry-conflict",
+        "sourceLocators": [],
+      },
+    ],
+    "id": "nine",
+    "itemId": "item-conflict",
+    "key": "statement",
+    "recordedAt": "2026-08-02T12:00:00Z",
+    "schemaVersion": 1,
+    "status": "candidate",
+    "supersedesRevisionId": undefined,
+    "validTime": undefined,
+    "value": {
+      "attribute": "startTime",
+      "value": "09:00",
+    },
+  },
+  ComponentRevision {
+    "evidence": [
+      {
+        "entryId": "entry-conflict",
+        "sourceLocators": [],
+      },
+    ],
+    "id": "ten",
+    "itemId": "item-conflict",
+    "key": "statement",
+    "recordedAt": "2026-08-02T12:00:00Z",
+    "schemaVersion": 1,
+    "status": "candidate",
+    "supersedesRevisionId": undefined,
+    "validTime": undefined,
+    "value": {
+      "attribute": "startTime",
+      "value": "10:00",
+    },
+  },
+]
+`;
+
+exports[`legacy semantic parity through composable Items > translates identity 1`] = `
+{
+  "item": Item {
+    "createdAt": "2026-08-02T12:00:00Z",
+    "id": "item-identity",
+    "profile": undefined,
+  },
+  "revisions": [
+    ComponentRevision {
+      "evidence": [
+        {
+          "entryId": "entry-identity",
+          "sourceLocators": [],
+        },
+      ],
+      "id": "name",
+      "itemId": "item-identity",
+      "key": "name",
+      "recordedAt": "2026-08-02T12:00:00Z",
+      "schemaVersion": 1,
+      "status": "accepted",
+      "supersedesRevisionId": undefined,
+      "validTime": undefined,
+      "value": "Rust",
+    },
+    ComponentRevision {
+      "evidence": [
+        {
+          "entryId": "entry-identity",
+          "sourceLocators": [],
+        },
+      ],
+      "id": "aliases",
+      "itemId": "item-identity",
+      "key": "aliases",
+      "recordedAt": "2026-08-02T12:00:00Z",
+      "schemaVersion": 1,
+      "status": "accepted",
+      "supersedesRevisionId": undefined,
+      "validTime": undefined,
+      "value": [
+        "Rustlang",
+      ],
+    },
+  ],
+}
+`;
+
+exports[`legacy semantic parity through composable Items > translates literal 1`] = `
+ComponentRevision {
+  "evidence": [
+    {
+      "entryId": "entry-literal",
+      "sourceLocators": [],
+    },
+  ],
+  "id": "literal",
+  "itemId": "item-literal",
+  "key": "statement",
+  "recordedAt": "2026-08-02T12:00:00Z",
+  "schemaVersion": 1,
+  "status": "accepted",
+  "supersedesRevisionId": undefined,
+  "validTime": undefined,
+  "value": {
+    "attribute": "limit",
+    "value": 10,
+  },
+}
+`;
+
+exports[`legacy semantic parity through composable Items > translates relationship 1`] = `
+ComponentRevision {
+  "evidence": [
+    {
+      "entryId": "entry-relationship",
+      "sourceLocators": [],
+    },
+  ],
+  "id": "participants",
+  "itemId": "item-relationship",
+  "key": "participants",
+  "recordedAt": "2026-08-02T12:00:00Z",
+  "schemaVersion": 1,
+  "status": "accepted",
+  "supersedesRevisionId": undefined,
+  "validTime": undefined,
+  "value": [
+    {
+      "item": {
+        "itemId": "marcelo",
+        "kind": "itemReference",
+        "profile": undefined,
+      },
+      "role": "employee",
+    },
+    {
+      "item": {
+        "itemId": "acme",
+        "kind": "itemReference",
+        "profile": undefined,
+      },
+      "role": "employer",
+    },
+  ],
+}
+`;
+
+exports[`legacy semantic parity through composable Items > translates review 1`] = `
+{
+  "candidates": [
+    "rust-language",
+    "rust-game",
+  ],
+  "kind": "referenceResolution",
+  "proposedItemId": "item-review",
+}
+`;
+
+exports[`legacy semantic parity through composable Items > translates supersession 1`] = `
+[
+  ComponentRevision {
+    "evidence": [
+      {
+        "entryId": "entry-supersession",
+        "sourceLocators": [],
+      },
+    ],
+    "id": "new",
+    "itemId": "item-supersession",
+    "key": "statement",
+    "recordedAt": "2026-08-02T12:00:00Z",
+    "schemaVersion": 1,
+    "status": "accepted",
+    "supersedesRevisionId": "old",
+    "validTime": undefined,
+    "value": {
+      "attribute": "storage",
+      "value": "postgres",
+    },
+  },
+]
+`;

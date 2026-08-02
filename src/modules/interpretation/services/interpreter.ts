@@ -172,11 +172,7 @@ function parseOutput(value: unknown, entryId: string): InterpretationAdapterOutp
       return invalidOutput('Knowledge Interpreter output references a different Entry');
     }
 
-    const hasKnowledge =
-      value.draft.concepts.length > 0 ||
-      value.draft.predicates.length > 0 ||
-      value.draft.axioms.length > 0 ||
-      (value.draft.links?.length ?? 0) > 0;
+    const hasKnowledge = value.draft.items.length > 0 || value.draft.components.length > 0;
 
     return hasKnowledge
       ? Object.freeze({
@@ -262,10 +258,9 @@ function isDraft(value: unknown): value is RegisterInterpretationInput {
     return false;
   }
 
-  const requiredCollections = [value.concepts, value.predicates, value.axioms];
-  const hasRequiredShape =
-    typeof value.entryId === 'string' && requiredCollections.every(Array.isArray);
-  const hasValidOptionalLinks = value.links === undefined || Array.isArray(value.links);
-
-  return hasRequiredShape && hasValidOptionalLinks;
+  return (
+    typeof value.entryId === 'string' &&
+    Array.isArray(value.items) &&
+    Array.isArray(value.components)
+  );
 }

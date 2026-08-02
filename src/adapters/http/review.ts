@@ -26,9 +26,7 @@ const summarySchema = Type.Object({
 
 const candidateSchema = Type.Object({
   id: Type.String(),
-  name: Type.String(),
-  aliases: Type.Array(Type.String()),
-  definition: Type.String(),
+  label: Type.String(),
 });
 
 const resolutionSchema = Type.Object({
@@ -36,9 +34,10 @@ const resolutionSchema = Type.Object({
   question: Type.String(),
   proposed: Type.Object({
     reference: Type.String(),
-    name: Type.String(),
-    aliases: Type.Optional(Type.Array(Type.String())),
-    definition: Type.String(),
+    profile: Type.Optional(Type.Object({ key: Type.String(), version: Type.Integer() })),
+    referenceStatus: Type.Optional(
+      Type.Union([Type.Literal('identified'), Type.Literal('uncertain')]),
+    ),
   }),
   candidates: Type.Array(candidateSchema),
 });
@@ -46,10 +45,10 @@ const resolutionSchema = Type.Object({
 const decisionSchema = Type.Object(
   {
     reference: Type.String({ minLength: 1 }),
-    selectedConceptId: Type.Optional(
+    selectedItemId: Type.Optional(
       Type.String({
         minLength: 1,
-        description: 'Existing candidate Concept to select; omit to confirm the proposed Concept.',
+        description: 'Existing candidate Item to select; omit to confirm the proposed Item.',
       }),
     ),
   },
@@ -192,14 +191,8 @@ function createDetail(review: Review) {
       ...review.resolution,
       proposed: {
         ...review.resolution.proposed,
-        aliases: review.resolution.proposed.aliases
-          ? [...review.resolution.proposed.aliases]
-          : undefined,
       },
-      candidates: review.resolution.candidates.map((candidate) => ({
-        ...candidate,
-        aliases: [...candidate.aliases],
-      })),
+      candidates: review.resolution.candidates.map((candidate) => ({ ...candidate })),
     },
     decision: review.decision ? { ...review.decision } : undefined,
     resolvedAt: review.resolvedAt,

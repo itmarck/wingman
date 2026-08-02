@@ -1,5 +1,6 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
+import { createKnowledgeRegistry } from '../core/item/system.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
 import { GetEntryQuery } from '../modules/capture/operations/get.js';
@@ -31,9 +32,8 @@ import {
 import { RegisterInterpretationCommand } from '../modules/interpretation/services/register.js';
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
 import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/registry.js';
-import { CurrentAxiomsProjection } from '../modules/projection/domain/axioms.js';
 import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
-import { PredicateCatalogProjection } from '../modules/projection/domain/predicates.js';
+import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
@@ -74,10 +74,10 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const ids = new UuidGenerator();
   const clock = new SystemClock();
   const proposals = new ProposalRegistry(ids, () => clock.now());
+  const registry = createKnowledgeRegistry();
   const projections = new MemoryProjectionRegistry([
-    new CurrentAxiomsProjection(),
+    new CurrentItemsProjection(),
     new GlossaryProjection(),
-    new PredicateCatalogProjection(),
   ]);
   const processing = options.processing ?? defaultProcessingConfig;
   let storage: SystemStorage;
@@ -89,7 +89,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     case 'memory': {
       const lock = new MemoryLock();
       const reviews = new MemoryReviewStore(lock);
-      const knowledge = new MemoryKnowledgeStore();
+      const knowledge = new MemoryKnowledgeStore(registry);
       const interpretations = new MemoryInterpretations(lock);
 
       storage = Object.freeze({
@@ -115,8 +115,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const interpreter = new Interpreter(options.adapter, options.inference, options.telemetry);
   const registerInterpretation = new RegisterInterpretationCommand(
     knowledge,
-    reviews,
     lifecycle,
+    registry,
     ids,
     clock,
   );

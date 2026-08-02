@@ -57,10 +57,8 @@ describe('Interpretation queue', () => {
       lifecycle.publish(
         completeInterpretation(processing, '2026-07-20T12:06:00Z'),
         {
-          concepts: [],
-          predicates: [],
-          axioms: [],
-          links: [],
+          items: [],
+          revisions: [],
         },
         first,
       ),
@@ -74,10 +72,8 @@ describe('Interpretation queue', () => {
     await lifecycle.publish(
       completeInterpretation(recoveredProcessing, '2026-07-20T12:07:00Z'),
       {
-        concepts: [],
-        predicates: [],
-        axioms: [],
-        links: [],
+        items: [],
+        revisions: [],
       },
       recovered,
     );
@@ -133,18 +129,15 @@ function completeInterpretation(
   return interpretation.completeKnowledge(
     {
       entryId: interpretation.entryId,
-      concepts: [],
-      predicates: [],
-      axioms: [],
+      items: [],
+      components: [],
     },
     {
       key: 'test',
     },
     {
-      conceptIds: [],
-      predicateIds: [],
-      axiomIds: [],
-      linkIds: [],
+      itemIds: [],
+      revisionIds: [],
     },
     completedAt,
   );

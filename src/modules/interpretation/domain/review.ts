@@ -1,7 +1,6 @@
-import type { ConceptId } from '../../../core/knowledge/concept.js';
 import { assertText, assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
-import type { InterpretationConcept, ReferenceDecision } from './input.js';
+import type { InterpretationItem, ReferenceDecision } from './input.js';
 import type { InterpretationId } from './interpretation.js';
 
 export type ReviewId = string;
@@ -9,16 +8,14 @@ export type ReviewKind = 'referenceResolution';
 export type ReviewStatus = 'pending' | 'resolved';
 
 export interface ReferenceCandidate {
-  readonly id: ConceptId;
-  readonly name: string;
-  readonly aliases: readonly string[];
-  readonly definition: string;
+  readonly id: string;
+  readonly label: string;
 }
 
 export interface ReferenceResolution {
   readonly reference: string;
   readonly question: string;
-  readonly proposed: InterpretationConcept;
+  readonly proposed: InterpretationItem;
   readonly candidates: readonly ReferenceCandidate[];
 }
 
@@ -41,7 +38,7 @@ export interface RehydrateReviewInput extends CreateInterpretationReviewInput, R
 }
 
 /**
- * Durable request that resolves one Draft reference to a proposed or existing Concept.
+ * Durable request that resolves one Draft reference to a proposed or existing Item.
  */
 export class Review {
   readonly id: ReviewId;
@@ -168,7 +165,7 @@ function assertIdentity(input: CreateInterpretationReviewInput): void {
   assertUtcDateTime(input.createdAt, 'Review createdAt');
 
   if (input.resolution.proposed.reference !== input.resolution.reference) {
-    throw new InvalidInputError('Review proposed Concept must match its reference');
+    throw new InvalidInputError('Review proposed Item must match its reference');
   }
 }
 
@@ -177,14 +174,14 @@ function assertDecision(resolution: ReferenceResolution, decision: ReferenceDeci
     throw new InvalidInputError('Review decision must resolve its reference');
   }
 
-  if (decision.selectedConceptId === undefined) {
+  if (decision.selectedItemId === undefined) {
     return;
   }
 
   const candidateIds = resolution.candidates.map((candidate) => candidate.id);
 
-  if (!candidateIds.includes(decision.selectedConceptId)) {
-    throw new InvalidInputError(`Concept ${decision.selectedConceptId} is not a Review candidate`);
+  if (!candidateIds.includes(decision.selectedItemId)) {
+    throw new InvalidInputError(`Item ${decision.selectedItemId} is not a Review candidate`);
   }
 }
 
@@ -193,15 +190,14 @@ function freezeResolution(resolution: ReferenceResolution): ReferenceResolution 
     ...resolution,
     proposed: Object.freeze({
       ...resolution.proposed,
-      aliases: resolution.proposed.aliases
-        ? Object.freeze([...resolution.proposed.aliases])
+      profile: resolution.proposed.profile
+        ? Object.freeze({ ...resolution.proposed.profile })
         : undefined,
     }),
     candidates: Object.freeze(
       resolution.candidates.map((candidate) =>
         Object.freeze({
           ...candidate,
-          aliases: Object.freeze([...candidate.aliases]),
         }),
       ),
     ),

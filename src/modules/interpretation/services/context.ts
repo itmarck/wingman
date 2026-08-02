@@ -1,20 +1,22 @@
-import type { Axiom } from '../../../core/knowledge/axiom.js';
-import type { Concept } from '../../../core/knowledge/concept.js';
+import type { ComponentRevision } from '../../../core/item/component.js';
+import type { Item } from '../../../core/item/item.js';
 import type { Entry } from '../../../core/knowledge/entry.js';
-import type { Predicate } from '../../../core/knowledge/predicate.js';
 
-/**
- * Relevant existing knowledge supplied to an Interpreter without exposing persistence.
- */
 export interface InterpretationContext {
-  readonly concepts: readonly Concept[];
-  readonly predicates: readonly Predicate[];
-  readonly axioms: readonly Axiom[];
+  readonly items: readonly Item[];
+  readonly revisions: readonly ComponentRevision[];
+  readonly componentSchemas: readonly {
+    readonly key: string;
+    readonly version: number;
+    readonly description: string;
+  }[];
+  readonly profiles: readonly {
+    readonly key: string;
+    readonly version: number;
+    readonly description: string;
+  }[];
 }
 
-/**
- * Retrieves the bounded knowledge an Interpreter may consider for one Entry.
- */
 export interface InterpretationContextSource {
   findInterpretationContext(entry: Entry): Promise<InterpretationContext>;
 }

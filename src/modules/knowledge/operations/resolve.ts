@@ -1,18 +1,19 @@
-import { type ConceptResolution, resolveConcept } from '../../../core/knowledge/resolve.js';
-import type { ConceptStore } from '../ports/store.js';
+import type { Item } from '../../../core/item/item.js';
+import { normalizeText } from '../../../core/knowledge/guard.js';
+import type { ItemStore } from '../ports/store.js';
 
-export interface ResolveConceptInput {
-  readonly name: string;
-  readonly definition?: string;
+export interface ItemResolution {
+  readonly kind: 'none' | 'single' | 'ambiguous';
+  readonly candidates: readonly Item[];
 }
 
-/**
- * Resolves deterministic candidates available to the application.
- */
-export class ResolveConceptQuery {
-  constructor(private readonly store: ConceptStore) {}
-
-  async execute(input: ResolveConceptInput): Promise<ConceptResolution> {
-    return resolveConcept(await this.store.findConcepts(input.name), input.name, input.definition);
+export class ResolveItemQuery {
+  constructor(private readonly store: ItemStore) {}
+  async execute(name: string): Promise<ItemResolution> {
+    const candidates = await this.store.findItems(normalizeText(name));
+    return Object.freeze({
+      kind: candidates.length === 0 ? 'none' : candidates.length === 1 ? 'single' : 'ambiguous',
+      candidates,
+    });
   }
 }
