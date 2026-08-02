@@ -38,6 +38,9 @@ import {
 } from '../modules/interpretation/services/interpreter.js';
 import { RegisterInterpretationCommand } from '../modules/interpretation/services/register.js';
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
+import type { PlanningModule } from '../modules/planning/module.js';
+import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
+import { PlanningCommandService } from '../modules/planning/operations/write.js';
 import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/registry.js';
 import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
 import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
@@ -81,6 +84,7 @@ export interface System {
   readonly execution: ExecutionModule;
   readonly state: StateModule;
   readonly rule: RuleModule;
+  readonly planning: PlanningModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -158,6 +162,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     clock,
     processing,
   );
+  const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
   const proposeIntent = new ProposeIntentCommand(
     executionStore,
     capabilities,
@@ -214,7 +219,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       store: executionStore,
     }),
     state: Object.freeze({
-      createState: new CreateStateCommand(stateStore, knowledge, operators, ids, clock),
+      createState,
       listView: new ListStateViewQuery(stateStore, derivedStates, knowledge, stateEvaluator, clock),
       evaluate: stateEvaluator,
       derived: derivedStates,
@@ -232,6 +237,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       controlRule: new ControlRuleCommand(ruleStore),
       worker: new RuleWorker(ruleStore, knowledge, stateEvaluator, proposeIntent, ids, clock),
       store: ruleStore,
+    }),
+    planning: Object.freeze({
+      commands: new PlanningCommandService(knowledge, createState, ids, clock),
+      queries: new PlanningQueryService(knowledge, () => clock.now()),
+      views: planningViews,
     }),
     proposals,
     async close(): Promise<void> {
