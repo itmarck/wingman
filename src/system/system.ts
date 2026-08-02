@@ -1,4 +1,5 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
+import { UnavailableNotificationAdapter } from '../adapters/notification/unavailable.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
 import { CapabilityRegistry } from '../core/execution/capability.js';
 import { createKnowledgeRegistry } from '../core/item/system.js';
@@ -47,6 +48,12 @@ import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
+import { MemoryReminderStore } from '../modules/reminder/adapters/memory/store.js';
+import type { ReminderModule } from '../modules/reminder/module.js';
+import { NotificationCapability } from '../modules/reminder/notification-capability.js';
+import { ReminderService } from '../modules/reminder/operations/manage.js';
+import { ReminderWorker } from '../modules/reminder/operations/worker.js';
+import type { NotificationPort } from '../modules/reminder/ports/notification.js';
 import { MemoryRuleStore } from '../modules/rule/adapters/memory/store.js';
 import type { RuleModule } from '../modules/rule/module.js';
 import { ControlRuleCommand } from '../modules/rule/operations/control.js';
@@ -72,6 +79,7 @@ export interface SystemOptions {
   readonly telemetry?: InferenceTelemetry;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
+  readonly notification?: NotificationPort;
 }
 
 /**
@@ -85,6 +93,7 @@ export interface System {
   readonly state: StateModule;
   readonly rule: RuleModule;
   readonly planning: PlanningModule;
+  readonly reminder: ReminderModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -104,9 +113,13 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const stateEvaluator = new StateEvaluator(operators, clock);
   const derivedStates = new DerivedStateRegistry(operators);
   const capabilities = new CapabilityRegistry();
+  capabilities.register(
+    new NotificationCapability(options.notification ?? new UnavailableNotificationAdapter()),
+  );
   const executionStore = new MemoryExecutionStore();
   const triggers = createTriggerRegistry();
   const ruleStore = new MemoryRuleStore();
+  const reminderStore = new MemoryReminderStore();
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -163,6 +176,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     processing,
   );
   const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
+  const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock);
   const proposeIntent = new ProposeIntentCommand(
     executionStore,
     capabilities,
@@ -171,7 +185,41 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
-
+  const registerRule = new RegisterRuleCommand(
+    ruleStore,
+    triggers,
+    operators,
+    capabilities,
+    knowledge,
+    ids,
+    clock,
+  );
+  const controlRule = new ControlRuleCommand(ruleStore);
+  const ruleWorker = new RuleWorker(
+    ruleStore,
+    knowledge,
+    stateEvaluator,
+    proposeIntent,
+    ids,
+    clock,
+  );
+  const reminderService = new ReminderService(
+    reminderStore,
+    planningCommands,
+    registerRule,
+    controlRule,
+    ids,
+    clock,
+  );
+  const executeIntent = new ExecuteIntentCommand(
+    executionStore,
+    capabilities,
+    knowledge,
+    stateEvaluator,
+    { global: 'propose' },
+    ids,
+    clock,
+  );
   return Object.freeze({
     capture: Object.freeze({
       captureEntry: new CaptureEntryCommand(lifecycle, ids, clock),
@@ -206,15 +254,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       proposeIntent,
       authorizeIntent: new AuthorizeIntentCommand(executionStore),
       cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
-      executeIntent: new ExecuteIntentCommand(
-        executionStore,
-        capabilities,
-        knowledge,
-        stateEvaluator,
-        { global: 'propose' },
-        ids,
-        clock,
-      ),
+      executeIntent,
       capabilities,
       store: executionStore,
     }),
@@ -225,23 +265,27 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       derived: derivedStates,
     }),
     rule: Object.freeze({
-      registerRule: new RegisterRuleCommand(
-        ruleStore,
-        triggers,
-        operators,
-        capabilities,
-        knowledge,
-        ids,
-        clock,
-      ),
-      controlRule: new ControlRuleCommand(ruleStore),
-      worker: new RuleWorker(ruleStore, knowledge, stateEvaluator, proposeIntent, ids, clock),
+      registerRule,
+      controlRule,
+      worker: ruleWorker,
       store: ruleStore,
     }),
     planning: Object.freeze({
-      commands: new PlanningCommandService(knowledge, createState, ids, clock),
+      commands: planningCommands,
       queries: new PlanningQueryService(knowledge, () => clock.now()),
       views: planningViews,
+    }),
+    reminder: Object.freeze({
+      manage: reminderService,
+      worker: new ReminderWorker(
+        reminderStore,
+        ruleStore,
+        ruleWorker,
+        executionStore,
+        executeIntent,
+        createState,
+        clock,
+      ),
     }),
     proposals,
     async close(): Promise<void> {

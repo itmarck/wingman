@@ -1,5 +1,6 @@
 import type { ProcessingConfig } from '../../modules/interpretation/config.js';
 import type { InterpretationAdapter } from '../../modules/interpretation/services/interpreter.js';
+import type { NotificationPort } from '../../modules/reminder/ports/notification.js';
 import type { MutationMode } from '../proposal.js';
 import { createSystem, type System } from '../system.js';
 
@@ -7,6 +8,7 @@ interface TestSystemOptions {
   readonly adapter: InterpretationAdapter;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
+  readonly notification?: NotificationPort;
 }
 
 export function createTestSystem(options: TestSystemOptions): System {
@@ -19,5 +21,6 @@ export function createTestSystem(options: TestSystemOptions): System {
     adapter: options.adapter,
     mode: options.mode ?? 'write',
     processing: options.processing,
+    notification: options.notification,
   });
 }
