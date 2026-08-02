@@ -2,6 +2,7 @@ import { MemoryLock } from '../adapters/memory/lock.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
 import { CapabilityRegistry } from '../core/execution/capability.js';
 import { createKnowledgeRegistry } from '../core/item/system.js';
+import { createTriggerRegistry } from '../core/rule/registry.js';
 import { createOperatorRegistry } from '../core/state/registry.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
@@ -43,6 +44,11 @@ import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
+import { MemoryRuleStore } from '../modules/rule/adapters/memory/store.js';
+import type { RuleModule } from '../modules/rule/module.js';
+import { ControlRuleCommand } from '../modules/rule/operations/control.js';
+import { RegisterRuleCommand } from '../modules/rule/operations/register.js';
+import { RuleWorker } from '../modules/rule/operations/worker.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
 import { CreateStateCommand } from '../modules/state/operations/create.js';
@@ -74,6 +80,7 @@ export interface System {
   readonly projection: ProjectionModule;
   readonly execution: ExecutionModule;
   readonly state: StateModule;
+  readonly rule: RuleModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -94,6 +101,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const derivedStates = new DerivedStateRegistry(operators);
   const capabilities = new CapabilityRegistry();
   const executionStore = new MemoryExecutionStore();
+  const triggers = createTriggerRegistry();
+  const ruleStore = new MemoryRuleStore();
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -149,6 +158,14 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     clock,
     processing,
   );
+  const proposeIntent = new ProposeIntentCommand(
+    executionStore,
+    capabilities,
+    operators,
+    knowledge,
+    ids,
+    clock,
+  );
 
   return Object.freeze({
     capture: Object.freeze({
@@ -181,14 +198,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       readProjection: new ReadProjectionQuery(knowledge, projections),
     }),
     execution: Object.freeze({
-      proposeIntent: new ProposeIntentCommand(
-        executionStore,
-        capabilities,
-        operators,
-        knowledge,
-        ids,
-        clock,
-      ),
+      proposeIntent,
       authorizeIntent: new AuthorizeIntentCommand(executionStore),
       cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
       executeIntent: new ExecuteIntentCommand(
@@ -208,6 +218,20 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       listView: new ListStateViewQuery(stateStore, derivedStates, knowledge, stateEvaluator, clock),
       evaluate: stateEvaluator,
       derived: derivedStates,
+    }),
+    rule: Object.freeze({
+      registerRule: new RegisterRuleCommand(
+        ruleStore,
+        triggers,
+        operators,
+        capabilities,
+        knowledge,
+        ids,
+        clock,
+      ),
+      controlRule: new ControlRuleCommand(ruleStore),
+      worker: new RuleWorker(ruleStore, knowledge, stateEvaluator, proposeIntent, ids, clock),
+      store: ruleStore,
     }),
     proposals,
     async close(): Promise<void> {

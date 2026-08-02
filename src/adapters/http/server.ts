@@ -10,6 +10,7 @@ import { readMutationMode } from './mutation.js';
 import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
 import { reviewRoutes } from './review.js';
+import { ruleRoutes } from './rule.js';
 import { stateRoutes } from './state.js';
 
 export interface HttpServerOptions {
@@ -55,6 +56,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Proposals' },
         { name: 'States' },
         { name: 'Execution' },
+        { name: 'Rules' },
       ],
     },
   });
@@ -109,6 +111,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(proposalRoutes, { proposals: system.proposals });
       await protectedServer.register(stateRoutes, { system });
       await protectedServer.register(executionRoutes, { system });
+      await protectedServer.register(ruleRoutes, { system });
     },
     { prefix: '/api' },
   );
