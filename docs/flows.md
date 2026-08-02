@@ -1,158 +1,166 @@
 # Flows
 
-## Capture and asynchronous processing
+Target runtime flows; the implementation may retain legacy behavior until the related OpenSpec changes are archived.
 
-The Connector receives either an Entry identity or a Proposal immediately. Once committed, the
-queued Interpretation continues asynchronously with selected context.
+## Capture, interpretation, and publication
+
+One input may create both an immutable Entry and an Event. Publication is always atomic.
 
 ```mermaid
 sequenceDiagram
     participant Connector
     participant Capture
-    participant Lifecycle
     participant Queue
-    participant Worker
     participant Interpreter
+    participant Reviews
+    participant Knowledge
 
-    Connector->>Capture: capture Entry
-    Capture->>Lifecycle: Entry + initial Interpretation
-    Lifecycle-->>Capture: atomic commit
-    Capture-->>Connector: Entry identity
-    Queue->>Worker: claim queued Interpretation
-    Worker->>Interpreter: Entry + selected context
-    Interpreter-->>Worker: knowledge | empty | invalid | error
+    Connector->>Capture: Entry and/or external Event
+    Capture-->>Connector: committed identity
+    Capture->>Queue: enqueue Interpretation
+    Queue->>Interpreter: input + selected context
+    Interpreter->>Interpreter: draft Items, Components, Profiles, references, evidence
+    alt consequential reference is ambiguous
+        Interpreter->>Reviews: open referenceResolution
+        Reviews-->>Interpreter: selected Item or confirmed proposal
+    end
+    Interpreter->>Knowledge: validate and publish complete draft atomically
 ```
 
-## Interpretation state
+Simple connections use typed references; relationships requiring their own evidence or history are Items.
 
-Temporary failures return to the queue, unresolved Concept references wait for human review, and
-permanent outcomes preserve their final state.
+## Review and conflict resolution
 
-```mermaid
-stateDiagram-v2
-    [*] --> queued
-    queued --> processing
-    processing --> pending: reviews required
-    processing --> completed: finished successfully
-    processing --> failed: permanent failure
-    processing --> exhausted: retries exhausted
-    processing --> queued: temporary failure
-    pending --> completed: all reviews resolved
-    failed --> queued: manual retry
-    exhausted --> queued: manual retry
-```
-
-## Review and publication
-
-The complete Draft is validated first. An uncertain Concept reference may be requested explicitly
-by inference or detected automatically while matching Concepts. Both paths create the same
-`referenceResolution` Review and pause publication until every reference is resolved. Proposed
-Concepts declare `referenceStatus`; `uncertain` is invalid without a matching resolution request.
-Existing context Concepts can be referenced directly by ID.
-
-Generic unnamed-person placeholders are treated as uncertain even if the provider labels them as identified, so claims about an unknown author or creator cannot silently create a canonical person.
-
-```mermaid
-flowchart TD
-    Draft[Validate complete Draft]
-    Valid{Valid?}
-    Unresolved{Unresolved references?}
-    Reviews[Create referenceResolution Reviews]
-    Resolve[Select candidate or confirm proposal]
-    Publish[Publish knowledge atomically]
-    Complete[Complete Interpretation]
-    Fail[Fail Interpretation]
-
-    Draft --> Valid
-    Valid -- no --> Fail
-    Valid -- yes --> Unresolved
-    Unresolved -- no --> Publish
-    Unresolved -- yes --> Reviews
-    Reviews --> Resolve
-    Resolve --> Publish
-    Publish --> Complete
-```
-
-Knowledge is never partially published. The final Review, publication, and completed
-Interpretation share one atomic operation.
-
-Each Review contains one reference, a human-readable question, the proposed Concept and zero or
-more existing Concept candidates. `POST /api/reviews/:id/resolution` selects a candidate by
-`selectedConceptId`; omitting it confirms the proposed Concept. Review decisions cannot be supplied
-by the Interpreter inside its Draft.
-
-Provider transport, throttling and server failures may be retried automatically. Generated output
-that violates the structured schema fails immediately because repeating the same deterministic
-contract error is not treated as provider unavailability. When a provider supplies `Retry-After`, the worker respects that delay before the next configured attempt.
-
-External statements may remain exact `quote` Literals without resolving their author. A Review is
-required only when an uncertain author or entity is used as a Concept reference. Predicate keys are
-supplied with their allowed Axiom/Link usage. Text Entries accept paragraph locators only; URL
-Entries currently accept none.
-
-## Mutation control
-
-Mutation is controlled at two independent boundaries:
-
-- `X-Mutation-Mode` controls the current HTTP request and defaults to `readonly`.
-- `MUTATION_MODE` controls background Interpretation mutations and defaults to `approval`.
-
-Both use the same in-memory Proposal registry when their effective mode is `approval`.
-Resolving a Review is a user mutation: in HTTP `approval` mode it creates a Proposal immediately,
-and approving that Proposal performs the resolution and any resulting atomic publication. It does
-not create a second background-publication Proposal.
-
-```mermaid
-sequenceDiagram
-    participant Connector
-    participant API
-    participant Proposals
-    participant Queue
-    participant Worker
-    participant Interpreter
-    participant Store
-
-    Connector->>API: POST Entry with X-Mutation-Mode: approval
-    API->>Proposals: Entry + initial Interpretation
-    Proposals-->>Connector: Proposal and approval URL
-    Connector->>API: approve capture Proposal
-    API->>Store: commit Entry + Interpretation
-    Store->>Queue: enqueue Interpretation
-    Queue->>Worker: claim
-    Worker->>Interpreter: interpret Entry
-    Interpreter-->>Worker: processed Draft
-    Worker->>Proposals: exact publication changes
-    Note over Worker,Proposals: Worker waits and renews its lease
-    Connector->>API: list and approve publication Proposal
-    API->>Store: atomic publication
-    Store-->>Worker: committed
-    Worker->>Queue: complete claim
-```
-
-Rejecting the asynchronous Proposal releases the waiting worker as a failed Interpretation.
-Pending Proposals have no timer and disappear when approved, rejected, or when the process stops.
-
-## Runtime lifecycle
-
-`main.ts` only composes dependencies and delegates process lifecycle to `Runtime`.
+`referenceResolution` resolves identity ambiguity, not workflow approval. Conflicting evidence is preserved.
 
 ```mermaid
 flowchart LR
-    Config[Configuration]
-    Main[main.ts]
-    Runtime[Runtime]
-    Server[HTTP Server]
-    Worker[Interpretation Worker]
-    System[System]
-    Database[PostgreSQL]
-
-    Config --> Main
-    Main --> Runtime
-    Runtime --> Server
-    Runtime --> Worker
-    Runtime --> System
-    Runtime --> Database
+    Draft[Complete interpretation draft] --> Validate{Structurally valid?}
+    Validate -- no --> Fail[Fail interpretation]
+    Validate -- yes --> Ambiguous{Consequential ambiguity?}
+    Ambiguous -- yes --> Review[referenceResolution Review]
+    Review --> Resolve[Select existing Item or confirm proposal]
+    Resolve --> Publish[Atomic publication]
+    Ambiguous -- no --> Publish
 ```
 
-The HTTP lifecycle is framework-independent at this boundary. PostgreSQL currently stores inference
-telemetry; functional knowledge remains in memory.
+## Knowledge and State evaluation
+
+Knowledge emerges from Items and Components. State may be observed, believed, desired, required, forbidden, or predicted.
+
+```mermaid
+flowchart LR
+    Inputs[Items + Components + Events + time] --> Snapshot[Knowledge snapshot]
+    Persisted[Non-derivable modal State] --> Evaluator[State evaluator]
+    Snapshot --> Evaluator
+    Evaluator --> Current[Current and unresolved State]
+    Evaluator --> Planning[Planning projections]
+    Evaluator --> Rules[Rule dependency index]
+    Evaluator --> Detectors[Proactive detectors]
+```
+
+State is derived by default and persisted only when it cannot be reconstructed.
+
+## Declarative Rule evaluation
+
+Rules use closed `Given / When / Then` declarations and never call Capabilities directly.
+
+```mermaid
+flowchart LR
+    Trigger[Time, Event, or State change] --> Match[Match indexed Rules]
+    Match --> Given{Given holds?}
+    Given -- no --> Wait[Remain eligible]
+    Given -- yes --> Policy[Apply cooldown, expiry, stop, priority, dedupe]
+    Policy --> Intent[Create validated Intent]
+```
+
+## Intent execution and observation
+
+Intent proposes; Capability executes; Attempt records the try; Event records the outcome.
+
+```mermaid
+sequenceDiagram
+    participant Source as User, Rule, or detector
+    participant Intents
+    participant Policy as Authorization and autonomy
+    participant Capability
+    participant Adapter
+    participant State
+
+    Source->>Intents: propose Intent
+    Intents->>Policy: validate input and current conditions
+    Policy->>Capability: authorize eligible execution
+    Capability->>Capability: create idempotent Attempt
+    Capability->>Adapter: perform effect
+    Adapter-->>Capability: observed outcome
+    Capability->>State: publish outcome Event
+    State-->>Intents: expected, failed, uncertain, stale, or cancelled State
+```
+
+Conditions are reevaluated before every Attempt. A Capability's safety ceiling always limits autonomy.
+
+## Task planning
+
+Tasks, objectives, plans, and habits are Item compositions, not separate storage models.
+
+```mermaid
+flowchart LR
+    Capture[Entry or explicit proposal] --> Compose[Planning Item + Profile + Components]
+    Compose --> State[Current and desired State]
+    State --> Views[Next actions, blockers, unscheduled work, progress]
+    Views --> Rules[Rules and proactive detectors]
+    Rules --> Intents[Suggested or authorized Intents]
+```
+
+## Reminder workflow
+
+Deadline and reminder cadence are independent.
+
+```mermaid
+flowchart LR
+    Entry[Reminder request] --> Structure[Task or subject + temporal Components]
+    Structure --> Rule[Reminder Rule]
+    Rule --> Intent[Notification Intent]
+    Intent --> Capability[Notification Capability]
+    Capability --> Attempt[Delivery Attempt]
+    Attempt --> Event[Delivery Event]
+    Event --> State[Observed State]
+    State --> Rule
+```
+
+Completion stops stale reminders; retries create new Attempts without duplicating the logical notification.
+
+## Proactive assistance
+
+Every proactive proposal carries evidence, rationale, urgency, and expiration.
+
+```mermaid
+flowchart LR
+    Context[Knowledge + State + Events] --> Detect[Deterministic detectors]
+    Detect --> Explain[Explainable proposal]
+    Explain --> Autonomy{Allowed autonomy?}
+    Autonomy -- ask --> User[Request confirmation]
+    Autonomy -- propose or execute --> Intent[Intent]
+    User --> Intent
+    Intent --> Feedback[Accepted, rejected, postponed, completed]
+    Feedback --> Preferences[Future prioritization]
+```
+
+Inference may structure or rank proposals, but cannot mutate or execute directly.
+
+## Runtime lifecycle
+
+`main.ts` delegates lifecycle to `Runtime`; infrastructure remains behind ports.
+
+```mermaid
+flowchart LR
+    Config[Configuration] --> Main[main.ts]
+    Main --> Runtime[Runtime]
+    Runtime --> API[HTTP server]
+    Runtime --> Interpretation[Interpretation worker]
+    Runtime --> Scheduler[Rule scheduler]
+    Runtime --> Execution[Intent execution worker]
+    Runtime --> System[System policies]
+    Runtime --> Storage[Storage adapters]
+    Runtime --> Connectors[Capability adapters]
+```
