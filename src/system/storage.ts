@@ -1,5 +1,4 @@
 import type { EntryStore } from '../modules/capture/ports/store.js';
-import type { IntentStore } from '../modules/intent/ports/store.js';
 import type { InterpretationLifecycle } from '../modules/interpretation/ports/lifecycle.js';
 import type { InterpretationQueue } from '../modules/interpretation/ports/queue.js';
 import type { ReviewStore } from '../modules/interpretation/ports/review.js';
@@ -13,7 +12,6 @@ export interface KnowledgeStorage
   extends EntryStore,
     ItemStore,
     InterpretationStore,
-    IntentStore,
     ProjectionSource,
     InterpretationContextSource {}
 

@@ -31,7 +31,7 @@ describe('system composition', () => {
       'capture',
       'interpretation',
       'projection',
-      'intent',
+      'execution',
       'state',
       'proposals',
       'close',

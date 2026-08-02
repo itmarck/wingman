@@ -1,13 +1,18 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
+import { CapabilityRegistry } from '../core/execution/capability.js';
 import { createKnowledgeRegistry } from '../core/item/system.js';
 import { createOperatorRegistry } from '../core/state/registry.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
 import { GetEntryQuery } from '../modules/capture/operations/get.js';
 import { ListEntriesQuery } from '../modules/capture/operations/list.js';
-import type { IntentModule } from '../modules/intent/module.js';
-import { ProposeIntentCommand } from '../modules/intent/operations/propose.js';
+import { MemoryExecutionStore } from '../modules/execution/adapters/memory/store.js';
+import type { ExecutionModule } from '../modules/execution/module.js';
+import { AuthorizeIntentCommand } from '../modules/execution/operations/authorize.js';
+import { CancelIntentCommand } from '../modules/execution/operations/cancel.js';
+import { ExecuteIntentCommand } from '../modules/execution/operations/execute.js';
+import { ProposeIntentCommand } from '../modules/execution/operations/propose.js';
 import { MemoryInterpretations } from '../modules/interpretation/adapters/memory/interpretation.js';
 import { MemoryInterpretationLifecycle } from '../modules/interpretation/adapters/memory/lifecycle.js';
 import { MemoryReviewStore } from '../modules/interpretation/adapters/memory/review.js';
@@ -67,7 +72,7 @@ export interface System {
   readonly capture: CaptureModule;
   readonly interpretation: InterpretationModule;
   readonly projection: ProjectionModule;
-  readonly intent: IntentModule;
+  readonly execution: ExecutionModule;
   readonly state: StateModule;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
@@ -87,6 +92,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const stateStore = new MemoryStateStore();
   const stateEvaluator = new StateEvaluator(operators, clock);
   const derivedStates = new DerivedStateRegistry(operators);
+  const capabilities = new CapabilityRegistry();
+  const executionStore = new MemoryExecutionStore();
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -173,8 +180,28 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       listProjections: new ListProjectionsQuery(projections),
       readProjection: new ReadProjectionQuery(knowledge, projections),
     }),
-    intent: Object.freeze({
-      proposeIntent: new ProposeIntentCommand(knowledge, ids),
+    execution: Object.freeze({
+      proposeIntent: new ProposeIntentCommand(
+        executionStore,
+        capabilities,
+        operators,
+        knowledge,
+        ids,
+        clock,
+      ),
+      authorizeIntent: new AuthorizeIntentCommand(executionStore),
+      cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
+      executeIntent: new ExecuteIntentCommand(
+        executionStore,
+        capabilities,
+        knowledge,
+        stateEvaluator,
+        { global: 'propose' },
+        ids,
+        clock,
+      ),
+      capabilities,
+      store: executionStore,
     }),
     state: Object.freeze({
       createState: new CreateStateCommand(stateStore, knowledge, operators, ids, clock),

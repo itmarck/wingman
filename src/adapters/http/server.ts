@@ -5,6 +5,7 @@ import type { System } from '../../system/system.js';
 import { createAuthHook } from './auth.js';
 import { entryRoutes } from './entry.js';
 import { registerErrorHandling } from './error.js';
+import { executionRoutes } from './execution.js';
 import { readMutationMode } from './mutation.js';
 import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
@@ -53,6 +54,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Projections' },
         { name: 'Proposals' },
         { name: 'States' },
+        { name: 'Execution' },
       ],
     },
   });
@@ -106,6 +108,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(projectionRoutes, { system });
       await protectedServer.register(proposalRoutes, { proposals: system.proposals });
       await protectedServer.register(stateRoutes, { system });
+      await protectedServer.register(executionRoutes, { system });
     },
     { prefix: '/api' },
   );

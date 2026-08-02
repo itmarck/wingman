@@ -9,8 +9,6 @@ import { normalizeText } from '../../../../core/knowledge/guard.js';
 import { ConflictError, NotFoundError } from '../../../../system/error.js';
 import type { Page, PageRequest } from '../../../../system/page.js';
 import type { EntryStore } from '../../../capture/ports/store.js';
-import type { Intent, IntentId } from '../../../intent/domain/intent.js';
-import type { IntentStore } from '../../../intent/ports/store.js';
 import type {
   InterpretationRegistration,
   InterpretationStore,
@@ -28,14 +26,12 @@ export class MemoryKnowledgeStore
     EntryStore,
     ItemStore,
     InterpretationStore,
-    IntentStore,
     ProjectionSource,
     InterpretationContextSource
 {
   #entries = new Map<EntryId, Entry>();
   #items = new Map<ItemId, Item>();
   #revisions = new Map<ComponentRevisionId, ComponentRevision>();
-  #intents = new Map<IntentId, Intent>();
 
   constructor(private readonly registry: SchemaRegistry = createKnowledgeRegistry()) {}
 
@@ -123,17 +119,6 @@ export class MemoryKnowledgeStore
           .map(({ key, version, description }) => Object.freeze({ key, version, description })),
       ),
     });
-  }
-
-  async saveIntent(intent: Intent): Promise<void> {
-    requireEntity(this.#entries, intent.entryId, 'Entry');
-    for (const revisionId of intent.revisionIds)
-      requireEntity(this.#revisions, revisionId, 'Component revision');
-    addEntity(this.#intents, intent, 'Intent');
-  }
-
-  listIntents(): readonly Intent[] {
-    return Object.freeze([...this.#intents.values()]);
   }
 
   private prepare(registration: ItemRegistration): {
