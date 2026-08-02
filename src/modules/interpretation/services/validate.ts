@@ -6,6 +6,10 @@ import { normalizeText } from '../../../core/knowledge/guard.js';
 import type { SourceLocator } from '../../../core/knowledge/source.js';
 import { InvalidInputError } from '../../../system/error.js';
 import type { RegisterInterpretationInput } from '../domain/input.js';
+import type {
+  InterpretationWorkflowDraft,
+  WorkflowTemporalConstraint,
+} from '../domain/workflow.js';
 
 /** Validates a provider Draft without mutating or resolving its local references. */
 export function validateInterpretationDraft(
@@ -78,6 +82,68 @@ export function validateInterpretationDraft(
     if (!itemReferences.has(decision.reference))
       throw new InvalidInputError(`Item reference ${decision.reference} does not exist`);
   }
+
+  validateWorkflows(input.workflows ?? []);
+}
+
+function validateWorkflows(workflows: readonly InterpretationWorkflowDraft[]): void {
+  unique(
+    workflows.map((workflow) => workflow.reference),
+    'Workflow reference',
+  );
+  const planningReferences = new Set(
+    workflows
+      .filter((workflow) => workflow.kind === 'planningRequest')
+      .map((workflow) => workflow.reference),
+  );
+  for (const workflow of workflows) {
+    required(workflow.reference, 'Workflow reference');
+    unique(workflow.unresolved, 'Unresolved workflow value');
+    for (const unresolved of workflow.unresolved) required(unresolved, 'Unresolved workflow value');
+    validateTemporal(workflow.temporal);
+    if (workflow.kind === 'planningRequest') {
+      required(workflow.title, 'Planning workflow title');
+      if (workflow.notes !== undefined) required(workflow.notes, 'Planning workflow notes');
+      if (workflow.recurrence !== undefined)
+        required(workflow.recurrence, 'Planning workflow recurrence');
+      continue;
+    }
+    required(workflow.subjectReference, 'Reminder subject reference');
+    required(workflow.message, 'Reminder message');
+    if (!planningReferences.has(workflow.subjectReference))
+      throw new InvalidInputError(
+        `Reminder subject workflow ${workflow.subjectReference} does not exist`,
+      );
+    if (workflow.schedule.kind === 'occurrences') {
+      if (workflow.schedule.at.length === 0)
+        throw new InvalidInputError('Reminder occurrences cannot be empty');
+      for (const occurrence of workflow.schedule.at)
+        assertDateTime(occurrence, 'Reminder occurrence');
+    } else if (workflow.schedule.kind === 'deadlineOffsets') {
+      if (
+        workflow.schedule.offsetsBeforeMs.length === 0 ||
+        workflow.schedule.offsetsBeforeMs.some(
+          (offset) => !Number.isSafeInteger(offset) || offset < 0,
+        )
+      )
+        throw new InvalidInputError('Reminder deadline offsets are invalid');
+      if (!workflow.temporal?.to)
+        throw new InvalidInputError('Deadline reminder requires temporal.to');
+    } else required(workflow.schedule.eventKey, 'Reminder event key');
+  }
+}
+
+function validateTemporal(temporal?: WorkflowTemporalConstraint): void {
+  if (!temporal) return;
+  if (temporal.from) assertDateTime(temporal.from, 'Workflow temporal.from');
+  if (temporal.to) assertDateTime(temporal.to, 'Workflow temporal.to');
+  if (temporal.from && temporal.to && Date.parse(temporal.from) >= Date.parse(temporal.to))
+    throw new InvalidInputError('Workflow temporal.from must precede temporal.to');
+}
+
+function assertDateTime(value: string, name: string): void {
+  if (Number.isNaN(Date.parse(value)) || !value.endsWith('Z'))
+    throw new InvalidInputError(`${name} must be a UTC date-time`);
 }
 
 function validateItemReferences(value: ComponentValue, known: ReadonlySet<string>): void {

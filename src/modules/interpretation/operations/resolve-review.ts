@@ -5,6 +5,7 @@ import type { Review } from '../domain/review.js';
 import type { InterpretationLifecycle } from '../ports/lifecycle.js';
 import type { ReviewStore } from '../ports/review.js';
 import type { InterpretationStateStore } from '../ports/state.js';
+import type { InterpretationWorkflowRouter } from '../ports/workflow.js';
 import type { RegisterInterpretationCommand } from '../services/register.js';
 
 export interface ResolveReviewInput {
@@ -21,6 +22,7 @@ export class ResolveReviewCommand {
     private readonly interpretations: InterpretationStateStore,
     private readonly registerInterpretation: RegisterInterpretationCommand,
     private readonly lifecycle: InterpretationLifecycle,
+    private readonly workflows: InterpretationWorkflowRouter,
     private readonly clock: Clock,
   ) {}
 
@@ -63,5 +65,6 @@ export class ResolveReviewCommand {
     );
 
     await this.lifecycle.publishReview(prepared.interpretation, prepared.registration, resolved);
+    if (prepared.interpretation.draft) await this.workflows.execute(prepared.interpretation.draft);
   }
 }

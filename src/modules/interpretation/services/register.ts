@@ -109,7 +109,11 @@ export class RegisterInterpretationCommand {
       this.ids,
       this.clock.now().toISOString(),
     );
-    if (prepared.registration.items.length === 0 && prepared.registration.revisions.length === 0)
+    if (
+      prepared.registration.items.length === 0 &&
+      prepared.registration.revisions.length === 0 &&
+      (input.workflows?.length ?? 0) === 0
+    )
       throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
     return Object.freeze({
       interpretation: interpretation.completeReview(
@@ -137,7 +141,11 @@ export class RegisterInterpretationCommand {
       this.ids,
       this.clock.now().toISOString(),
     );
-    if (prepared.registration.items.length === 0 && prepared.registration.revisions.length === 0)
+    if (
+      prepared.registration.items.length === 0 &&
+      prepared.registration.revisions.length === 0 &&
+      (input.workflows?.length ?? 0) === 0
+    )
       throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
     const completed = interpretation.completeKnowledge(
       input,

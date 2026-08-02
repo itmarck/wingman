@@ -46,6 +46,8 @@ const statusSchema = Type.Object({
   availableAt: Type.Optional(Type.String()),
   error: Type.Optional(Type.String()),
   reviewIds: Type.Array(Type.String()),
+  workflows: Type.Array(Type.Unknown()),
+  workflowStatus: Type.String(),
   proposalId: Type.Optional(Type.String()),
 });
 
@@ -254,6 +256,7 @@ function createStatus(status: EntryStatusResult, proposalId?: string) {
   return {
     ...status,
     reviewIds: [...status.reviewIds],
+    workflows: [...status.workflows],
     proposalId,
   };
 }

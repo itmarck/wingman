@@ -24,6 +24,7 @@ export interface PlanningRecord {
   readonly blockerIds: readonly string[];
   readonly progress?: number;
   readonly hasActionableNextStep?: boolean;
+  readonly unresolved: readonly string[];
 }
 
 export interface PlanningQueries {
@@ -58,6 +59,7 @@ export class PlanningQueryService implements PlanningQueries {
         return !isCompleted(status);
       });
       const progress = record(value('progress'));
+      const unresolved = value('unresolved');
       return [
         {
           itemId: item.id,
@@ -71,6 +73,11 @@ export class PlanningQueryService implements PlanningQueries {
             progress && typeof progress.current === 'number' && typeof progress.target === 'number'
               ? Math.max(0, Math.min(1, progress.current / progress.target))
               : undefined,
+          unresolved: Object.freeze(
+            Array.isArray(unresolved)
+              ? unresolved.filter((item): item is string => typeof item === 'string')
+              : [],
+          ),
         },
       ];
     });

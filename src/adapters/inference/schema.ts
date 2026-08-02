@@ -47,11 +47,60 @@ const resolution = object({
   question: Type.String(),
   candidateItemIds: Type.Array(Type.String()),
 });
+const temporal = object({
+  from: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
+  to: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
+  precision: Type.Union([
+    Type.Literal('exact'),
+    Type.Literal('day'),
+    Type.Literal('month'),
+    Type.Literal('range'),
+    Type.Literal('unspecified'),
+  ]),
+});
+const planningWorkflow = object({
+  kind: Type.Literal('planningRequest'),
+  version: Type.Literal(1),
+  reference: Type.String(),
+  profile: Type.Union([
+    Type.Literal('task'),
+    Type.Literal('objective'),
+    Type.Literal('plan'),
+    Type.Literal('habit'),
+  ]),
+  title: Type.String(),
+  notes: Type.Union([Type.String(), Type.Null()]),
+  temporal: Type.Union([temporal, Type.Null()]),
+  recurrence: Type.Union([Type.String(), Type.Null()]),
+  unresolved: Type.Array(Type.String()),
+});
+const reminderSchedule = Type.Union([
+  object({
+    kind: Type.Literal('occurrences'),
+    at: Type.Array(Type.String({ pattern: utcPattern.source })),
+  }),
+  object({
+    kind: Type.Literal('deadlineOffsets'),
+    offsetsBeforeMs: Type.Array(Type.Integer({ minimum: 0 })),
+  }),
+  object({ kind: Type.Literal('event'), eventKey: Type.String({ pattern: keyPattern.source }) }),
+]);
+const reminderWorkflow = object({
+  kind: Type.Literal('reminderRequest'),
+  version: Type.Literal(1),
+  reference: Type.String(),
+  subjectReference: Type.String(),
+  message: Type.String(),
+  temporal: Type.Union([temporal, Type.Null()]),
+  schedule: reminderSchedule,
+  unresolved: Type.Array(Type.String()),
+});
 const draft = object({
   entryId: Type.String(),
   items: Type.Array(item),
   components: Type.Array(component),
   referenceResolutions: Type.Array(resolution),
+  workflows: Type.Array(Type.Union([planningWorkflow, reminderWorkflow])),
 });
 
 export const interpretationOutputSchema = {
@@ -91,6 +140,28 @@ type StrictDraft = RegisterInterpretationInput & {
     readonly validTime: RegisterInterpretationInput['components'][number]['validTime'] | null;
     readonly supersedesReference: string | null;
   })[];
+  readonly workflows: readonly StrictWorkflow[];
+};
+
+type StrictWorkflow =
+  | (Extract<
+      NonNullable<RegisterInterpretationInput['workflows']>[number],
+      { readonly kind: 'planningRequest' }
+    > & {
+      readonly notes: string | null;
+      readonly temporal: StrictTemporal | null;
+      readonly recurrence: string | null;
+    })
+  | (Extract<
+      NonNullable<RegisterInterpretationInput['workflows']>[number],
+      { readonly kind: 'reminderRequest' }
+    > & {
+      readonly temporal: StrictTemporal | null;
+    });
+type StrictTemporal = {
+  readonly from: string | null;
+  readonly to: string | null;
+  readonly precision: 'exact' | 'day' | 'month' | 'range' | 'unspecified';
 };
 
 function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
@@ -120,5 +191,32 @@ function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
         }),
       ),
     ),
+    workflows: Object.freeze(draft.workflows.map(normalizeWorkflow)),
+  });
+}
+
+function normalizeWorkflow(
+  workflow: StrictWorkflow,
+): NonNullable<RegisterInterpretationInput['workflows']>[number] {
+  const temporal = workflow.temporal
+    ? Object.freeze({
+        from: workflow.temporal.from ?? undefined,
+        to: workflow.temporal.to ?? undefined,
+        precision: workflow.temporal.precision,
+      })
+    : undefined;
+  if (workflow.kind === 'planningRequest')
+    return Object.freeze({
+      ...workflow,
+      notes: workflow.notes ?? undefined,
+      temporal,
+      recurrence: workflow.recurrence ?? undefined,
+      unresolved: Object.freeze([...workflow.unresolved]),
+    });
+  return Object.freeze({
+    ...workflow,
+    temporal,
+    unresolved: Object.freeze([...workflow.unresolved]),
+    schedule: Object.freeze(structuredClone(workflow.schedule)),
   });
 }

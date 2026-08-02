@@ -27,6 +27,7 @@ export interface CreatePlanningItemInput {
   readonly dueAt?: string;
   readonly recurrence?: string;
   readonly progress?: { readonly current: number; readonly target: number; readonly unit?: string };
+  readonly unresolved?: readonly string[];
   readonly evidence: readonly Evidence[];
 }
 
@@ -115,6 +116,8 @@ export class PlanningCommandService implements PlanningCommands {
           input.evidence,
         ),
       );
+    if (input.unresolved?.length)
+      revisions.push(this.revision(item.id, 'unresolved', [...input.unresolved], input.evidence));
     await this.validateReferences(
       item.id,
       input.objectiveId,

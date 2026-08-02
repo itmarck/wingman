@@ -18,6 +18,7 @@ import { ProposeIntentCommand } from '../modules/execution/operations/propose.js
 import { MemoryInterpretations } from '../modules/interpretation/adapters/memory/interpretation.js';
 import { MemoryInterpretationLifecycle } from '../modules/interpretation/adapters/memory/lifecycle.js';
 import { MemoryReviewStore } from '../modules/interpretation/adapters/memory/review.js';
+import { MemoryWorkflowRegistry } from '../modules/interpretation/adapters/memory/workflow.js';
 import {
   assertProcessingConfig,
   defaultProcessingConfig,
@@ -32,6 +33,7 @@ import { RetryEntryCommand } from '../modules/interpretation/operations/retry.js
 import { GetEntryStatusQuery } from '../modules/interpretation/operations/status.js';
 import { ProcessNextCommand } from '../modules/interpretation/operations/worker.js';
 import type { InferenceTelemetry } from '../modules/interpretation/ports/telemetry.js';
+import type { WorkflowOutcomeSource } from '../modules/interpretation/ports/workflow.js';
 import {
   type InferenceConfig,
   type InterpretationAdapter,
@@ -78,6 +80,7 @@ import { StateEvaluator } from '../modules/state/services/evaluator.js';
 import { ApprovalInterpretationLifecycle } from './approval.js';
 import { type MutationMode, ProposalRegistry } from './proposal.js';
 import type { SystemStorage } from './storage.js';
+import { EntryWorkflowRouter } from './workflow.js';
 
 export const storageTypes = ['memory', 'postgres'] as const;
 
@@ -107,6 +110,7 @@ export interface System {
   readonly planning: PlanningModule;
   readonly reminder: ReminderModule;
   readonly proactivity: ProactivityModule;
+  readonly workflow: WorkflowOutcomeSource;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -135,6 +139,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const reminderStore = new MemoryReminderStore();
   const proactivityStore = new MemoryProactivityStore();
   const detectors = createDetectorRegistry(options.detectorThresholds);
+  const workflowOutcomes = new MemoryWorkflowRegistry();
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -179,16 +184,6 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     registry,
     ids,
     clock,
-  );
-  const processInterpretation = new ProcessInterpretationCommand(
-    knowledge,
-    interpretations,
-    interpretations,
-    knowledge,
-    interpreter,
-    registerInterpretation,
-    clock,
-    processing,
   );
   const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
   const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock);
@@ -235,6 +230,23 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
+  const workflowRouter = new EntryWorkflowRouter(
+    workflowOutcomes,
+    planningCommands,
+    reminderService,
+    clock,
+  );
+  const processInterpretation = new ProcessInterpretationCommand(
+    knowledge,
+    interpretations,
+    interpretations,
+    knowledge,
+    interpreter,
+    registerInterpretation,
+    workflowRouter,
+    clock,
+    processing,
+  );
   const executeIntent = new ExecuteIntentCommand(
     executionStore,
     capabilities,
@@ -263,10 +275,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         interpretations,
         registerInterpretation,
         storage.lifecycle,
+        workflowRouter,
         clock,
       ),
       retryEntry: new RetryEntryCommand(interpretations, lifecycle, clock),
-      getEntryStatus: new GetEntryStatusQuery(interpretations, reviews),
+      getEntryStatus: new GetEntryStatusQuery(interpretations, reviews, workflowOutcomes),
       getReview: new GetReviewQuery(reviews),
       listReviews: new ListReviewsQuery(reviews),
     }),
@@ -327,6 +340,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       ),
       detectors,
     }),
+    workflow: workflowOutcomes,
     proposals,
     async close(): Promise<void> {
       proposals.close();

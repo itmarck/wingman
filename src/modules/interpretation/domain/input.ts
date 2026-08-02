@@ -5,6 +5,7 @@ import type {
   ValidTime,
 } from '../../../core/item/types.js';
 import type { SourceLocator } from '../../../core/knowledge/source.js';
+import type { InterpretationWorkflowDraft } from './workflow.js';
 
 export interface InterpretationItem {
   readonly reference: string;
@@ -41,4 +42,5 @@ export interface RegisterInterpretationInput {
   readonly components: readonly InterpretationComponent[];
   readonly referenceResolutions?: readonly ReferenceResolutionRequest[];
   readonly referenceDecisions?: readonly ReferenceDecision[];
+  readonly workflows?: readonly InterpretationWorkflowDraft[];
 }

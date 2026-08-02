@@ -27,12 +27,18 @@ const instructions = Object.freeze([
   'Text Entries may use paragraph locators only; URL Entries use no source locators.',
   'Preserve conflicts as candidate Component revisions and use supersedesReference only for an explicit replacement of the same Component on the same Item.',
   'Return empty only when the Entry contains no durable reusable knowledge and invalid only when this contract cannot be satisfied.',
+  'For explicit task, objective, plan, habit, or reminder requests, select only a registered workflow draft kind and preserve placeholders in unresolved.',
+  'Keep temporal source precision separate from reminder cadence; never invent exact people, organizations, times, Events, connectors, or operations.',
 ]);
 
 const outputContract = `Return exactly one result:
-- knowledge: a Draft containing entryId, items, components and referenceResolutions.
+- knowledge: a Draft containing entryId, items, components, referenceResolutions and workflows. Items/components or workflows may be empty, but not both.
 - empty: an explicit valid decision that the Entry contains no durable knowledge.
-- invalid: a reason explaining why the contract could not be satisfied.`;
+- invalid: a reason explaining why the contract could not be satisfied.
+Workflow drafts are closed:
+- planningRequest@1: reference, profile (task|objective|plan|habit), title, optional notes/temporal/recurrence, and unresolved source placeholders.
+- reminderRequest@1: reference, subjectReference to a planningRequest in the same Draft, message, optional source temporal constraint, one occurrences|deadlineOffsets|event schedule, and unresolved source placeholders.
+Temporal precision is exact|day|month|range|unspecified. A reminder schedule is system policy and never evidence of source precision.`;
 
 export function createInterpretationRequest(
   entry: Entry,

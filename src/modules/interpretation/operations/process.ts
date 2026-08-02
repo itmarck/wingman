@@ -9,6 +9,7 @@ import {
   type InterpretationQueue,
 } from '../ports/queue.js';
 import type { InterpretationStateStore } from '../ports/state.js';
+import type { InterpretationWorkflowRouter } from '../ports/workflow.js';
 import type { InterpretationContextSource } from '../services/context.js';
 import {
   type InterpretationResult,
@@ -29,6 +30,7 @@ export class ProcessInterpretationCommand {
     private readonly contexts: InterpretationContextSource,
     private readonly interpreter: Interpreter,
     private readonly registerInterpretation: RegisterInterpretationCommand,
+    private readonly workflows: InterpretationWorkflowRouter,
     private readonly clock: Clock,
     private readonly config: ProcessingConfig,
   ) {}
@@ -73,7 +75,14 @@ export class ProcessInterpretationCommand {
     claim: InterpretationClaim,
   ): Promise<void> {
     if (result.kind === 'knowledge') {
-      await this.registerInterpretation.execute(started, result.draft, result.interpreter, claim);
+      const registered = await this.registerInterpretation.execute(
+        started,
+        result.draft,
+        result.interpreter,
+        claim,
+      );
+      if (registered.interpretation.status === 'completed')
+        await this.workflows.execute(result.draft);
       return;
     }
 

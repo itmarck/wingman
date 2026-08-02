@@ -108,6 +108,19 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
         (value.unit === undefined || typeof value.unit === 'string'),
     ),
   );
+  registry.registerComponent({
+    key: 'unresolved',
+    version: 1,
+    description: 'Valores fuente pendientes de resolución',
+    validate(value) {
+      if (
+        !Array.isArray(value) ||
+        value.length === 0 ||
+        !value.every((item) => typeof item === 'string' && Boolean(item.trim()))
+      )
+        throw new DomainError('unresolved must contain non-empty source values');
+    },
+  });
 
   for (const profile of ['task', 'plan', 'habit'] as const) {
     registry.registerProfile({
