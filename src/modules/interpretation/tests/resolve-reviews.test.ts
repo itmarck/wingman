@@ -4,6 +4,53 @@ import type { InterpretationRequest } from '../services/request.js';
 import { createInterpretationTestSystem as createMemoryApplication } from './support.js';
 
 describe('ambiguous Interpretation', () => {
+  it('creates a generic Review when an uncertain reference omits its request', async () => {
+    const application = createMemoryApplication(new MissingResolutionInterpreter());
+    const entryId = await application.commands.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'Una persona cuya identidad no está indicada creó VegaCodex.',
+      },
+      origin: {
+        source: 'external',
+      },
+    });
+
+    await application.commands.processNext.execute();
+
+    const review = requireValue((await application.queries.listReviews.execute()).items[0]);
+
+    expect(await application.queries.getEntryStatus.execute(entryId)).toMatchObject({
+      status: 'pending',
+      reviewIds: [review.id],
+    });
+    expect(review.resolution).toMatchObject({
+      reference: 'creator',
+      question: '¿A qué concepto se refiere «Persona no identificada»?',
+      candidates: [],
+    });
+  });
+
+  it('turns an identified anonymous person placeholder into an uncertain Review', async () => {
+    const application = createMemoryApplication(new MissingResolutionInterpreter('identified'));
+    const entryId = await application.commands.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'Una persona cuya identidad no está indicada creó VegaCodex.',
+      },
+      origin: {
+        source: 'external',
+      },
+    });
+
+    await application.commands.processNext.execute();
+
+    expect(await application.queries.getEntryStatus.execute(entryId)).toMatchObject({
+      status: 'pending',
+      reviewIds: [expect.any(String)],
+    });
+  });
+
   it('uses the same reference resolution contract for model-requested authorship', async () => {
     const adapter = new RequestedResolutionInterpreter();
     const application = createMemoryApplication(adapter);
@@ -48,6 +95,28 @@ describe('ambiguous Interpretation', () => {
 
   it('uses a context Concept ID directly without redeclaring the Concept', async () => {
     const application = createMemoryApplication(new ExistingConceptInterpreter());
+    const marcelo = await application.commands.registerConcept.execute({
+      name: 'Marcelo',
+      definition: 'Propietario de Wingman',
+    });
+    const entryId = await application.commands.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'Marcelo mantiene Wingman.',
+      },
+      origin: {
+        source: 'test',
+      },
+    });
+
+    await application.commands.processNext.execute();
+
+    expect((await application.queries.getEntryStatus.execute(entryId)).status).toBe('completed');
+    expect(requireValue((await currentAxioms(application))[0]).subjectConceptId).toBe(marcelo.id);
+  });
+
+  it('accepts an idempotent redeclaration of the same context Concept ID', async () => {
+    const application = createMemoryApplication(new RedundantExistingConceptInterpreter());
     const marcelo = await application.commands.registerConcept.execute({
       name: 'Marcelo',
       definition: 'Propietario de Wingman',
@@ -302,6 +371,56 @@ class ExistingConceptInterpreter implements InterpretationAdapter {
   }
 }
 
+class RedundantExistingConceptInterpreter implements InterpretationAdapter {
+  readonly identity = Object.freeze({
+    key: 'redundant-existing-concept',
+  });
+
+  async interpret(request: InterpretationRequest) {
+    const marcelo = requireValue(
+      request.context.concepts.find((concept) => concept.name === 'Marcelo'),
+    );
+
+    return {
+      kind: 'knowledge',
+      draft: {
+        entryId: request.entry.id,
+        concepts: [
+          {
+            reference: marcelo.id,
+            name: marcelo.name,
+            aliases: [],
+            definition: marcelo.definition,
+            referenceStatus: 'identified',
+          },
+        ],
+        predicates: [
+          {
+            key: 'maintains',
+            definition: 'Indica que el sujeto mantiene un sistema',
+            origin: 'custom',
+            scope: 'axiom',
+          },
+        ],
+        axioms: [
+          {
+            reference: 'maintenance',
+            subjectReference: marcelo.id,
+            predicateKey: 'maintains',
+            object: {
+              kind: 'literal',
+              literal: {
+                kind: 'text',
+                value: 'Wingman',
+              },
+            },
+          },
+        ],
+      },
+    };
+  }
+}
+
 class InvalidAmbiguousInterpreter implements InterpretationAdapter {
   readonly identity = Object.freeze({
     key: 'invalid-ambiguous',
@@ -398,6 +517,56 @@ class RequestedResolutionInterpreter implements InterpretationAdapter {
             reference: 'speaker',
             question: '¿Quién expresa «he creado»?',
             candidateConceptIds: [candidateConceptId],
+          },
+        ],
+      },
+    };
+  }
+}
+
+class MissingResolutionInterpreter implements InterpretationAdapter {
+  readonly identity = Object.freeze({
+    key: 'missing-resolution',
+  });
+
+  constructor(private readonly referenceStatus: 'identified' | 'uncertain' = 'uncertain') {}
+
+  async interpret(request: InterpretationRequest) {
+    return {
+      kind: 'knowledge',
+      draft: {
+        entryId: request.entry.id,
+        concepts: [
+          {
+            reference: 'creator',
+            name: 'Persona no identificada',
+            definition: 'Persona que creó VegaCodex',
+            referenceStatus: this.referenceStatus,
+          },
+          {
+            reference: 'vega',
+            name: 'VegaCodex',
+            definition: 'Proyecto mencionado en la Entry',
+            referenceStatus: 'identified',
+          },
+        ],
+        predicates: [
+          {
+            key: 'created',
+            definition: 'Indica que una persona creó una entidad',
+            origin: 'custom',
+            scope: 'axiom',
+          },
+        ],
+        axioms: [
+          {
+            reference: 'creation',
+            subjectReference: 'creator',
+            predicateKey: 'created',
+            object: {
+              kind: 'concept',
+              conceptReference: 'vega',
+            },
           },
         ],
       },

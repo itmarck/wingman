@@ -128,4 +128,26 @@ describe('capture Entry through HTTP', () => {
 
     await server.close();
   });
+
+  it('preserves Fastify client error statuses', async () => {
+    const server = createHttpServer(createTestSystem(), { signingSecret });
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/entries',
+      headers: {
+        ...authorization,
+        'content-type': 'application/xml',
+      },
+      payload: 'unsupported',
+    });
+
+    expect(response.statusCode).toBe(415);
+    expect(response.json()).toMatchObject({
+      error: {
+        code: 'invalidInput',
+      },
+    });
+
+    await server.close();
+  });
 });

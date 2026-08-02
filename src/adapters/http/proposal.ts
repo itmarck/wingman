@@ -7,7 +7,7 @@ import {
   type ProposalRegistry,
 } from '../../system/proposal.js';
 import { requireMutation } from './mutation.js';
-import { errorSchema, idParamsSchema } from './schema.js';
+import { errorSchema, idParamsSchema, mutationHeadersSchema } from './schema.js';
 
 interface ProposalRoutesOptions {
   readonly proposals: ProposalRegistry;
@@ -41,6 +41,7 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
           200: Type.Object({
             items: Type.Array(proposalSchema),
           }),
+          401: errorSchema,
         },
       },
     },
@@ -58,6 +59,7 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
         params: idParamsSchema,
         response: {
           200: proposalSchema,
+          401: errorSchema,
           404: errorSchema,
         },
       },
@@ -79,9 +81,11 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
       schema: {
         tags: ['Proposals'],
         summary: 'Approve a proposal',
+        headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
           204: Type.Null(),
+          401: errorSchema,
           403: errorSchema,
           404: errorSchema,
           409: errorSchema,
@@ -107,9 +111,11 @@ export const proposalRoutes: FastifyPluginAsyncTypebox<ProposalRoutesOptions> = 
       schema: {
         tags: ['Proposals'],
         summary: 'Reject a proposal',
+        headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
           204: Type.Null(),
+          401: errorSchema,
           403: errorSchema,
           404: errorSchema,
         },

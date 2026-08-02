@@ -22,6 +22,7 @@ describe('read OpenAPI document', () => {
           {
             security?: unknown;
             parameters?: unknown[];
+            responses?: Record<string, unknown>;
             requestBody?: {
               content: Record<string, { example?: unknown }>;
             };
@@ -36,7 +37,7 @@ describe('read OpenAPI document', () => {
     expect(document.paths['/api/health']?.get?.security).toEqual([]);
     expect(document.paths['/api/openapi.json']?.get?.security).toEqual([]);
     expect(document.paths['/api/entries']?.get?.security).toBeUndefined();
-    expect(document.paths['/api/entries']?.post?.parameters ?? []).not.toEqual(
+    expect(document.paths['/api/entries']?.post?.parameters ?? []).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           in: 'header',
@@ -44,6 +45,7 @@ describe('read OpenAPI document', () => {
         }),
       ]),
     );
+    expect(document.paths['/api/entries']?.get?.responses).toHaveProperty('401');
     expect(
       document.paths['/api/entries']?.post?.requestBody?.content['application/json']?.example,
     ).toEqual({

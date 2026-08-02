@@ -76,7 +76,10 @@ export class InferenceAdapterError extends Error {
  * Signals a temporary provider failure that can be retried by the queue.
  */
 export class InterpreterUnavailableError extends InferenceAdapterError {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly retryAfterMs?: number,
+  ) {
     super('unavailable', message);
     this.name = 'InterpreterUnavailableError';
   }

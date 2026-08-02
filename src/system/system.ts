@@ -32,6 +32,8 @@ import { RegisterInterpretationCommand } from '../modules/interpretation/service
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
 import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/registry.js';
 import { CurrentAxiomsProjection } from '../modules/projection/domain/axioms.js';
+import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
+import { PredicateCatalogProjection } from '../modules/projection/domain/predicates.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
@@ -72,7 +74,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const ids = new UuidGenerator();
   const clock = new SystemClock();
   const proposals = new ProposalRegistry(ids, () => clock.now());
-  const projections = new MemoryProjectionRegistry([new CurrentAxiomsProjection()]);
+  const projections = new MemoryProjectionRegistry([
+    new CurrentAxiomsProjection(),
+    new GlossaryProjection(),
+    new PredicateCatalogProjection(),
+  ]);
   const processing = options.processing ?? defaultProcessingConfig;
   let storage: SystemStorage;
   let closeStorage: () => Promise<void>;
@@ -143,7 +149,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         reviews,
         interpretations,
         registerInterpretation,
-        lifecycle,
+        storage.lifecycle,
         clock,
       ),
       retryEntry: new RetryEntryCommand(interpretations, lifecycle, clock),

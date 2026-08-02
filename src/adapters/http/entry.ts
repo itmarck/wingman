@@ -4,7 +4,13 @@ import { ConflictError } from '../../system/error.js';
 import type { System } from '../../system/system.js';
 import { requireMutation } from './mutation.js';
 import { createProposalResponse, proposalSchema } from './proposal.js';
-import { cursorQuerySchema, errorSchema, idParamsSchema, pageSchema } from './schema.js';
+import {
+  cursorQuerySchema,
+  errorSchema,
+  idParamsSchema,
+  mutationHeadersSchema,
+  pageSchema,
+} from './schema.js';
 
 interface EntryRoutesOptions {
   readonly system: System;
@@ -53,6 +59,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
       schema: {
         tags: ['Entries'],
         summary: 'Capture an entry',
+        headers: mutationHeadersSchema,
         body: Type.Object(
           {
             content: contentSchema,
@@ -73,8 +80,10 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
             }),
           ]),
           400: errorSchema,
+          401: errorSchema,
           403: errorSchema,
           409: errorSchema,
+          415: errorSchema,
         },
       },
     },
@@ -137,6 +146,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
         response: {
           200: pageSchema(entrySchema),
           400: errorSchema,
+          401: errorSchema,
         },
       },
     },
@@ -159,6 +169,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
         params: idParamsSchema,
         response: {
           200: entrySchema,
+          401: errorSchema,
           404: errorSchema,
         },
       },
@@ -175,6 +186,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
         params: idParamsSchema,
         response: {
           200: statusSchema,
+          401: errorSchema,
           404: errorSchema,
         },
       },
@@ -192,6 +204,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
       schema: {
         tags: ['Entries'],
         summary: 'Retry entry interpretation',
+        headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
           202: Type.Union([
@@ -200,6 +213,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
               proposal: proposalSchema,
             }),
           ]),
+          401: errorSchema,
           403: errorSchema,
           404: errorSchema,
           409: errorSchema,

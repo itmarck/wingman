@@ -2,7 +2,14 @@ import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typ
 import type { Review } from '../../modules/interpretation/domain/review.js';
 import type { System } from '../../system/system.js';
 import { requireMutation } from './mutation.js';
-import { cursorQuerySchema, errorSchema, idParamsSchema, pageSchema } from './schema.js';
+import { createProposalResponse, proposalSchema } from './proposal.js';
+import {
+  cursorQuerySchema,
+  errorSchema,
+  idParamsSchema,
+  mutationHeadersSchema,
+  pageSchema,
+} from './schema.js';
 
 interface ReviewRoutesOptions {
   readonly system: System;
@@ -72,6 +79,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
         response: {
           200: pageSchema(summarySchema),
           400: errorSchema,
+          401: errorSchema,
         },
       },
     },
@@ -94,6 +102,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
         params: idParamsSchema,
         response: {
           200: detailSchema,
+          401: errorSchema,
           404: errorSchema,
         },
       },
@@ -108,6 +117,7 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
       schema: {
         tags: ['Reviews'],
         summary: 'Resolve a review',
+        headers: mutationHeadersSchema,
         params: idParamsSchema,
         body: Type.Object(
           {
@@ -118,8 +128,12 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
           },
         ),
         response: {
+          202: Type.Object({
+            proposal: proposalSchema,
+          }),
           204: Type.Null(),
           400: errorSchema,
+          401: errorSchema,
           403: errorSchema,
           404: errorSchema,
           409: errorSchema,
@@ -127,11 +141,33 @@ export const reviewRoutes: FastifyPluginAsyncTypebox<ReviewRoutesOptions> = asyn
       },
     },
     async (request, reply) => {
-      requireMutation(request.mutationMode);
-      await system.interpretation.resolveReview.execute({
+      const mode = requireMutation(request.mutationMode);
+      const input = {
         reviewId: request.params.id,
         decision: request.body.decision,
-      });
+      };
+
+      if (mode === 'approval') {
+        const proposal = system.proposals.create(
+          [
+            {
+              operation: 'update',
+              target: 'review',
+              value: {
+                id: request.params.id,
+                decision: request.body.decision,
+              },
+            },
+          ],
+          () => system.interpretation.resolveReview.execute(input),
+        );
+
+        return reply.code(202).send({
+          proposal: createProposalResponse(proposal),
+        });
+      }
+
+      await system.interpretation.resolveReview.execute(input);
 
       return reply.code(204).send(null);
     },

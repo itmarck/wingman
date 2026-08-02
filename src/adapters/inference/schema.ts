@@ -1,8 +1,11 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
-import { predicateKeyPattern } from '../../core/knowledge/predicate.js';
 import type { RegisterInterpretationInput } from '../../modules/interpretation/domain/input.js';
 import type { InterpretationAdapterOutput } from '../../modules/interpretation/services/interpreter.js';
+
+const customPredicateKeyPattern = /^[a-z][A-Za-z0-9]*$/;
+const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+const utcDateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 const ref = (name: string) => Type.Ref(`#/$defs/${name}`);
 const object = (properties: Parameters<typeof Type.Object>[0]) =>
@@ -25,8 +28,11 @@ const definitions = {
   ]),
   Literal: Type.Union([
     object({ kind: Type.Literal('boolean'), value: Type.Boolean() }),
-    object({ kind: Type.Literal('date'), value: Type.String() }),
-    object({ kind: Type.Literal('dateTime'), value: Type.String() }),
+    object({ kind: Type.Literal('date'), value: Type.String({ pattern: datePattern.source }) }),
+    object({
+      kind: Type.Literal('dateTime'),
+      value: Type.String({ pattern: utcDateTimePattern.source }),
+    }),
     object({ kind: Type.Literal('number'), value: Type.Number() }),
     object({ kind: Type.Literal('quote'), value: Type.String() }),
     object({ kind: Type.Literal('text'), value: Type.String() }),
@@ -50,16 +56,16 @@ const definitions = {
     referenceStatus: Type.Union([Type.Literal('identified'), Type.Literal('uncertain')]),
   }),
   Predicate: object({
-    key: Type.String({ pattern: predicateKeyPattern.source }),
+    key: Type.String({ pattern: customPredicateKeyPattern.source }),
     definition: Type.String(),
-    origin: Type.Union([Type.Literal('custom'), Type.Literal('system')]),
+    origin: Type.Literal('custom'),
     scope: Type.Union([Type.Literal('axiom'), Type.Literal('both'), Type.Literal('link')]),
-    mode: Type.Union([Type.Literal('descriptive'), Type.Literal('operational')]),
+    mode: Type.Literal('descriptive'),
   }),
   Axiom: object({
     reference: Type.String(),
     subjectReference: Type.String(),
-    predicateKey: Type.String(),
+    predicateKey: Type.String({ pattern: customPredicateKeyPattern.source }),
     object: ref('InterpretationObject'),
     sourceLocators: Type.Array(ref('SourceLocator')),
   }),

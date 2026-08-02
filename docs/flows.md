@@ -50,6 +50,8 @@ by inference or detected automatically while matching Concepts. Both paths creat
 Concepts declare `referenceStatus`; `uncertain` is invalid without a matching resolution request.
 Existing context Concepts can be referenced directly by ID.
 
+Generic unnamed-person placeholders are treated as uncertain even if the provider labels them as identified, so claims about an unknown author or creator cannot silently create a canonical person.
+
 ```mermaid
 flowchart TD
     Draft[Validate complete Draft]
@@ -81,7 +83,7 @@ by the Interpreter inside its Draft.
 
 Provider transport, throttling and server failures may be retried automatically. Generated output
 that violates the structured schema fails immediately because repeating the same deterministic
-contract error is not treated as provider unavailability.
+contract error is not treated as provider unavailability. When a provider supplies `Retry-After`, the worker respects that delay before the next configured attempt.
 
 External statements may remain exact `quote` Literals without resolving their author. A Review is
 required only when an uncertain author or entity is used as a Concept reference. Predicate keys are
@@ -96,6 +98,9 @@ Mutation is controlled at two independent boundaries:
 - `MUTATION_MODE` controls background Interpretation mutations and defaults to `approval`.
 
 Both use the same in-memory Proposal registry when their effective mode is `approval`.
+Resolving a Review is a user mutation: in HTTP `approval` mode it creates a Proposal immediately,
+and approving that Proposal performs the resolution and any resulting atomic publication. It does
+not create a second background-publication Proposal.
 
 ```mermaid
 sequenceDiagram

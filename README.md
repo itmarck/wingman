@@ -33,6 +33,10 @@ npm run build
 
 The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; the safe default is `readonly`. The current OpenAPI document is publicly available at `/api/openapi.json` for importing into API clients.
 
+The built-in projections are `system.currentAxioms`, `system.glossary`, and `system.predicates`.
+Together they expose current facts and the Concept and Predicate catalogs needed to interpret their
+identities.
+
 Knowledge storage is currently in memory. PostgreSQL stores migrations and inference telemetry.
 
 ## Reference resolution
@@ -47,7 +51,8 @@ existing Concept directly by its context ID without redeclaring it.
 Read pending Reviews through `/api/reviews` and `/api/reviews/:id`. Resolve one with
 `POST /api/reviews/:id/resolution`; provide `selectedConceptId` to select an existing candidate or
 omit it to confirm the proposed Concept. Knowledge remains unpublished until every Review for the
-Interpretation is resolved.
+Interpretation is resolved. In `approval` mode the resolution request returns a Proposal; approving
+that Proposal applies the decision and resumes publication without blocking the original request.
 
 ## Knowledge language
 

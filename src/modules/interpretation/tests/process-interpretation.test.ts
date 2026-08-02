@@ -167,6 +167,30 @@ describe('asynchronous Entry processing', () => {
     });
   });
 
+  it('honors a provider retry delay while preserving the configured attempt limit', async () => {
+    const application = createMemoryApplication(new RetryAfterInterpreter(), {
+      ...defaultProcessingConfig,
+      retryDelaysMs: [60_000],
+    });
+    const entryId = await application.commands.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'Reintentar cuando el proveedor vuelva a estar disponible.',
+      },
+      origin: {
+        source: 'test',
+      },
+    });
+
+    await expect(application.commands.processNext.execute()).rejects.toThrow('Rate limited');
+    const interpretation = await application.queries.getInterpretation.execute(entryId);
+
+    expect(interpretation.status).toBe('queued');
+    expect(
+      Date.parse(interpretation.availableAt ?? '') - Date.parse(interpretation.updatedAt),
+    ).toBe(2_750);
+  });
+
   it('creates a new historical Interpretation with the configured operation adapter', async () => {
     const application = createMemoryApplication(new KnowledgeInterpreter());
     const entryId = await application.commands.captureEntry.execute({
@@ -419,6 +443,16 @@ class FailingInterpreter implements InterpretationAdapter {
 
   async interpret(): Promise<never> {
     throw new InterpreterUnavailableError('Remote interpreter unavailable');
+  }
+}
+
+class RetryAfterInterpreter implements InterpretationAdapter {
+  readonly identity = Object.freeze({
+    key: 'retry-after',
+  });
+
+  async interpret(): Promise<never> {
+    throw new InterpreterUnavailableError('Rate limited', 2_750);
   }
 }
 

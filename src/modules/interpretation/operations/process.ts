@@ -97,9 +97,10 @@ export class ProcessInterpretationCommand {
 
     const failedAt = this.clock.now();
     const message = getErrorMessage(error);
-    const retryDelay = this.config.retryDelaysMs[started.attempts - 1];
+    const configuredRetryDelay = this.config.retryDelaysMs[started.attempts - 1];
 
-    if (error instanceof InterpreterUnavailableError && retryDelay !== undefined) {
+    if (error instanceof InterpreterUnavailableError && configuredRetryDelay !== undefined) {
+      const retryDelay = error.retryAfterMs ?? configuredRetryDelay;
       const availableAt = new Date(failedAt.getTime() + retryDelay).toISOString();
       const queued = started.reschedule(message, failedAt.toISOString(), availableAt, context);
 

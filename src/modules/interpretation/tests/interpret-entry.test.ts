@@ -41,7 +41,7 @@ describe('Interpreter operation contract', () => {
     expect(adapter.request).toMatchObject({
       operation: 'interpretEntry',
       reasoning: 'low',
-      instructionsVersion: 'interpretEntry.v6',
+      instructionsVersion: 'interpretEntry.v7',
       objective: 'Interpret one Entry as durable structured knowledge.',
       entry,
       context,
@@ -98,7 +98,7 @@ describe('Interpreter operation contract', () => {
         provider: 'provider',
         requestedModel: 'requested-model',
         usedModel: 'used-model',
-        instructionsVersion: 'interpretEntry.v6',
+        instructionsVersion: 'interpretEntry.v7',
         attempt: 2,
         result: 'empty',
         inputTokens: 10,

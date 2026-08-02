@@ -24,6 +24,7 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
         summary: 'List available projections',
         response: {
           200: Type.Array(metadataSchema),
+          401: errorSchema,
         },
       },
     },
@@ -42,6 +43,7 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
             metadata: metadataSchema,
             data: Type.Unknown(),
           }),
+          401: errorSchema,
           404: errorSchema,
         },
       },

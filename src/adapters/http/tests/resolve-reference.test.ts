@@ -68,7 +68,73 @@ describe('resolve reference through HTTP', () => {
 
     await server.close();
   });
+
+  it('returns a Proposal instead of blocking an approval-mode resolution', async () => {
+    const system = createSystem('memory', {
+      adapter: new UncertainReferenceInterpreter(),
+      inference: {
+        target: 'test.default',
+        provider: 'test',
+        model: 'test',
+      },
+      mode: 'approval',
+    });
+    const server = createHttpServer(system, { signingSecret });
+    const entryId = await system.capture.captureEntry.execute({
+      content: {
+        kind: 'text',
+        text: 'La persona hablante creó Wingman.',
+      },
+      origin: {
+        source: 'external',
+      },
+    });
+    const processing = system.interpretation.processNext.execute();
+    const reviewProposal = await waitForProposal(system);
+
+    await system.proposals.approve(reviewProposal.id);
+    await processing;
+
+    const review = (await system.interpretation.listReviews.execute()).items[0];
+    const response = await server.inject({
+      method: 'POST',
+      url: `/api/reviews/${review?.id}/resolution`,
+      headers: {
+        ...authorization,
+        'x-mutation-mode': 'approval',
+      },
+      payload: {
+        decision: {
+          reference: review?.resolution.reference,
+        },
+      },
+    });
+    const proposalId = response.json<{ proposal: { id: string } }>().proposal.id;
+
+    expect(response.statusCode).toBe(202);
+    expect((await system.interpretation.getEntryStatus.execute(entryId)).status).toBe('pending');
+
+    await system.proposals.approve(proposalId);
+
+    expect((await system.interpretation.getEntryStatus.execute(entryId)).status).toBe('completed');
+
+    await server.close();
+  });
 });
+
+async function waitForProposal(system: ReturnType<typeof createSystem>) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const proposal = system.proposals.list()[0];
+
+    if (proposal) {
+      return proposal;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1));
+  }
+
+  throw new Error('Expected a Proposal');
+}
 
 class UncertainReferenceInterpreter implements InterpretationAdapter {
   readonly identity = Object.freeze({

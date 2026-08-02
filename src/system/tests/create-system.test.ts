@@ -25,7 +25,7 @@ describe('system composition', () => {
       nextCursor: null,
     });
     expect(system.projection.listProjections.execute().map((projection) => projection.key)).toEqual(
-      ['system.currentAxioms'],
+      ['system.currentAxioms', 'system.glossary', 'system.predicates'],
     );
     expect(Object.keys(system)).toEqual([
       'capture',

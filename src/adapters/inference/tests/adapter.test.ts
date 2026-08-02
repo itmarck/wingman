@@ -104,7 +104,19 @@ describe('HTTP inference Adapter', () => {
       expect(body.text.format.schema).toHaveProperty('$defs.Draft');
       expect(body.text.format.schema).toHaveProperty(
         '$defs.Predicate.properties.key.pattern',
-        '^(?:[a-z][A-Za-z0-9]*|system\\.[a-z][A-Za-z0-9]*)$',
+        '^[a-z][A-Za-z0-9]*$',
+      );
+      expect(body.text.format.schema).toHaveProperty(
+        '$defs.Axiom.properties.predicateKey.pattern',
+        '^[a-z][A-Za-z0-9]*$',
+      );
+      expect(body.text.format.schema).toHaveProperty(
+        '$defs.Predicate.properties.mode.const',
+        'descriptive',
+      );
+      expect(body.text.format.schema).toHaveProperty(
+        '$defs.Literal.anyOf.1.properties.value.pattern',
+        '^\\d{4}-\\d{2}-\\d{2}$',
       );
       expect(JSON.stringify(body.text.format.schema)).not.toContain('"oneOf"');
       expect(JSON.parse(body.input)).toEqual({
@@ -171,6 +183,18 @@ describe('HTTP inference Adapter', () => {
         kind: 'knowledge',
         draft,
       },
+    });
+  });
+
+  it('preserves a provider retry delay for queue scheduling', async () => {
+    const response = errorResponse(429, 'Rate limit reached');
+
+    response.headers.set('retry-after', '2.75');
+    const adapter = createInferenceAdapter(createConfig('groq'), createFetch(response));
+
+    await expect(adapter.interpret(request)).rejects.toMatchObject({
+      category: 'unavailable',
+      retryAfterMs: 2_750,
     });
   });
 

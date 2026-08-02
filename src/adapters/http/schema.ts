@@ -28,6 +28,17 @@ export const errorSchema = Type.Object({
   }),
 });
 
+export const mutationHeadersSchema = Type.Object(
+  {
+    'x-mutation-mode': Type.Optional(
+      Type.Union([Type.Literal('readonly'), Type.Literal('approval'), Type.Literal('write')], {
+        description: 'Mutation authorization mode. Defaults to readonly when omitted.',
+      }),
+    ),
+  },
+  { additionalProperties: true },
+);
+
 /**
  * Creates the shared cursor-page response schema.
  */

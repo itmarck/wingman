@@ -12,7 +12,7 @@ export async function readInferenceResponse(response: Response): Promise<Inferen
   const body = await readBody(response);
 
   if (!response.ok) {
-    throwHttpError(response.status, body);
+    throwHttpError(response, body);
   }
 
   return parseResponse(body);
@@ -146,18 +146,37 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
-function throwHttpError(status: number, body: unknown): never {
+function throwHttpError(response: Response, body: unknown): never {
+  const { status } = response;
   const detail = readProviderMessage(body);
   const message = `Inference provider request failed with status ${status}${detail ? `: ${detail}` : ''}`;
   const retryable = status === 408 || status === 409 || status === 429 || status >= 500;
 
   if (retryable) {
-    throw new InterpreterUnavailableError(message);
+    throw new InterpreterUnavailableError(message, readRetryAfterMs(response.headers));
   }
 
   const category = status === 401 || status === 403 ? 'authentication' : 'request';
 
   throw new InferenceAdapterError(category, message);
+}
+
+function readRetryAfterMs(headers: Headers): number | undefined {
+  const value = headers.get('retry-after')?.trim();
+
+  if (!value) {
+    return undefined;
+  }
+
+  const seconds = Number(value);
+
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1_000);
+  }
+
+  const retryAt = Date.parse(value);
+
+  return Number.isNaN(retryAt) ? undefined : Math.max(0, retryAt - Date.now());
 }
 
 function throwProviderFailure(error: Record<string, unknown>): never {

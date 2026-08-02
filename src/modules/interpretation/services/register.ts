@@ -1,6 +1,7 @@
 import { Axiom, type AxiomObject } from '../../../core/knowledge/axiom.js';
 import { Concept } from '../../../core/knowledge/concept.js';
 import { findDuplicateAxiom, findDuplicateLink } from '../../../core/knowledge/duplicate.js';
+import { normalizeText } from '../../../core/knowledge/guard.js';
 import { Link } from '../../../core/knowledge/link.js';
 import { Predicate } from '../../../core/knowledge/predicate.js';
 import { type ConceptResolution, resolveConcept } from '../../../core/knowledge/resolve.js';
@@ -58,15 +59,17 @@ export class RegisterInterpretationCommand {
     claim?: InterpretationClaim,
   ): Promise<RegisterInterpretationResult> {
     const snapshot = await this.store.loadKnowledge();
-    validateInterpretationDraft(input, snapshot);
-    assertNoInterpreterDecisions(input);
+    const completedInput = completeMissingReferenceResolutions(input, snapshot);
+
+    validateInterpretationDraft(completedInput, snapshot);
+    assertNoInterpreterDecisions(completedInput);
     const decisions = new Map<string, ReferenceDecision>();
-    const resolutions = findReferenceResolutions(input, snapshot, decisions);
+    const resolutions = findReferenceResolutions(completedInput, snapshot, decisions);
 
     if (resolutions.length > 0) {
       const reviews = await this.createReviews(interpretation, resolutions);
       const pending = interpretation.requestReview(
-        input,
+        completedInput,
         interpreter,
         this.clock.now().toISOString(),
       );
@@ -78,11 +81,11 @@ export class RegisterInterpretationCommand {
       });
     }
 
-    const prepared = this.createRegistration(input, snapshot, decisions);
+    const prepared = this.createRegistration(completedInput, snapshot, decisions);
     assertEffectiveRegistration(prepared.registration);
 
     const completed = interpretation.completeKnowledge(
-      input,
+      completedInput,
       interpreter,
       prepared.publication,
       this.clock.now().toISOString(),
@@ -375,6 +378,64 @@ export class RegisterInterpretationCommand {
   }
 }
 
+/**
+ * Supplies a safe generic Review request when inference marks a Concept uncertain but omits it.
+ */
+function completeMissingReferenceResolutions(
+  input: RegisterInterpretationInput,
+  snapshot: KnowledgeSnapshot,
+): RegisterInterpretationInput {
+  const concepts = input.concepts.map((concept) =>
+    isAnonymousPersonPlaceholder(concept)
+      ? Object.freeze({
+          ...concept,
+          referenceStatus: 'uncertain' as const,
+        })
+      : concept,
+  );
+  const requested = new Set(
+    (input.referenceResolutions ?? []).map((resolution) => resolution.reference),
+  );
+  const missing = concepts
+    .filter(
+      (concept) => concept.referenceStatus === 'uncertain' && !requested.has(concept.reference),
+    )
+    .map((concept) => {
+      const resolution = resolveConcept(snapshot.concepts, concept.name, concept.definition);
+
+      return Object.freeze({
+        reference: concept.reference,
+        question: `¿A qué concepto se refiere «${concept.name}»?`,
+        candidateConceptIds: Object.freeze(resolution.candidates.map((candidate) => candidate.id)),
+      });
+    });
+
+  const changedConcept = concepts.some((concept, index) => concept !== input.concepts[index]);
+
+  if (missing.length === 0 && !changedConcept) {
+    return input;
+  }
+
+  return Object.freeze({
+    ...input,
+    concepts: Object.freeze(concepts),
+    referenceResolutions: Object.freeze([...(input.referenceResolutions ?? []), ...missing]),
+  });
+}
+
+function isAnonymousPersonPlaceholder(concept: InterpretationConcept): boolean {
+  const name = normalizeText(concept.name);
+  const metadata = normalizeText(
+    [concept.name, concept.definition, ...(concept.aliases ?? [])].join(' '),
+  );
+  const genericPerson =
+    /^(persona|creador|creadora|autor|autora|individuo|person|creator|author)\b/;
+  const unknownIdentity =
+    /\b(desconocido|desconocida|anónimo|anónima|no identificado|no identificada|sin identificar|identidad no indicada|identidad desconocida|unknown|unnamed|unidentified|anonymous)\b/;
+
+  return genericPerson.test(name) && unknownIdentity.test(metadata);
+}
+
 function findReferenceResolutions(
   input: RegisterInterpretationInput,
   snapshot: KnowledgeSnapshot,
@@ -519,8 +580,18 @@ function requirePredicate(predicates: readonly Predicate[], key: string): Predic
   return predicate;
 }
 
-function setReference<Value>(references: Map<string, Value>, key: string, value: Value): void {
-  if (references.has(key)) {
+function setReference<Value extends { readonly id: string }>(
+  references: Map<string, Value>,
+  key: string,
+  value: Value,
+): void {
+  const existing = references.get(key);
+
+  if (existing?.id === value.id) {
+    return;
+  }
+
+  if (existing) {
     throw new InvalidInputError(`Reference ${key} is duplicated`);
   }
 
