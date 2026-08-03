@@ -97,7 +97,14 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
           workflow.status === 'needsInput' &&
           Boolean(workflow.reason),
       ),
-      JSON.stringify(incomplete.workflows),
+      JSON.stringify(
+        incomplete.workflows.map(({ reference, kind, status, reason }) => ({
+          reference,
+          kind,
+          status,
+          reason,
+        })),
+      ),
       { critical: true, weight: 2 },
     ),
     check(

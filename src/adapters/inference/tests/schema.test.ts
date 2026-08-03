@@ -160,4 +160,71 @@ describe('interpretation workflow schema', () => {
       },
     });
   });
+
+  it('drops generated planning filler and inherits a subject deadline', () => {
+    const output = parseInterpretationOutput({
+      kind: 'knowledge',
+      reason: null,
+      draft: {
+        entryId: 'entry-1',
+        items: [{ reference: 'filler', profile: null, referenceStatus: 'identified' }],
+        components: [
+          {
+            reference: 'descriptive',
+            itemReference: 'filler',
+            key: 'descriptive',
+            schemaVersion: 1,
+            value: { title: '' },
+            sourceLocators: [],
+            validTime: null,
+            status: 'accepted',
+            supersedesReference: null,
+          },
+        ],
+        referenceResolutions: [],
+        workflows: [
+          {
+            kind: 'planningRequest',
+            version: 1,
+            reference: 'task',
+            profile: 'task',
+            title: 'Complete task',
+            notes: null,
+            temporal: {
+              from: null,
+              to: '2026-08-31T23:59:59.000Z',
+              precision: 'month',
+            },
+            recurrence: null,
+            unresolved: [],
+          },
+          {
+            kind: 'reminderRequest',
+            version: 1,
+            reference: 'reminder',
+            subjectReference: 'task',
+            message: 'Complete task',
+            temporal: null,
+            schedule: { kind: 'deadlineOffsets', offsetsBeforeMs: [86_400_000] },
+            unresolved: [],
+          },
+        ],
+      },
+    });
+
+    expect(output).toMatchObject({
+      kind: 'knowledge',
+      draft: {
+        items: [],
+        components: [],
+        workflows: [
+          { kind: 'planningRequest' },
+          {
+            kind: 'reminderRequest',
+            temporal: { to: '2026-08-31T23:59:59.000Z', precision: 'month' },
+          },
+        ],
+      },
+    });
+  });
 });

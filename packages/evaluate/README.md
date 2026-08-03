@@ -25,6 +25,7 @@ npm run evaluate -- --repeat 5
 npm run quality
 npm run quality:real -- --repeat 2
 npm run quality:real -- --case quote --repeat 2
+npm run quality:real -- --repeat 2 --attempts 2 --timeout-ms 30000
 ```
 
 `quality` is the deterministic, remote-free gate for semantic quality, simplicity,

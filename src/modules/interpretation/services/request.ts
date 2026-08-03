@@ -34,6 +34,7 @@ const instructions = Object.freeze([
   'Use unresolved only for genuinely missing required source values; template placeholders are resolved before an Entry reaches Wingman.',
   'Reminder occurrences and deadline offsets must never be empty. Use an event schedule for explicit external event triggers and deadlineOffsets for reminders stated relative to a deadline.',
   'A deadlineOffsets reminder must copy its source deadline into reminder temporal.to as UTC and also into its planning subject; retain the original day or month precision.',
+  'For "fin de mes" or "end of month", calculate temporal.to as the final UTC instant of the month containing entry.capturedAt; this is a derived boundary, not an invented exact time.',
   'Every explicit remind, notify, avísame or recuérdame request must include a reminderRequest even when its event source or Capability is unavailable; the system records unsupported behavior after interpretation.',
   'Keep temporal source precision separate from reminder cadence; never invent exact people, organizations, times, Events, connectors, or operations.',
 ]);
@@ -54,7 +55,7 @@ export function createInterpretationRequest(
   return Object.freeze({
     operation: 'interpretEntry',
     reasoning: 'low',
-    instructionsVersion: 'interpretEntry.v9',
+    instructionsVersion: 'interpretEntry.v10',
     objective: 'Interpret one Entry as composable evidence-backed knowledge.',
     instructions,
     entry,

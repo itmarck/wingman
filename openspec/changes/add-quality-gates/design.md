@@ -74,3 +74,11 @@ Rollback removes the new package modules and scripts; no persistent or productio
 
 - Whether CI should later require the real-model lane; this change keeps it manual because credentials, cost, and provider variance differ by environment.
 - Whether score history should later be stored as CI artifacts; current reports are intentionally ephemeral.
+
+## Evaluation Results
+
+- The deterministic lane reached 100 on all six local axes after separating Draft freezing and correcting the trusted-origin measurement.
+- The first full real-model baseline scored 30; the first repeated baseline scored 40 with four unstable cases and 18 structured-output/provider errors.
+- Prompt version `interpretEntry.v10` plus conservative removal of empty/redundant provider filler made the quote, both Review cases, task, habit, destructive request, email Event, and deadline reminder pass in bounded individual runs.
+- `high` reasoning was rejected after every case failed provider JSON-schema generation; the target remains on `low`.
+- Final repeated verification is externally blocked on 2026-08-02 because `groq.gptoss` exhausted its 200,000 token daily quota. The bounded evaluator now strips `Retry-After`, stops after sustained provider unavailability, sanitizes account details, and records the blocker. Run `npm run quality:real -- --repeat 2` after quota reset; the real-model axis is not considered passed until that command reaches 80 with zero unstable cases and no critical failure.

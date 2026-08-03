@@ -165,7 +165,12 @@ type StrictTemporal = {
 };
 
 function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
-  const components = draft.components.filter(componentHasContent);
+  const workflows = normalizeWorkflows(draft.workflows);
+  const components = draft.components.filter(
+    (component) =>
+      componentHasContent(component) &&
+      !(workflows.length > 0 && generatedPlanningComponents.has(component.key)),
+  );
   const referencedItems = new Set([
     ...components.map((component) => component.itemReference),
     ...(draft.referenceResolutions ?? []).map((resolution) => resolution.reference),
@@ -196,9 +201,19 @@ function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
         }),
       ),
     ),
-    workflows: Object.freeze(draft.workflows.map(normalizeWorkflow)),
+    workflows,
   });
 }
+
+const generatedPlanningComponents = new Set([
+  'assignment',
+  'descriptive',
+  'lifecycle',
+  'planning',
+  'progress',
+  'temporal',
+  'unresolved',
+]);
 
 function meaningful(value: unknown): boolean {
   if (typeof value === 'string') return value.trim().length > 0;
@@ -208,7 +223,10 @@ function meaningful(value: unknown): boolean {
   return true;
 }
 
-function componentHasContent(component: StrictDraft['components'][number]): boolean {
+function componentHasContent(component: {
+  readonly key: string;
+  readonly value: unknown;
+}): boolean {
   if (['name', 'description', 'quote'].includes(component.key))
     return typeof component.value === 'string' && component.value.trim().length > 0;
   if (component.key === 'aliases')
@@ -227,7 +245,32 @@ function componentHasContent(component: StrictDraft['components'][number]): bool
       meaningful((value as Record<string, unknown>).value)
     );
   }
+  if (component.key === 'participants')
+    return Array.isArray(component.value) && component.value.filter(meaningful).length >= 2;
   return meaningful(component.value);
+}
+
+function normalizeWorkflows(
+  workflows: readonly StrictWorkflow[],
+): readonly NonNullable<RegisterInterpretationInput['workflows']>[number][] {
+  const normalized = workflows.map(normalizeWorkflow);
+  return Object.freeze(
+    normalized.map((workflow) => {
+      if (
+        workflow.kind !== 'reminderRequest' ||
+        workflow.schedule.kind !== 'deadlineOffsets' ||
+        workflow.temporal?.to
+      )
+        return workflow;
+      const subject = normalized.find(
+        (candidate) =>
+          candidate.kind === 'planningRequest' && candidate.reference === workflow.subjectReference,
+      );
+      return subject?.temporal?.to
+        ? Object.freeze({ ...workflow, temporal: subject.temporal })
+        : workflow;
+    }),
+  );
 }
 
 function normalizeWorkflow(

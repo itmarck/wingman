@@ -148,7 +148,7 @@ async function readBody(response: Response): Promise<unknown> {
 
 function throwHttpError(response: Response, body: unknown): never {
   const { status } = response;
-  const detail = readProviderMessage(body);
+  const detail = status === 429 || status >= 500 ? undefined : safeProviderMessage(body);
   const message = `Inference provider request failed with status ${status}${detail ? `: ${detail}` : ''}`;
   const retryable = status === 408 || status === 409 || status === 429 || status >= 500;
 
@@ -180,7 +180,7 @@ function readRetryAfterMs(headers: Headers): number | undefined {
 }
 
 function throwProviderFailure(error: Record<string, unknown>): never {
-  const message = readProviderMessage(error) ?? 'Inference provider failed to create a response';
+  const message = safeProviderMessage(error) ?? 'Inference provider failed to create a response';
   const code = optionalString(error.code)?.toLowerCase() ?? '';
   const transient = ['rate_limit', 'server_error', 'timeout', 'unavailable'].some((value) =>
     code.includes(value),
@@ -191,6 +191,13 @@ function throwProviderFailure(error: Record<string, unknown>): never {
   }
 
   throw new InferenceAdapterError('provider', message);
+}
+
+function safeProviderMessage(value: unknown): string | undefined {
+  return readProviderMessage(value)
+    ?.replace(/organization\s+`[^`]+`/gi, 'organization [redacted]')
+    .replace(/https?:\/\/\S+/gi, '[link redacted]')
+    .slice(0, 300);
 }
 
 function readProviderMessage(value: unknown): string | undefined {

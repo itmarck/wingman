@@ -1,18 +1,21 @@
 import './cases/quotes.js';
 import './cases/reviews.js';
 import './cases/workflows.js';
+import { readOption, readPositiveInteger } from './cli.js';
 import { check, createQualityReport, printQuality } from './quality.js';
 import { run } from './runner.js';
 
 const arguments_ = process.argv.slice(2);
 const repeat = readPositiveInteger(arguments_, '--repeat', 1);
 const filter = readOption(arguments_, '--case');
-const allowed = new Set(['--json', '--repeat', '--case']);
+const timeoutMs = readPositiveInteger(arguments_, '--timeout-ms', 30_000);
+const maxAttempts = readPositiveInteger(arguments_, '--attempts', 2);
+const allowed = new Set(['--json', '--repeat', '--case', '--timeout-ms', '--attempts']);
 for (const argument of arguments_)
   if (!argument.includes('=') && argument.startsWith('--') && !allowed.has(argument))
     throw new Error(`Unknown real-quality option: ${argument}`);
 
-const evaluation = await run({ repeat, filter });
+const evaluation = await run({ repeat, filter, timeoutMs, maxAttempts });
 const checks = evaluation.cases.map((evaluationCase) => {
   const failures = evaluationCase.iterations.flatMap((iteration) => [
     ...(iteration.error ? [iteration.error] : []),
@@ -21,6 +24,9 @@ const checks = evaluation.cases.map((evaluationCase) => {
       ? [`output=${summarize(iteration.result.adapterOutputs.at(-1))}`]
       : []),
     ...iteration.checks.flatMap((item) => (item.passed ? [] : [item.message ?? item.name])),
+    ...(iteration.checks.some((item) => !item.passed) && iteration.result?.adapterOutputs.length
+      ? [`output=${summarize(iteration.result.adapterOutputs.at(-1))}`]
+      : []),
   ]);
   const critical = /quote|destructive/i.test(evaluationCase.description);
   return check(
@@ -45,27 +51,12 @@ const report = createQualityReport('real', checks, {
   inputTokens: sum(runs, 'inputTokens'),
   outputTokens: sum(runs, 'outputTokens'),
   durationMs: runs.reduce((total, run) => total + run.durationMs, 0),
+  timeoutMs,
+  maxAttempts,
+  ...(evaluation.blocked ? { blocker: evaluation.blocked } : {}),
 });
 printQuality(report, arguments_.includes('--json'));
 if (!report.mayStop) process.exitCode = 1;
-
-function readOption(arguments_: readonly string[], name: string): string | undefined {
-  const inline = arguments_.find((argument) => argument.startsWith(`${name}=`));
-  const position = arguments_.indexOf(name);
-  return inline?.slice(name.length + 1) ?? (position >= 0 ? arguments_[position + 1] : undefined);
-}
-
-function readPositiveInteger(
-  arguments_: readonly string[],
-  name: string,
-  defaultValue: number,
-): number {
-  const raw = readOption(arguments_, name);
-  if (raw === undefined) return defaultValue;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value < 1) throw new Error(`${name} requires a positive integer`);
-  return value;
-}
 
 function sum(
   runs: readonly { readonly inputTokens?: number; readonly outputTokens?: number }[],

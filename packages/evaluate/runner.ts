@@ -13,7 +13,7 @@ import type { CurrentItemsResult } from '../../src/modules/projection/domain/ite
 import type { ReminderExplanation } from '../../src/modules/reminder/operations/manage.js';
 import { createSystem, type System } from '../../src/system/system.js';
 
-const evaluationTimeoutMs = 3 * 60_000;
+const defaultEvaluationTimeoutMs = 30_000;
 const pollingIntervalMs = 100;
 const registeredCases: RegisteredCase[] = [];
 
@@ -46,6 +46,7 @@ export interface EvaluationReport {
   readonly passed: number;
   readonly failed: number;
   readonly unstable: number;
+  readonly blocked?: string;
 }
 
 export interface CaseReport {
@@ -198,6 +199,8 @@ export function noExecutableEffects(): Expectation {
 export interface RunOptions {
   readonly repeat?: number;
   readonly filter?: string;
+  readonly timeoutMs?: number;
+  readonly maxAttempts?: number;
 }
 
 /** Runs every case with real inference and an isolated in-memory system per repetition. */
@@ -205,13 +208,16 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
   const cases = collect(options.filter);
   const config = readInferenceConfig();
   const repeat = readRepeat(options.repeat);
+  const timeoutMs = positiveInteger(options.timeoutMs ?? defaultEvaluationTimeoutMs, 'timeoutMs');
+  const maxAttempts = positiveInteger(options.maxAttempts ?? 2, 'maxAttempts');
   const reports: CaseReport[] = [];
+  let blocked: string | undefined;
 
   for (const evaluationCase of cases) {
     const iterations: IterationReport[] = [];
 
     for (let iteration = 1; iteration <= repeat; iteration += 1) {
-      iterations.push(await execute(evaluationCase, config, iteration));
+      iterations.push(await execute(evaluationCase, config, iteration, timeoutMs, maxAttempts));
     }
 
     const failed = iterations.filter((result) => !passed(result)).length;
@@ -225,6 +231,10 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
         stable: isStable(iterations),
       }),
     );
+    if (providerUnavailable(iterations)) {
+      blocked = `Provider unavailable while running "${evaluationCase.description}"; remaining cases were not called`;
+      break;
+    }
   }
 
   const failed = reports.filter((report) => report.failed > 0).length;
@@ -238,6 +248,7 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
     passed: reports.length - failed,
     failed,
     unstable,
+    blocked,
   });
 }
 
@@ -314,6 +325,8 @@ async function execute(
   evaluationCase: EvaluationCase,
   config: ReturnType<typeof readInferenceConfig>,
   iteration: number,
+  timeoutMs: number,
+  maxAttempts: number,
 ): Promise<IterationReport> {
   const telemetry = new EvaluationTelemetry();
   const adapter = new RecordingAdapter(createInferenceAdapter(config));
@@ -326,12 +339,12 @@ async function execute(
       leaseDurationMs: 60_000,
       leaseRenewalIntervalMs: 10_000,
       pollingIntervalMs,
-      retryDelaysMs: Object.freeze([0, 0]),
+      retryDelaysMs: Object.freeze(Array.from({ length: maxAttempts - 1 }, () => 0)),
     },
   });
 
   try {
-    const result = await interpret(system, telemetry, adapter.outputs, evaluationCase);
+    const result = await interpret(system, telemetry, adapter, evaluationCase, timeoutMs);
     const checks = evaluationCase.expectations.map((item) => {
       const message = item.check(result);
 
@@ -361,8 +374,9 @@ async function execute(
 async function interpret(
   system: System,
   telemetry: EvaluationTelemetry,
-  adapterOutputs: readonly unknown[],
+  adapter: RecordingAdapter,
   evaluationCase: EvaluationCase,
+  timeoutMs: number,
 ): Promise<EvaluationResult> {
   const entryId = await system.capture.captureEntry.execute({
     content: {
@@ -374,7 +388,7 @@ async function interpret(
       externalId: evaluationCase.description,
     },
   });
-  const deadline = Date.now() + evaluationTimeoutMs;
+  const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
     let processingError: unknown;
@@ -388,7 +402,7 @@ async function interpret(
     const current = await system.interpretation.getEntryStatus.execute(entryId);
 
     if (isTerminal(current.status)) {
-      return observe(system, telemetry, adapterOutputs, entryId, current);
+      return observe(system, telemetry, adapter.outputs, entryId, current);
     }
 
     if (processingError && !(processingError instanceof InterpreterUnavailableError)) {
@@ -495,10 +509,12 @@ function collect(filter?: string): readonly EvaluationCase[] {
 }
 
 function readRepeat(value = 1): number {
-  if (!Number.isInteger(value) || value < 1) {
-    throw new Error('Evaluation repeat must be a positive integer');
-  }
+  return positiveInteger(value, 'repeat');
+}
 
+function positiveInteger(value: number, name: string): number {
+  if (!Number.isInteger(value) || value < 1)
+    throw new Error(`Evaluation ${name} must be a positive integer`);
   return value;
 }
 
@@ -565,6 +581,19 @@ function isStable(iterations: readonly IterationReport[]): boolean {
   return new Set(signatures).size <= 1;
 }
 
+function providerUnavailable(iterations: readonly IterationReport[]): boolean {
+  return (
+    iterations.length > 0 &&
+    iterations.every((iteration) => {
+      const runs = iteration.result?.runs ?? [];
+      return (
+        runs.length > 0 &&
+        runs.every((run) => run.result === 'error' && run.errorCategory === 'unavailable')
+      );
+    })
+  );
+}
+
 class EvaluationTelemetry implements InferenceTelemetry {
   readonly #runs: InferenceRun[] = [];
 
@@ -590,8 +619,14 @@ class RecordingAdapter implements InterpretationAdapter {
   }
 
   async interpret(request: Parameters<InterpretationAdapter['interpret']>[0]): Promise<unknown> {
-    const output = await this.adapter.interpret(request);
-    this.#outputs.push(structuredClone(output));
-    return output;
+    try {
+      const output = await this.adapter.interpret(request);
+      this.#outputs.push(structuredClone(output));
+      return output;
+    } catch (error) {
+      if (error instanceof InterpreterUnavailableError)
+        throw new InterpreterUnavailableError(error.message);
+      throw error;
+    }
   }
 }

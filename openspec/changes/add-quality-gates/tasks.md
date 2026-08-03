@@ -23,7 +23,7 @@
 ## 4. Iteration and correction
 
 - [x] 4.1 Run the first local quality baseline and commit the evaluator once all seven axes have evidence
-- [ ] 4.2 Prioritize and fix local metric failures without lowering thresholds, then repeat build, tests, API smoke, and quality twice from clean processes
-- [ ] 4.3 Run the bounded real-model baseline, fix the highest-impact prompt, schema, parsing, or product defects, and repeat until its exit threshold is met or a documented external blocker remains
-- [ ] 4.4 Remove evaluator duplication and any production classes, functions, or files proven unnecessary during the iterations
-- [ ] 4.5 Run formatting, typecheck, full tests, build, smoke, strict OpenSpec validation, and verify a clean worktree after conventional commits
+- [x] 4.2 Prioritize and fix local metric failures without lowering thresholds, then repeat build, tests, API smoke, and quality twice from clean processes
+- [x] 4.3 Run the bounded real-model baseline, fix the highest-impact prompt, schema, parsing, or product defects, and repeat until its exit threshold is met or a documented external blocker remains
+- [x] 4.4 Remove evaluator duplication and any production classes, functions, or files proven unnecessary during the iterations
+- [x] 4.5 Run formatting, typecheck, full tests, build, smoke, strict OpenSpec validation, and verify a clean worktree after conventional commits
