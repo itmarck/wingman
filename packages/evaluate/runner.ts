@@ -252,75 +252,6 @@ export async function run(options: RunOptions = {}): Promise<EvaluationReport> {
   });
 }
 
-/** Prints one stable human-readable console report. */
-export function print(report: EvaluationReport): void {
-  console.log(paint('cyan', 'Wingman semantic evaluation'));
-  console.log(`Target: ${report.target}`);
-  console.log(`Model: ${report.model}`);
-  console.log(`Repeat: ${report.repeat}`);
-  console.log('');
-
-  for (const evaluationCase of report.cases) {
-    const casePassed = evaluationCase.failed === 0;
-
-    console.log(`${mark(casePassed)}  ${evaluationCase.description}`);
-
-    for (const result of evaluationCase.iterations) {
-      if (report.repeat > 1) {
-        console.log(`      ${mark(passed(result))}  run ${result.iteration}`);
-      }
-
-      const indentation = report.repeat > 1 ? '            ' : '      ';
-
-      if (result.error) {
-        console.log(`${indentation}${paint('red', result.error)}`);
-        continue;
-      }
-
-      for (const check of result.checks) {
-        console.log(`${indentation}${mark(check.passed)}  ${check.name}`);
-
-        if (check.message) {
-          console.log(`${indentation}      ${paint('red', check.message)}`);
-        }
-      }
-
-      if (result.result) {
-        const inputTokens = sum(result.result.runs, 'inputTokens');
-        const outputTokens = sum(result.result.runs, 'outputTokens');
-        const durationMs = result.result.runs.reduce((total, run) => total + run.durationMs, 0);
-
-        console.log(
-          paint(
-            'dim',
-            `${indentation}attempts=${result.result.status.attempts} input=${inputTokens} output=${outputTokens} duration=${durationMs}ms`,
-          ),
-        );
-
-        if (result.result.status.error) {
-          console.log(`${indentation}${paint('red', `error=${result.result.status.error}`)}`);
-        }
-      }
-    }
-
-    if (report.repeat > 1) {
-      console.log(
-        `${paint(evaluationCase.failed === 0 ? 'green' : 'yellow', `${evaluationCase.passed}/${report.repeat}`)} repetitions passed`,
-      );
-    }
-  }
-
-  console.log('');
-  console.log(
-    paint(
-      report.failed === 0 ? 'green' : 'red',
-      `${report.passed}/${report.cases.length} cases passed`,
-    ),
-  );
-  if (report.repeat > 1)
-    console.log(`Stable cases: ${report.cases.length - report.unstable}/${report.cases.length}`);
-}
-
 async function execute(
   evaluationCase: EvaluationCase,
   config: ReturnType<typeof readInferenceConfig>,
@@ -522,28 +453,6 @@ function passed(report: IterationReport): boolean {
   return report.error === undefined && report.checks.every((check) => check.passed);
 }
 
-function mark(passed: boolean): string {
-  return paint(passed ? 'green' : 'red', passed ? 'PASS' : 'FAIL');
-}
-
-type Color = 'cyan' | 'dim' | 'green' | 'red' | 'yellow';
-
-function paint(color: Color, value: string): string {
-  if (!process.stdout.isTTY || process.env.NO_COLOR !== undefined) {
-    return value;
-  }
-
-  const codes: Readonly<Record<Color, number>> = {
-    cyan: 36,
-    dim: 2,
-    green: 32,
-    red: 31,
-    yellow: 33,
-  };
-
-  return `\u001B[${codes[color]}m${value}\u001B[0m`;
-}
-
 function isTerminal(status: EntryStatusResult['status']): boolean {
   return ['completed', 'pending', 'failed', 'exhausted'].includes(status);
 }
@@ -558,10 +467,6 @@ function waitDuration(availableAt?: string): number {
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function sum(runs: readonly InferenceRun[], key: 'inputTokens' | 'outputTokens'): number {
-  return runs.reduce((total, run) => total + (run[key] ?? 0), 0);
 }
 
 function sameValues(actual: readonly string[], expected: readonly string[]): boolean {

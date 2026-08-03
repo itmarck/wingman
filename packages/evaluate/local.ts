@@ -1,67 +1,27 @@
-import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 import { createAccessToken } from '../../src/adapters/http/auth.js';
 import { createHttpServer } from '../../src/adapters/http/server.js';
-import { parseInterpretationOutput } from '../../src/adapters/inference/schema.js';
-import { SmokeFixtureInterpreter } from '../../src/adapters/inference/smoke.js';
 import { InterpreterUnavailableError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../src/modules/interpretation/services/request.js';
 import { createSystem } from '../../src/system/system.js';
 import { check, createQualityReport, type QualityCheck, type QualityReport } from './quality.js';
 
-const executeFile = promisify(execFile);
 const signingSecret = 'local-quality-secret-with-at-least-32-characters';
-
-interface SmokeEntry {
-  readonly text: string;
-  readonly status: string;
-  readonly workflowStatus: string;
-  readonly profiles: readonly string[];
-  readonly workflows: readonly string[];
-  readonly unresolved: readonly string[];
-  readonly unsupported: readonly string[];
-  readonly mismatches: readonly string[];
-}
-interface SmokeReport {
-  readonly mode: string;
-  readonly deterministicInference: boolean;
-  readonly entries: readonly SmokeEntry[];
-  readonly totals: {
-    readonly captured: number;
-    readonly unsupported: number;
-    readonly failedWorkflows: number;
-    readonly reminders: number;
-    readonly rules: number;
-    readonly intents: number;
-    readonly attempts: number;
-    readonly proactive: number;
-    readonly mismatches: number;
-  };
-}
 
 /** Runs all deterministic quality checks without loading provider configuration. */
 export async function runLocalQuality(): Promise<QualityReport> {
-  const [smoke, http, simplicity, operational] = await Promise.all([
-    runSmoke(),
+  const [http, simplicity, operational] = await Promise.all([
     inspectHttpContracts(),
     inspectSimplicity(),
     inspectOperationalSemantics(),
   ]);
-  const checks = [
-    ...semanticChecks(smoke),
+  return createQualityReport('local', [
     ...operational,
-    ...observabilityChecks(smoke),
     ...http,
-    ...securityChecks(smoke),
     ...simplicity,
     ...evolutionChecks(),
-  ];
-  return createQualityReport('local', checks, {
-    entries: smoke.totals.captured,
-    deterministicInference: String(smoke.deterministicInference),
-  });
+  ]);
 }
 
 async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
@@ -344,92 +304,10 @@ class UnavailableQualityInterpreter {
   }
 }
 
-async function runSmoke(): Promise<SmokeReport> {
-  const { stdout } = await executeFile(
-    process.execPath,
-    ['--import', 'tsx', 'tools/smoke/index.ts'],
-    { cwd: process.cwd(), maxBuffer: 10 * 1024 * 1024, windowsHide: true },
-  );
-  return JSON.parse(stdout) as SmokeReport;
-}
-
-function semanticChecks(report: SmokeReport): readonly QualityCheck[] {
-  const profiles = report.entries.flatMap((entry) => entry.profiles);
-  const expected = { habit: 4, knowledge: 2, objective: 1, task: 9 };
-  const actual = Object.fromEntries(
-    Object.keys(expected).map((profile) => [
-      profile,
-      profiles.filter((value) => value === profile).length,
-    ]),
-  );
-  return [
-    check(
-      'semantic',
-      'all Entry expectations match',
-      report.totals.mismatches === 0,
-      `${report.totals.mismatches} mismatches`,
-      { critical: true, weight: 3 },
-    ),
-    check(
-      'semantic',
-      'all Entries reach completed processing',
-      report.entries.every((entry) => entry.status === 'completed'),
-      `${report.entries.filter((entry) => entry.status !== 'completed').length} incomplete`,
-      { weight: 2 },
-    ),
-    check(
-      'semantic',
-      'planning profiles match the Entry bank',
-      JSON.stringify(actual) === JSON.stringify(expected),
-      `expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`,
-      { weight: 2 },
-    ),
-    check(
-      'semantic',
-      'reminder and unsupported event remain distinct',
-      report.totals.reminders === 1 && report.totals.rules === 1 && report.totals.unsupported === 1,
-      `reminders=${report.totals.reminders} rules=${report.totals.rules} unsupported=${report.totals.unsupported}`,
-      { weight: 2 },
-    ),
-  ];
-}
-
-function observabilityChecks(report: SmokeReport): readonly QualityCheck[] {
-  const unsupported = report.entries.find((entry) => entry.workflowStatus === 'unsupported');
-  const applied = report.entries.filter((entry) => entry.workflows.includes('applied'));
-  return [
-    check(
-      'observability',
-      'unsupported workflow has an actionable public reason',
-      Boolean(unsupported?.unsupported[0]?.includes('not registered')),
-      unsupported?.unsupported[0] ?? 'reason missing',
-      { critical: true, weight: 2 },
-    ),
-    check(
-      'observability',
-      'applied workflows expose their outcomes',
-      applied.length > 0 && applied.every((entry) => entry.workflows.length > 0),
-      `${applied.length} Entries expose applied outcomes`,
-    ),
-    check(
-      'observability',
-      'workflow failures are counted explicitly',
-      report.totals.failedWorkflows === 0,
-      `${report.totals.failedWorkflows} failed workflows`,
-    ),
-    check(
-      'observability',
-      'unresolved values are visible when present',
-      report.entries.every((entry) => Array.isArray(entry.unresolved)),
-      'every Entry includes unresolved evidence',
-    ),
-  ];
-}
-
 async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
   const system = createSystem('memory', {
     inference: { target: 'quality.local', provider: 'local', model: 'fixtures' },
-    adapter: new SmokeFixtureInterpreter(),
+    adapter: new OperationalQualityInterpreter(),
     mode: 'write',
   });
   const server = createHttpServer(system, { signingSecret });
@@ -525,51 +403,6 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
     await server.close();
     await system.close();
   }
-}
-
-function securityChecks(report: SmokeReport): readonly QualityCheck[] {
-  const destructive = report.entries.find((entry) => entry.text.startsWith('Eliminar la carpeta'));
-  const inventedWorkflow = parseInterpretationOutput({
-    kind: 'knowledge',
-    reason: null,
-    draft: {
-      entryId: 'entry',
-      items: [],
-      components: [],
-      referenceResolutions: [],
-      workflows: [{ kind: 'deleteDirectory', version: 1 }],
-    },
-  });
-  return [
-    check(
-      'security',
-      'destructive Entry becomes planning only',
-      destructive?.profiles.join() === 'task' && destructive.workflows.join() === 'applied',
-      JSON.stringify(destructive),
-      { critical: true, weight: 2 },
-    ),
-    check(
-      'security',
-      'local run creates no executable effects',
-      report.totals.intents === 0 && report.totals.attempts === 0 && report.totals.proactive === 0,
-      `intents=${report.totals.intents} attempts=${report.totals.attempts} proactive=${report.totals.proactive}`,
-      { critical: true, weight: 2 },
-    ),
-    check(
-      'security',
-      'closed inference contract rejects invented operations',
-      inventedWorkflow === undefined,
-      `parser result=${String(inventedWorkflow)}`,
-      { critical: true },
-    ),
-    check(
-      'security',
-      'local lane proves isolated mode',
-      report.mode === 'isolated-memory' && report.deterministicInference,
-      `mode=${report.mode} deterministic=${report.deterministicInference}`,
-      { critical: true },
-    ),
-  ];
 }
 
 async function inspectSimplicity(): Promise<readonly QualityCheck[]> {

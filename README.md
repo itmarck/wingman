@@ -31,6 +31,8 @@ npm test
 npm run build
 ```
 
+`npm test` runs deterministic tests without calling an inference provider. `npm run evaluate` runs the semantic cases against the configured real inference target; authentication, quota, availability, or semantic failures make that command exit nonzero.
+
 The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; the safe default is `readonly`. The current OpenAPI document is publicly available at `/api/openapi.json` for importing into API clients.
 
 The built-in projections are `system.currentAxioms`, `system.glossary`, and `system.predicates`.

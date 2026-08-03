@@ -29,7 +29,7 @@ export interface AxisReport {
 }
 
 export interface QualityReport {
-  readonly lane: 'local' | 'real';
+  readonly lane: 'complete' | 'local';
   readonly outcome: 'pass' | 'fail';
   readonly mayStop: boolean;
   readonly axes: readonly AxisReport[];
@@ -54,8 +54,8 @@ export function createQualityReport(
   metadata: QualityReport['metadata'] = {},
 ): QualityReport {
   validateChecks(checks);
-  const executed =
-    lane === 'local' ? qualityAxes.filter((axis) => axis !== 'realModel') : ['realModel'];
+  const executed: readonly QualityAxis[] =
+    lane === 'complete' ? qualityAxes : qualityAxes.filter((axis) => axis !== 'realModel');
   const axes = qualityAxes.map((axis): AxisReport => {
     const axisChecks = checks.filter((check) => check.axis === axis);
     if (!executed.includes(axis))

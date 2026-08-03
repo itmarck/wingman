@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { materializeSmokeEntry, SmokeFixtureInterpreter } from '../../adapters/inference/smoke.js';
 import { MemoryWorkflowRegistry } from '../../modules/interpretation/adapters/memory/workflow.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
 import { EntryWorkflowRouter } from '../workflow.js';
@@ -121,41 +120,6 @@ describe('interpreted Entry workflows', () => {
       'unsupported',
     ]);
     expect(reminderCalls).toBe(1);
-  });
-
-  it('classifies habits, knowledge, quotations and destructive requests without effects', async () => {
-    const system = createTestSystem({ adapter: new SmokeFixtureInterpreter() });
-    const texts = [
-      'Caminar después de comer',
-      'Plataforma de cursos interactivos como idea',
-      'Eliminar la carpeta overrides en {projectName}',
-      '"Uno sufre más en la imaginación que en la realidad"',
-    ];
-    const ids: string[] = [];
-    for (const text of texts)
-      ids.push(
-        await system.capture.captureEntry.execute({
-          content: { kind: 'text', text: materializeSmokeEntry(text) },
-          origin: { source: 'test' },
-        }),
-      );
-    while (await system.interpretation.processNext.execute()) {}
-
-    expect((await system.planning.queries.list('pending')).map((item) => item.profile)).toEqual([
-      'habit',
-      'task',
-    ]);
-    const projection = await system.projection.readProjection.execute('system.currentItems');
-    expect(JSON.stringify(projection.data)).toContain(
-      'Uno sufre más en la imaginación que en la realidad',
-    );
-    const statuses = await Promise.all(
-      ids.map((id) => system.interpretation.getEntryStatus.execute(id)),
-    );
-    expect(statuses.every((status) => status.status === 'completed')).toBe(true);
-    expect(await system.rule.store.list()).toEqual([]);
-    expect(await system.execution.store.listIntents()).toEqual([]);
-    await system.close();
   });
 });
 
