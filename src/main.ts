@@ -6,6 +6,7 @@ import { PostgresInferenceTelemetry } from './adapters/postgres/telemetry.js';
 import { PollingWorker } from './modules/interpretation/adapters/worker.js';
 import { Runtime } from './runtime.js';
 import { createSystem } from './system/system.js';
+import { SystemWorkCommand } from './system/work.js';
 
 const config = readConfig();
 const database = new PostgresDatabase(config.postgres);
@@ -20,9 +21,12 @@ const system = createSystem('memory', {
   telemetry: new PostgresInferenceTelemetry(database),
 });
 const server = createServer(system, config.http);
-const worker = new PollingWorker(system.interpretation.processNext, {
-  onError: (error) => server.logger.error({ error }, 'Entry processing failed'),
-});
+const worker = new PollingWorker(
+  new SystemWorkCommand(system.interpretation.processNext, system.reminder.worker),
+  {
+    onError: (error) => server.logger.error({ error }, 'System work failed'),
+  },
+);
 const runtime = new Runtime({ server, worker, system, database });
 
 await runtime.start();
