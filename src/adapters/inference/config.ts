@@ -27,6 +27,7 @@ export function readInferenceConfig(environment = process.env): InferenceAdapter
 const apiKeyNames: Readonly<Record<InferenceProvider, string>> = Object.freeze({
   openai: 'INFERENCE_API_KEY_OPENAI',
   groq: 'INFERENCE_API_KEY_GROQ',
+  gemini: 'INFERENCE_API_KEY_GEMINI',
 });
 
 function requireValue(value: string | undefined, name: string): string {

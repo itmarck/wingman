@@ -33,6 +33,21 @@ describe('Inference configuration', () => {
     });
   });
 
+  it('resolves the strongest confirmed free Gemini Flash target', () => {
+    expect(
+      readInferenceConfig({
+        INFERENCE_TARGET: 'gemini.flash',
+        INFERENCE_API_KEY_GEMINI: 'gemini-secret',
+      }),
+    ).toEqual({
+      target: 'gemini.flash',
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      apiKey: 'gemini-secret',
+    });
+  });
+
   it('rejects a missing or unsupported target before startup', () => {
     expect(() => readInferenceConfig({})).toThrow('INFERENCE_TARGET is required');
     expect(() =>

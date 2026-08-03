@@ -18,6 +18,70 @@ export async function readInferenceResponse(response: Response): Promise<Inferen
   return parseResponse(body);
 }
 
+/**
+ * Reads one OpenAI-compatible Chat Completions result.
+ */
+export async function readChatCompletionResponse(response: Response): Promise<InferenceExecution> {
+  const body = await readBody(response);
+
+  if (!response.ok) {
+    throwHttpError(response, body);
+  }
+
+  if (!isRecord(body)) {
+    throw invalidResponse('Inference provider returned a non-object response');
+  }
+
+  if (isRecord(body.error)) {
+    throwProviderFailure(body.error);
+  }
+
+  const choice = Array.isArray(body.choices) ? body.choices[0] : undefined;
+  const message = isRecord(choice) && isRecord(choice.message) ? choice.message : undefined;
+  const refusal = message ? optionalString(message.refusal) : undefined;
+
+  if (refusal) {
+    throw new InferenceAdapterError(
+      'refusal',
+      `Inference provider refused the request: ${refusal}`,
+    );
+  }
+
+  const text = message ? optionalString(message.content) : undefined;
+
+  if (!text) {
+    throw invalidResponse('Inference provider returned no output text');
+  }
+
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw invalidResponse('Inference provider returned invalid JSON');
+  }
+
+  const output = parseInterpretationOutput(parsed);
+
+  if (!output) {
+    throw invalidResponse('Inference provider output does not match the Interpretation schema');
+  }
+
+  const usage = isRecord(body.usage) ? body.usage : {};
+  const inputTokens = optionalNumber(usage.prompt_tokens);
+  const outputTokens = optionalNumber(usage.completion_tokens);
+
+  return Object.freeze({
+    kind: 'inferenceExecution',
+    output,
+    usedModel: optionalString(body.model),
+    usage:
+      inputTokens === undefined && outputTokens === undefined
+        ? undefined
+        : Object.freeze({ inputTokens, outputTokens }),
+  });
+}
+
 function parseResponse(value: unknown): InferenceExecution {
   if (!isRecord(value)) {
     throw invalidResponse('Inference provider returned a non-object response');

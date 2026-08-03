@@ -6,7 +6,7 @@ import {
 } from '../../modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
 import type { InferenceAdapterConfig } from './config.js';
-import { readInferenceResponse } from './response.js';
+import { readChatCompletionResponse, readInferenceResponse } from './response.js';
 import { interpretationOutputSchema } from './schema.js';
 
 type Fetch = typeof globalThis.fetch;
@@ -52,24 +52,48 @@ class HttpInferenceAdapter implements InterpretationAdapter {
       throw unavailable(error);
     }
 
-    return readInferenceResponse(response);
+    return this.config.provider === 'gemini'
+      ? readChatCompletionResponse(response)
+      : readInferenceResponse(response);
   }
 }
 
 function createRequestBody(config: InferenceAdapterConfig, request: InterpretationRequest) {
+  const instructions = [
+    request.objective,
+    ...request.instructions,
+    request.outputContract,
+    'Return only the structured result described by the supplied JSON schema.',
+  ].join('\n');
+  const input = JSON.stringify({
+    operation: request.operation,
+    entry: request.entry,
+    context: request.context,
+  });
+
+  if (config.provider === 'gemini') {
+    return {
+      model: config.model,
+      messages: [
+        { role: 'system', content: instructions },
+        { role: 'user', content: input },
+      ],
+      reasoning_effort: request.reasoning,
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'wingman_interpretation',
+          strict: true,
+          schema: interpretationOutputSchema,
+        },
+      },
+    };
+  }
+
   return {
     model: config.model,
-    instructions: [
-      request.objective,
-      ...request.instructions,
-      request.outputContract,
-      'Return only the structured result described by the supplied JSON schema.',
-    ].join('\n'),
-    input: JSON.stringify({
-      operation: request.operation,
-      entry: request.entry,
-      context: request.context,
-    }),
+    instructions,
+    input,
     reasoning: {
       effort: request.reasoning,
     },

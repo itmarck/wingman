@@ -1,7 +1,7 @@
-export const inferenceTargetKeys = ['openai.luna', 'groq.gptoss'] as const;
+export const inferenceTargetKeys = ['openai.luna', 'groq.gptoss', 'gemini.flash'] as const;
 
 export type InferenceTargetKey = (typeof inferenceTargetKeys)[number];
-export type InferenceProvider = 'groq' | 'openai';
+export type InferenceProvider = 'gemini' | 'groq' | 'openai';
 
 export interface InferenceTarget {
   readonly key: InferenceTargetKey;
@@ -22,6 +22,12 @@ const targets: Readonly<Record<InferenceTargetKey, InferenceTarget>> = Object.fr
     provider: 'groq',
     model: 'openai/gpt-oss-120b',
     endpoint: 'https://api.groq.com/openai/v1/responses',
+  }),
+  'gemini.flash': Object.freeze({
+    key: 'gemini.flash',
+    provider: 'gemini',
+    model: 'gemini-3.5-flash',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
   }),
 });
 

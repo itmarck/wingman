@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { InterpreterUnavailableError } from '../../../modules/interpretation/services/interpreter.js';
-import { readInferenceResponse } from '../response.js';
+import { readChatCompletionResponse, readInferenceResponse } from '../response.js';
 
 describe('inference response errors', () => {
   it('preserves retry policy without exposing provider account details', async () => {
@@ -23,5 +23,31 @@ describe('inference response errors', () => {
     });
     expect(String(error)).not.toContain('org_secret');
     expect(String(error)).not.toContain('example.test');
+  });
+});
+
+describe('chat completion responses', () => {
+  it('reads structured output and token usage', async () => {
+    const response = new Response(
+      JSON.stringify({
+        model: 'gemini-3.5-flash',
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: 'empty', reason: null, draft: null }),
+            },
+          },
+        ],
+        usage: { prompt_tokens: 123, completion_tokens: 17 },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+
+    await expect(readChatCompletionResponse(response)).resolves.toEqual({
+      kind: 'inferenceExecution',
+      output: { kind: 'empty' },
+      usedModel: 'gemini-3.5-flash',
+      usage: { inputTokens: 123, outputTokens: 17 },
+    });
   });
 });

@@ -14,7 +14,7 @@ npm start
 ```
 
 Configure the runtime in `.env`; every supported variable is documented in `.env.example`.
-`INFERENCE_TARGET` is required and must be `openai.luna` or `groq.gptoss`. Only the API key for its resolved provider is required.
+`INFERENCE_TARGET` is required and must be `gemini.flash`, `groq.gptoss`, or `openai.luna`. Only the API key for its resolved provider is required. Use `gemini.flash` with `INFERENCE_API_KEY_GEMINI` for local development and tests; keep `groq.gptoss` with `INFERENCE_API_KEY_GROQ` in the production environment.
 
 Generate a development access token:
 
