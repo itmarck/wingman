@@ -1,41 +1,81 @@
 # Database
 
-The migrations define the intended PostgreSQL model, but functional stores are not connected yet.
-Runtime knowledge remains in memory; only inference telemetry is currently persisted.
+PostgreSQL defines the durable model expected by the current domain. The runtime still uses the memory adapters for functional data; implementing the PostgreSQL adapters is the next step. Only inference telemetry is connected to PostgreSQL today.
+
+## Functional schema
 
 ```mermaid
 erDiagram
-    ENTRIES ||--o{ AXIOMS : supports
-    ENTRIES ||--o{ INTERPRETATIONS : receives
-    ENTRIES ||--o{ REVIEWS : originates
-    ENTRIES o|--o{ LINKS : supports
+    CORE_ENTRIES ||--o{ INTERPRETATION_RUNS : receives
+    CORE_ENTRIES ||--o{ INTERPRETATION_REVIEWS : originates
+    CORE_ENTRIES ||--o{ EXECUTION_EVENTS : causes
+    CORE_ENTRIES ||--o{ INTERPRETATION_WORKFLOW_OUTCOMES : produces
 
-    CONCEPTS ||--o{ ALIASES : has
-    CONCEPTS ||--o{ AXIOMS : subject
-    CONCEPTS o|--o{ AXIOMS : object
+    CORE_ITEMS ||--o{ CORE_COMPONENTS : composes
+    CORE_COMPONENTS o|--o{ CORE_COMPONENTS : supersedes
+    CORE_ITEMS ||--o{ AUTOMATION_REMINDERS : subject
+    CORE_ITEMS o|--o{ AUTOMATION_SUGGESTIONS : subject
 
-    PREDICATES ||--o{ AXIOMS : describes
-    PREDICATES ||--o{ LINKS : describes
+    INTERPRETATION_RUNS ||--o{ INTERPRETATION_REVIEWS : requires
+    INTERPRETATION_RUNS ||--o| INTERPRETATION_REVIEW_LOCKS : locks
 
-    AXIOMS ||--o{ LINKS : source
-    AXIOMS ||--o{ LINKS : target
+    EXECUTION_INTENTS ||--o{ EXECUTION_ATTEMPTS : executes
+    EXECUTION_INTENTS ||--o{ EXECUTION_EVENTS : causes
+    EXECUTION_ATTEMPTS ||--o{ EXECUTION_EVENTS : causes
+    EXECUTION_INTENTS o|--o{ AUTOMATION_SUGGESTIONS : realizes
 
-    INTERPRETATIONS ||--o{ REVIEWS : requires
+    AUTOMATION_RULES ||--o{ AUTOMATION_RULE_DEDUPLICATIONS : remembers
+    AUTOMATION_RULES ||--o{ AUTOMATION_RULE_EVALUATIONS : evaluates
 ```
 
-Lectura rápida:
+### Knowledge and interpretation
 
-- Una `Entry` puede generar varias `Interpretations` y respaldar muchos `Axioms`.
-- Un `Concept` puede ser sujeto u objeto de numerosos `Axioms`.
-- Un `Axiom` siempre tiene un `Predicate`.
-- Un `Link` conecta exactamente dos `Axioms` y también tiene un `Predicate`.
-- La procedencia de un `Link` puede ser una `Entry` o una inferencia respaldada por otros `Axioms`.
-- Una `Interpretation` puede producir varias `Reviews`, cada una con una resolución genérica de
-  referencia, un Concept propuesto, candidatos y una decisión humana opcional.
-- `Interpretation` conserva estado, intentos, Draft, publicación y datos de la cola.
-- `aliases` pertenece directamente a `Concept`.
-- `pgmigrations` queda fuera porque es una tabla técnica aislada.
-- `telemetry.runs` vive en un schema separado y no forma parte del estado funcional.
+| Table | Purpose |
+| --- | --- |
+| `core_entries` | Immutable user or connector input, with external-origin idempotency. |
+| `core_items` | Stable identity and optional versioned Profile. |
+| `core_components` | Immutable, evidence-backed Component values and supersession history. |
+| `core_assertions` | Persisted observed, believed, desired, required, forbidden or predicted State. |
+| `interpretation_runs` | Interpretation history, retries, queue availability and worker leases. |
+| `interpretation_reviews` | Generic `referenceResolution` questions and their decisions. |
+| `interpretation_review_locks` | Durable mutual exclusion while the final Review publishes an Interpretation. |
+| `interpretation_workflow_outcomes` | Idempotent result of each interpreted planning or reminder draft. |
 
-Los identificadores son texto porque el dominio no exige UUID. Los valores estructurados usan
-`JSONB` únicamente cuando su forma se valida nuevamente al rehidratar las entidades.
+Planning does not have separate task, objective, plan or habit tables. Each planning entity is an `core_items` row whose Profile is `task`, `objective`, `plan` or `habit`; its lifecycle, temporal data, dependencies and progress are versioned Components.
+
+### State, rules and execution
+
+| Table | Purpose |
+| --- | --- |
+| `automation_rules` | Given/When/Then definition plus its current runtime cursor. |
+| `automation_rule_deduplications` | Durable occurrence and trigger idempotency for Rules. |
+| `automation_rule_evaluations` | Explainable history of Rule evaluations and produced Intent ids. |
+| `execution_intents` | Conditional request to invoke a versioned Capability. |
+| `execution_attempts` | Capability invocation attempts, ordered per Intent and sharing a stable idempotency key across retries. |
+| `execution_events` | Immutable outcomes or occurrences with explicit causation. |
+
+Rules only produce Intents. Attempts and Events remain separate so an uncertain external result can be represented without claiming that an action succeeded.
+
+### Workflows and proactivity
+
+| Table | Purpose |
+| --- | --- |
+| `automation_reminders` | Reminder aggregate, schedule, generated Rule ids and lifecycle. |
+| `automation_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
+
+The in-process mutation approval registry is not persisted. Its entries contain executable callbacks and cannot be safely restored after a restart until proposal application has a durable command contract.
+
+## Storage decisions
+
+- Domain identities remain `text`; the domain does not require UUID-formatted ids.
+- Timestamps use `timestamptz` and temporal ranges enforce `from < to` when both ends exist.
+- Statuses and modalities use checked `text`, matching the closed unions in the domain.
+- `JSONB` is limited to recursive domain values such as Conditions, evidence, triggers, policies and adapter payloads. These structures are validated again by domain rehydration.
+- Frequently queried fields remain relational columns and have targeted indexes: queue leases, Profiles, Component lookup, due Rules, event keys, Intent status and proposal fingerprints.
+- Foreign keys use restrictive deletion for immutable domain history. Cascades are limited to runtime support rows that have no independent meaning.
+- `telemetry.runs` remains in the separate `telemetry` schema and is not part of functional state.
+- `pgmigrations` is migration-runner metadata and is intentionally omitted from the model.
+
+## Removed legacy tables
+
+The replacement migration removes `concepts`, `predicates`, `axioms`, `aliases` and `links`. Their responsibilities now belong to Items, Profiles and immutable Component revisions.
