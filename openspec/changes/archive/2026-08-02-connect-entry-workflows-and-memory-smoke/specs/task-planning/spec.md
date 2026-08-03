@@ -4,8 +4,12 @@
 The system SHALL route an explicitly captured task, objective, plan, or habit request through the registered planning operations after validating a closed workflow draft, while retaining the Entry as evidence.
 
 #### Scenario: Capture an unscheduled call
-- **WHEN** an Entry states “Tengo que llamar a {name} para agendar una cita”
-- **THEN** processing creates one pending unscheduled task backed by that Entry, preserves `{name}` as unresolved input, and does not invent a person, date, notification, Rule, or external effect
+- **WHEN** an Entry states “Tengo que llamar a Ana para agendar una cita” after the caller has materialized its input values
+- **THEN** processing creates one pending unscheduled task backed by that Entry and does not invent a date, notification, Rule, or external effect
+
+#### Scenario: Caller sends an unmaterialized template
+- **WHEN** a caller still has a placeholder such as `{name}`
+- **THEN** the caller must resolve it before capture rather than expecting Wingman to interpret template syntax
 
 #### Scenario: Capture a daily practice
 - **WHEN** an Entry requests a recurring practice without an exact clock time
@@ -17,4 +21,3 @@ Interpreters SHALL select only workflow kinds and fields supplied by the system 
 #### Scenario: Interpreter invents an operation
 - **WHEN** an interpreter returns an unregistered workflow kind or an external effect not present in the supplied contract
 - **THEN** processing rejects the draft and creates no planning Item, Rule, Intent, or adapter call
-
