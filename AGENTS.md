@@ -1,10 +1,10 @@
 # AGENTS.md
 
-Wingman is a provider-agnostic personal knowledge and automation server. It preserves immutable
-Entries, derives Concepts, Predicates, Axioms and Links, resolves uncertain Concept references
-through Reviews, and exposes Projections through an authenticated HTTP API.
+Wingman is a provider-agnostic personal knowledge and automation server. It preserves immutable Entries, derives Concepts, Predicates, Axioms and Links, resolves uncertain Concept references through Reviews, and exposes Projections through an authenticated HTTP API.
 
 ## Architecture
+
+### Folder structure
 
 - `src/core/`: stable knowledge entities and invariants; no infrastructure dependencies.
 - `src/modules/`: feature slices with operations, ports, adapters and behavior tests.
@@ -14,10 +14,8 @@ through Reviews, and exposes Projections through an authenticated HTTP API.
 - `migrations/`: append-only PostgreSQL migrations managed by `node-pg-migrate`.
 - `temp/`: experiments; never modify unless explicitly requested.
 
-Dependencies point inward toward stable concepts. Keep framework and driver types behind adapter
-surfaces. Knowledge storage is still in memory; PostgreSQL currently stores inference telemetry.
-Inference uses one required infrastructure target that resolves to an adapter and model, with
-`low | high` reasoning and no automatic fallback.
+Dependencies point inward toward stable concepts. Keep framework and driver types behind adapter surfaces. Knowledge storage is still in memory; PostgreSQL currently stores inference telemetry.
+Inference uses one required infrastructure target that resolves to an adapter and model, with `low | high` reasoning and no automatic fallback.
 
 ## Commands
 
@@ -40,10 +38,8 @@ npm run --silent token -- browser
 - Add concise JSDoc to exported classes and meaningful standalone helpers.
 - Tests cover relevant behavior per operation, not every internal function.
 - Never hardcode secrets or trust a Connector source supplied in an HTTP body.
-- Keep Reviews on the single `referenceResolution` contract. Extend its generic question,
-  proposal and candidates instead of adding case-specific Review kinds.
-- Preserve verbatim citations as exact `quote` Literals. Validate Predicate usage and source
-  locators against the supplied Interpretation context and Entry content.
+- Keep Reviews on the single `referenceResolution` contract. Extend its generic question,   proposal and candidates instead of adding case-specific Review kinds.
+- Preserve verbatim citations as exact `quote` Literals. Validate Predicate usage and source   locators against the supplied Interpretation context and Entry content.
 - Treat code as the source of truth when documentation disagrees.
 
 ## Agent flows
