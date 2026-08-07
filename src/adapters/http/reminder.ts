@@ -10,12 +10,6 @@ interface Options {
 }
 const scheduleSchema = Type.Object({
   occurrences: Type.Array(Type.String(), { minItems: 1 }),
-  quietHours: Type.Optional(
-    Type.Object({
-      startHour: Type.Integer({ minimum: 0, maximum: 23 }),
-      endHour: Type.Integer({ minimum: 0, maximum: 23 }),
-    }),
-  ),
   expiresAt: Type.Optional(Type.String()),
 });
 const createSchema = Type.Object({
@@ -27,12 +21,6 @@ const createSchema = Type.Object({
     Type.Object({ from: Type.Optional(Type.String()), to: Type.Optional(Type.String()) }),
   ),
   occurrences: Type.Array(Type.String(), { minItems: 1 }),
-  quietHours: Type.Optional(
-    Type.Object({
-      startHour: Type.Integer({ minimum: 0, maximum: 23 }),
-      endHour: Type.Integer({ minimum: 0, maximum: 23 }),
-    }),
-  ),
   expiresAt: Type.Optional(Type.String()),
   maxOccurrences: Type.Optional(Type.Integer({ minimum: 1 })),
   authorized: Type.Optional(Type.Boolean()),

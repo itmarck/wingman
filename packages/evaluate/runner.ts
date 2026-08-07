@@ -32,7 +32,7 @@ export interface EvaluationResult {
   readonly runs: readonly InferenceRun[];
   readonly profiles: readonly string[];
   readonly reminders: readonly ReminderExplanation[];
-  readonly ruleCount: number;
+  readonly automationCount: number;
   readonly intentCount: number;
   readonly attemptCount: number;
   readonly adapterOutputs: readonly unknown[];
@@ -353,13 +353,13 @@ async function observe(
   entryId: string,
   current: EntryStatusResult,
 ): Promise<EvaluationResult> {
-  const [itemProjection, glossaryProjection, reviewPage, reminders, rules, intents] =
+  const [itemProjection, glossaryProjection, reviewPage, reminders, automations, intents] =
     await Promise.all([
       system.projection.readProjection.execute('system.currentItems'),
       system.projection.readProjection.execute('system.glossary'),
       system.interpretation.listReviews.execute(),
       system.reminder.manage.list(),
-      system.rule.store.list(),
+      system.automation.store.list(),
       system.execution.store.listIntents(),
     ]);
   const components = (itemProjection.data as CurrentItemsResult).items
@@ -394,7 +394,7 @@ async function observe(
     runs: telemetry.runs,
     profiles: Object.freeze(profiles),
     reminders: Object.freeze([...reminders]),
-    ruleCount: rules.length,
+    automationCount: automations.length,
     intentCount: intents.length,
     attemptCount: attempts.length,
     adapterOutputs: Object.freeze(structuredClone(adapterOutputs)),

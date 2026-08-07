@@ -1,34 +1,34 @@
 import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typebox';
-import type { RegisterRuleInput } from '../../modules/rule/operations/register.js';
+import type { RegisterAutomationInput } from '../../modules/automation/operations/register.js';
 import type { System } from '../../system/system.js';
 import { requireMutation } from './mutation.js';
 import { createProposalResponse, proposalSchema } from './proposal.js';
 import { errorSchema, idParamsSchema, mutationHeadersSchema } from './schema.js';
 
-interface RuleRoutesOptions {
+interface AutomationRoutesOptions {
   readonly system: System;
 }
-export const ruleRoutes: FastifyPluginAsyncTypebox<RuleRoutesOptions> = async (
+export const automationRoutes: FastifyPluginAsyncTypebox<AutomationRoutesOptions> = async (
   server,
   { system },
 ) => {
   server.get(
-    '/rules',
+    '/automations',
     {
       schema: {
-        tags: ['Rules'],
-        summary: 'List declarative Rules',
+        tags: ['Automations'],
+        summary: 'List declarative Automations',
         response: { 200: Type.Array(Type.Unknown()), 401: errorSchema },
       },
     },
-    async () => [...(await system.rule.store.list())],
+    async () => [...(await system.automation.store.list())],
   );
   server.post(
-    '/rules',
+    '/automations',
     {
       schema: {
-        tags: ['Rules'],
-        summary: 'Register a declarative Rule',
+        tags: ['Automations'],
+        summary: 'Register a declarative Automation',
         headers: mutationHeadersSchema,
         body: Type.Unknown(),
         response: {
@@ -42,25 +42,27 @@ export const ruleRoutes: FastifyPluginAsyncTypebox<RuleRoutesOptions> = async (
     },
     async (request, reply) => {
       const mode = requireMutation(request.mutationMode);
-      const input = request.body as RegisterRuleInput;
+      const input = request.body as RegisterAutomationInput;
       if (mode === 'approval') {
         const proposal = system.proposals.create(
-          [{ operation: 'create', target: 'rule', value: input }],
+          [{ operation: 'create', target: 'automation', value: input }],
           async () => {
-            await system.rule.registerRule.execute(input);
+            await system.automation.registerAutomation.execute(input);
           },
         );
         return reply.code(202).send({ proposal: createProposalResponse(proposal) });
       }
-      return reply.code(201).send({ id: await system.rule.registerRule.execute(input) });
+      return reply
+        .code(201)
+        .send({ id: await system.automation.registerAutomation.execute(input) });
     },
   );
   server.post(
-    '/rules/:id/control',
+    '/automations/:id/control',
     {
       schema: {
-        tags: ['Rules'],
-        summary: 'Pause, resume or stop a Rule',
+        tags: ['Automations'],
+        summary: 'Pause, resume or stop an Automation',
         headers: mutationHeadersSchema,
         params: idParamsSchema,
         body: Type.Object({
@@ -78,13 +80,14 @@ export const ruleRoutes: FastifyPluginAsyncTypebox<RuleRoutesOptions> = async (
     },
     async (request, reply) => {
       const mode = requireMutation(request.mutationMode);
-      const apply = () => system.rule.controlRule.execute(request.params.id, request.body.action);
+      const apply = () =>
+        system.automation.controlAutomation.execute(request.params.id, request.body.action);
       if (mode === 'approval') {
         const proposal = system.proposals.create(
           [
             {
               operation: 'update',
-              target: 'rule',
+              target: 'automation',
               value: { id: request.params.id, action: request.body.action },
             },
           ],

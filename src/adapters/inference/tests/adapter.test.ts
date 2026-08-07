@@ -48,7 +48,7 @@ describe('Gemini inference adapter', () => {
       model: 'gemini-3.5-flash',
       reasoning_effort: 'low',
       messages: [
-        { role: 'system', content: expect.stringContaining('Interpret this Entry') },
+        { role: 'system', content: expect.stringContaining('Preserve the Entry verbatim.') },
         { role: 'user', content: expect.any(String) },
       ],
       response_format: {
@@ -64,11 +64,9 @@ describe('Gemini inference adapter', () => {
 });
 
 const request = {
-  operation: 'interpretEntry',
+  operation: 'interpret-entry',
   reasoning: 'low',
-  instructionsVersion: 'test',
-  objective: 'Interpret this Entry.',
-  instructions: ['Preserve it verbatim.'],
+  policies: ['Preserve the Entry verbatim.'],
   entry: {
     id: 'entry-1',
     content: { kind: 'text', text: 'Hola' },

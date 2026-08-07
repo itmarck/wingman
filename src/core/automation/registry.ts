@@ -1,9 +1,9 @@
 import { DomainError } from '../error.js';
 import { assertRegistryKey, assertVersion } from '../item/item.js';
-import type { RuleTrigger } from './rule.js';
+import type { AutomationTrigger } from './automation.js';
 
 export interface TriggerOperator {
-  readonly key: RuleTrigger['operator']['key'];
+  readonly key: AutomationTrigger['operator']['key'];
   readonly version: number;
   readonly description: string;
 }

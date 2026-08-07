@@ -26,7 +26,7 @@ flowchart TD
     DRAFTS --> KNOWLEDGE["Items + Components + Profiles"]
     DRAFTS --> WORKFLOW{"Tipo de workflow"}
     WORKFLOW -->|Planning request| PLANNING["Task / Objective / Plan / Habit"]
-    WORKFLOW -->|Reminder request| REMINDER["Reminder + Rules temporales"]
+    WORKFLOW -->|Reminder request| REMINDER["Reminder + Automations temporales"]
     WORKFLOW -->|Datos incompletos| NEEDS_INPUT["Outcome: needsInput"]
     WORKFLOW -->|No soportado| UNSUPPORTED["Outcome: unsupported"]
 

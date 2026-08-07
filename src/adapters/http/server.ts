@@ -3,6 +3,7 @@ import { Type, type TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import type { System } from '../../system/system.js';
 import { createAuthHook } from './auth.js';
+import { automationRoutes } from './automation.js';
 import { entryRoutes } from './entry.js';
 import { registerErrorHandling } from './error.js';
 import { executionRoutes } from './execution.js';
@@ -13,7 +14,6 @@ import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
 import { reminderRoutes } from './reminder.js';
 import { reviewRoutes } from './review.js';
-import { ruleRoutes } from './rule.js';
 import { stateRoutes } from './state.js';
 
 export interface HttpServerOptions {
@@ -59,7 +59,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Proposals' },
         { name: 'States' },
         { name: 'Execution' },
-        { name: 'Rules' },
+        { name: 'Automations' },
         { name: 'Planning' },
         { name: 'Reminders' },
         { name: 'Proactivity' },
@@ -117,7 +117,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(proposalRoutes, { proposals: system.proposals });
       await protectedServer.register(stateRoutes, { system });
       await protectedServer.register(executionRoutes, { system });
-      await protectedServer.register(ruleRoutes, { system });
+      await protectedServer.register(automationRoutes, { system });
       await protectedServer.register(planningRoutes, { system });
       await protectedServer.register(reminderRoutes, { system });
       await protectedServer.register(proactivityRoutes, { system });

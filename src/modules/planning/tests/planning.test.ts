@@ -48,7 +48,7 @@ describe('planning', () => {
       expect.arrayContaining([objectiveId, planId, habitId, callId]),
     );
     expect(await system.state.listView.execute('desired')).toHaveLength(1);
-    expect(await system.rule.store.list()).toEqual([]);
+    expect(await system.automation.store.list()).toEqual([]);
     expect(await system.execution.store.listIntents()).toEqual([]);
     await system.close();
   });

@@ -36,6 +36,8 @@ describe('read OpenAPI document', () => {
     expect(document.servers[0]?.url).toMatch(/^http:\/\//);
     expect(document.paths['/api/health']?.get?.security).toEqual([]);
     expect(document.paths['/api/openapi.json']?.get?.security).toEqual([]);
+    expect(document.paths['/api/automations']?.get).toBeDefined();
+    expect(document.paths['/api/rules']).toBeUndefined();
     expect(document.paths['/api/entries']?.get?.security).toBeUndefined();
     expect(document.paths['/api/entries']?.post?.parameters ?? []).toEqual(
       expect.arrayContaining([

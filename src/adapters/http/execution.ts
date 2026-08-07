@@ -13,7 +13,7 @@ const intentBody = Type.Object(
     capability: Type.Object({ key: Type.String(), version: Type.Integer({ minimum: 1 }) }),
     input: Type.Unknown(),
     proposer: Type.Object({
-      kind: Type.Union([Type.Literal('user'), Type.Literal('system'), Type.Literal('rule')]),
+      kind: Type.Union([Type.Literal('user'), Type.Literal('system'), Type.Literal('automation')]),
       id: Type.Optional(Type.String()),
     }),
     conditions: Type.Array(Type.Unknown()),

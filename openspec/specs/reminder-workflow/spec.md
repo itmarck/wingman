@@ -22,11 +22,11 @@ The system SHALL interpret an explicit reminder Entry into preserved Entry evide
 - **THEN** the request remains explainable as unsupported and no Rule, Intent, connector call, or fabricated Event is created
 
 ### Requirement: Repeated and imprecise timing policy
-The system SHALL represent ranges or constraints without inventing exact source precision and SHALL use an explicit policy for repeated reminder occurrences.
+The system SHALL preserve source temporal precision and use explicit schedules for repeated passive reminder availability.
 
 #### Scenario: Multiple reminders
-- **WHEN** policy schedules reminders seven days, two days, and the same day before a deadline
-- **THEN** each occurrence is evaluated independently and respects expiration, quiet hours, and occurrence limits
+- **WHEN** a schedule contains multiple occurrences
+- **THEN** each occurrence is evaluated independently with expiration and occurrence limits but no quiet hours
 
 ### Requirement: Stale reminder prevention
 The system SHALL reevaluate current State before producing or executing each notification Intent.
@@ -35,12 +35,12 @@ The system SHALL reevaluate current State before producing or executing each not
 - **WHEN** the related task is completed before a reminder occurrence
 - **THEN** the notification is not delivered and the stopping reason is recorded
 
-### Requirement: Provider-independent notification
-Notification delivery SHALL use a registered Capability and provider-independent port and SHALL preserve Intent, Attempt, delivery Event, failure, and retry information separately.
+### Requirement: Provider-independent passive notification
+Notification delivery SHALL create or update a passive launcher item through a registered Capability and port, preserve auditable outcomes, and SHALL NOT model sounds, vibration, banners, foreground presentation, or quiet hours.
 
-#### Scenario: Delivery fails
-- **WHEN** the notification adapter reports failure
-- **THEN** no delivered State is observed and retry follows Capability idempotency policy
+#### Scenario: Notification becomes available
+- **WHEN** a notification Intent succeeds
+- **THEN** the item is available when the user opens the launcher without interrupting the user
 
 ### Requirement: Reminder explanation and control
 The system SHALL explain what is being remembered, why, which Entry or subject caused it, when it will recur, and how it can be cancelled or changed.
@@ -50,8 +50,8 @@ The system SHALL explain what is being remembered, why, which Entry or subject c
 - **THEN** the response includes subject, schedule policy, next occurrence, stopping conditions, and evidence
 
 ### Requirement: Entry workflow idempotency
-Reprocessing an Entry SHALL NOT create duplicate planning subjects, reminders, Rules, or Intent templates for the same accepted workflow draft.
+Reprocessing an Entry SHALL NOT create duplicate planning subjects, reminders, Automations, or Intent templates for the same accepted workflow draft.
 
 #### Scenario: Retry completed workflow routing
-- **WHEN** the same Entry workflow is retried after a transient processing failure
-- **THEN** existing workflow artifacts are reused or the duplicate is rejected without creating a second reminder occurrence
+- **WHEN** an applied Entry workflow is retried
+- **THEN** existing artifacts are reused or duplication is rejected

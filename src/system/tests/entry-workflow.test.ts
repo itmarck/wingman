@@ -26,7 +26,7 @@ describe('interpreted Entry workflows', () => {
       }),
     ]);
     expect(await system.reminder.manage.list()).toEqual([]);
-    expect(await system.rule.store.list()).toEqual([]);
+    expect(await system.automation.store.list()).toEqual([]);
     expect(await system.execution.store.listIntents()).toEqual([]);
     await system.close();
   });
@@ -44,7 +44,7 @@ describe('interpreted Entry workflows', () => {
       ),
     ).toEqual(['applied', 'applied']);
     expect(await system.reminder.manage.list()).toHaveLength(1);
-    expect(await system.rule.store.list()).toHaveLength(1);
+    expect(await system.automation.store.list()).toHaveLength(1);
     expect(await system.execution.store.listIntents()).toEqual([]);
 
     const draft = (await system.interpretation.getEntryStatus.execute(first)).workflows;

@@ -24,8 +24,8 @@ erDiagram
     EXECUTION_ATTEMPTS ||--o{ EXECUTION_EVENTS : causes
     EXECUTION_INTENTS o|--o{ AUTOMATION_SUGGESTIONS : realizes
 
-    AUTOMATION_RULES ||--o{ AUTOMATION_RULE_DEDUPLICATIONS : remembers
-    AUTOMATION_RULES ||--o{ AUTOMATION_RULE_EVALUATIONS : evaluates
+    AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_DEDUPLICATIONS : remembers
+    AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_EVALUATIONS : evaluates
 ```
 
 ### Knowledge and interpretation
@@ -43,27 +43,30 @@ erDiagram
 
 Planning does not have separate task, objective, plan or habit tables. Each planning entity is an `core_items` row whose Profile is `task`, `objective`, `plan` or `habit`; its lifecycle, temporal data, dependencies and progress are versioned Components.
 
-### State, rules and execution
+### State, automations and execution
 
 | Table | Purpose |
 | --- | --- |
-| `automation_rules` | Given/When/Then definition plus its current runtime cursor. |
-| `automation_rule_deduplications` | Durable occurrence and trigger idempotency for Rules. |
-| `automation_rule_evaluations` | Explainable history of Rule evaluations and produced Intent ids. |
+| `automation_definitions` | Given/When/Then Automation definition plus its current runtime cursor. |
+| `automation_deduplications` | Durable occurrence and trigger idempotency for Automations. |
+| `automation_evaluations` | Explainable history of Automation evaluations and produced Intent ids. |
 | `execution_intents` | Conditional request to invoke a versioned Capability. |
 | `execution_attempts` | Capability invocation attempts, ordered per Intent and sharing a stable idempotency key across retries. |
 | `execution_events` | Immutable outcomes or occurrences with explicit causation. |
 
-Rules only produce Intents. Attempts and Events remain separate so an uncertain external result can be represented without claiming that an action succeeded.
+Automations only produce Intents. Attempts and Events remain separate so an uncertain external result can be represented without claiming that an action succeeded.
 
 ### Workflows and proactivity
 
 | Table | Purpose |
 | --- | --- |
-| `automation_reminders` | Reminder aggregate, schedule, generated Rule ids and lifecycle. |
+| `automation_reminders` | Reminder aggregate, schedule, generated Automation ids and lifecycle. |
 | `automation_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
 
 The in-process mutation approval registry is not persisted. Its entries contain executable callbacks and cannot be safely restored after a restart until proposal application has a durable command contract.
+
+Interpretation Policies are code-owned operation definitions rather than functional data. They have
+no table and cannot be changed through Entries, connectors, or the HTTP API.
 
 ## Storage decisions
 
@@ -71,7 +74,7 @@ The in-process mutation approval registry is not persisted. Its entries contain 
 - Timestamps use `timestamptz` and temporal ranges enforce `from < to` when both ends exist.
 - Statuses and modalities use checked `text`, matching the closed unions in the domain.
 - `JSONB` is limited to recursive domain values such as Conditions, evidence, triggers, policies and adapter payloads. These structures are validated again by domain rehydration.
-- Frequently queried fields remain relational columns and have targeted indexes: queue leases, Profiles, Component lookup, due Rules, event keys, Intent status and proposal fingerprints.
+- Frequently queried fields remain relational columns and have targeted indexes: queue leases, Profiles, Component lookup, due Automations, event keys, Intent status and proposal fingerprints.
 - Foreign keys use restrictive deletion for immutable domain history. Cascades are limited to runtime support rows that have no independent meaning.
 - `telemetry.runs` remains in the separate `telemetry` schema and is not part of functional state.
 - `pgmigrations` is migration-runner metadata and is intentionally omitted from the model.

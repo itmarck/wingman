@@ -59,9 +59,8 @@ class HttpInferenceAdapter implements InterpretationAdapter {
 }
 
 function createRequestBody(config: InferenceAdapterConfig, request: InterpretationRequest) {
-  const instructions = [
-    request.objective,
-    ...request.instructions,
+  const policyGuidance = [
+    ...request.policies,
     request.outputContract,
     'Return only the structured result described by the supplied JSON schema.',
   ].join('\n');
@@ -75,7 +74,7 @@ function createRequestBody(config: InferenceAdapterConfig, request: Interpretati
     return {
       model: config.model,
       messages: [
-        { role: 'system', content: instructions },
+        { role: 'system', content: policyGuidance },
         { role: 'user', content: input },
       ],
       reasoning_effort: request.reasoning,
@@ -92,7 +91,7 @@ function createRequestBody(config: InferenceAdapterConfig, request: Interpretati
 
   return {
     model: config.model,
-    instructions,
+    instructions: policyGuidance,
     input,
     reasoning: {
       effort: request.reasoning,

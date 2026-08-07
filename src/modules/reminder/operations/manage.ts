@@ -2,10 +2,10 @@ import type { Evidence } from '../../../core/item/types.js';
 import type { Condition } from '../../../core/state/condition.js';
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
+import type { RegisterAutomationCommand } from '../../automation/operations/register.js';
 import type { PlanningCommands } from '../../planning/operations/write.js';
-import type { RegisterRuleCommand } from '../../rule/operations/register.js';
 import type { Reminder } from '../domain/reminder.js';
-import { type QuietHours, validateSchedule } from '../domain/reminder.js';
+import { validateSchedule } from '../domain/reminder.js';
 import type { ReminderStore } from '../ports/store.js';
 
 export interface CreateReminderInput {
@@ -15,7 +15,6 @@ export interface CreateReminderInput {
   readonly message: string;
   readonly temporal?: { readonly from?: string; readonly to?: string };
   readonly occurrences: readonly string[];
-  readonly quietHours?: QuietHours;
   readonly expiresAt?: string;
   readonly maxOccurrences?: number;
   readonly authorized?: boolean;
@@ -30,26 +29,25 @@ export interface ReminderExplanation {
   readonly temporal?: Reminder['temporal'];
   readonly occurrences: readonly string[];
   readonly nextOccurrence?: string;
-  readonly quietHours?: QuietHours;
   readonly expiresAt?: string;
   readonly stoppingCondition: Condition;
   readonly cancellation: string;
 }
 
-interface RuleRegistration {
-  execute(input: Parameters<RegisterRuleCommand['execute']>[0]): Promise<string>;
+interface AutomationRegistration {
+  execute(input: Parameters<RegisterAutomationCommand['execute']>[0]): Promise<string>;
 }
-interface RuleControl {
+interface AutomationControl {
   execute(id: string, action: 'pause' | 'resume' | 'stop'): Promise<void>;
 }
 
-/** Composes an explicit Entry into a planning subject and one independent Rule per occurrence. */
+/** Composes an explicit Entry into a planning subject and one independent Automation per occurrence. */
 export class ReminderService {
   constructor(
     private readonly store: ReminderStore,
     private readonly planning: PlanningCommands,
-    private readonly rules: RuleRegistration,
-    private readonly control: RuleControl,
+    private readonly automations: AutomationRegistration,
+    private readonly control: AutomationControl,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
   ) {}
@@ -76,10 +74,10 @@ export class ReminderService {
     const stopWhen = completionCondition(subjectItemId);
     const occurrences = [...input.occurrences].sort();
     const limited = input.maxOccurrences ? occurrences.slice(0, input.maxOccurrences) : occurrences;
-    const ruleIds: string[] = [];
+    const automationIds: string[] = [];
     for (const occurrence of limited)
-      ruleIds.push(
-        await this.rules.execute({
+      automationIds.push(
+        await this.automations.execute({
           given: [not(stopWhen)],
           when: { operator: { key: 'time', version: 1 }, at: occurrence },
           thenIntents: [
@@ -97,7 +95,7 @@ export class ReminderService {
               trigger: { kind: 'time', value: occurrence },
             },
           ],
-          policy: {
+          controls: {
             expiresAt: input.expiresAt,
             maxOccurrences: 1,
             stopWhen,
@@ -114,11 +112,10 @@ export class ReminderService {
       temporal: input.temporal ? Object.freeze({ ...input.temporal }) : undefined,
       schedule: Object.freeze({
         occurrences: Object.freeze(limited),
-        quietHours: input.quietHours ? Object.freeze({ ...input.quietHours }) : undefined,
         expiresAt: input.expiresAt,
         stopWhen,
       }),
-      ruleIds: Object.freeze(ruleIds),
+      automationIds: Object.freeze(automationIds),
       status: 'active',
       createdAt: this.clock.now().toISOString(),
     });
@@ -136,14 +133,14 @@ export class ReminderService {
   }
   async cancel(id: string): Promise<void> {
     const reminder = await this.require(id);
-    for (const ruleId of reminder.ruleIds) await this.control.execute(ruleId, 'stop');
+    for (const automationId of reminder.automationIds)
+      await this.control.execute(automationId, 'stop');
     await this.store.save(Object.freeze({ ...reminder, status: 'cancelled' }));
   }
   async reschedule(
     id: string,
     schedule: {
       readonly occurrences: readonly string[];
-      readonly quietHours?: QuietHours;
       readonly expiresAt?: string;
     },
   ): Promise<void> {
@@ -151,10 +148,10 @@ export class ReminderService {
     await this.cancel(id);
     validateSchedule({ ...schedule });
     const evidence: readonly Evidence[] = [{ entryId: reminder.entryId, sourceLocators: [] }];
-    const ruleIds: string[] = [];
+    const automationIds: string[] = [];
     for (const occurrence of [...schedule.occurrences].sort())
-      ruleIds.push(
-        await this.rules.execute({
+      automationIds.push(
+        await this.automations.execute({
           given: [not(reminder.schedule.stopWhen)],
           when: { operator: { key: 'time', version: 1 }, at: occurrence },
           thenIntents: [
@@ -172,7 +169,7 @@ export class ReminderService {
               trigger: { kind: 'time', value: occurrence },
             },
           ],
-          policy: {
+          controls: {
             expiresAt: schedule.expiresAt,
             maxOccurrences: 1,
             stopWhen: reminder.schedule.stopWhen,
@@ -185,7 +182,7 @@ export class ReminderService {
       Object.freeze({
         ...reminder,
         status: 'active',
-        ruleIds: Object.freeze(ruleIds),
+        automationIds: Object.freeze(automationIds),
         schedule: Object.freeze({
           ...schedule,
           occurrences: Object.freeze([...schedule.occurrences].sort()),
@@ -204,7 +201,6 @@ export class ReminderService {
 function validateInput(input: CreateReminderInput): void {
   validateSchedule({
     occurrences: input.occurrences,
-    quietHours: input.quietHours,
     expiresAt: input.expiresAt,
   });
   if (!input.subjectItemId && !input.subject?.trim())
@@ -243,7 +239,6 @@ function explain(reminder: Reminder, now: Date): ReminderExplanation {
     nextOccurrence: reminder.schedule.occurrences.find(
       (occurrence) => Date.parse(occurrence) >= now.getTime(),
     ),
-    quietHours: reminder.schedule.quietHours,
     expiresAt: reminder.schedule.expiresAt,
     stoppingCondition: reminder.schedule.stopWhen,
     cancellation: `Cancel reminder ${reminder.id}`,

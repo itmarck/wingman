@@ -43,7 +43,7 @@ describe('reminder workflow', () => {
     await system.close();
   });
 
-  it('stops stale and cancelled reminders and respects quiet hours', async () => {
+  it('stops stale and cancelled reminders without interruptive scheduling controls', async () => {
     const notifications = new TestNotificationAdapter();
     const system = createTestSystem({
       adapter: new EmptyInterpreter(),
@@ -66,8 +66,10 @@ describe('reminder workflow', () => {
     await system.planning.commands.transition(taskId, 'completed', evidence);
     expect(await system.reminder.worker.runDue()).toBe(0);
     expect(notifications.deliveries).toEqual([]);
-    const staleRule = requireDefined((await system.rule.store.list())[0]);
-    expect((await system.rule.store.listResults(staleRule.rule.id))[0]).toMatchObject({
+    const staleAutomation = requireDefined((await system.automation.store.list())[0]);
+    expect(
+      (await system.automation.store.listResults(staleAutomation.automation.id))[0],
+    ).toMatchObject({
       outcome: 'stopped',
       reason: 'Stopping condition is true',
     });
@@ -81,16 +83,6 @@ describe('reminder workflow', () => {
     });
     await system.reminder.manage.cancel(cancelledId);
     expect(await system.reminder.worker.runDue()).toBe(0);
-    const hour = new Date().getUTCHours();
-    const quietId = await system.reminder.manage.create({
-      entryId,
-      subject: 'Silencio',
-      message: 'Después',
-      occurrences: [past],
-      quietHours: { startHour: hour, endHour: (hour + 1) % 24 },
-    });
-    expect(await system.reminder.worker.runDue()).toBe(0);
-    expect((await system.reminder.manage.read(quietId)).status).toBe('active');
     await system.close();
   });
 

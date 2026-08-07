@@ -1,11 +1,11 @@
+import type { Automation } from '../../../core/automation/automation.js';
 import type { Event } from '../../../core/execution/event.js';
 import type { ComponentValue } from '../../../core/item/types.js';
-import type { Rule } from '../../../core/rule/rule.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { ProposeIntentCommand } from '../../execution/operations/propose.js';
 import type { InterpretationStore } from '../../interpretation/ports/store.js';
 import type { StateEvaluator } from '../../state/services/evaluator.js';
-import type { RuleRuntime, RuleStore, StateChangeSignal } from '../ports/store.js';
+import type { AutomationRuntime, AutomationStore, StateChangeSignal } from '../ports/store.js';
 
 interface TriggerContext {
   readonly kind: 'time' | 'event' | 'stateChange';
@@ -13,9 +13,9 @@ interface TriggerContext {
   readonly occurredAt: string;
   readonly data: ComponentValue;
 }
-export class RuleWorker {
+export class AutomationWorker {
   constructor(
-    private readonly store: RuleStore,
+    private readonly store: AutomationStore,
     private readonly knowledge: InterpretationStore,
     private readonly evaluator: StateEvaluator,
     private readonly intents: Pick<ProposeIntentCommand, 'execute'>,
@@ -24,69 +24,72 @@ export class RuleWorker {
   ) {}
   async runDue(): Promise<number> {
     const now = this.clock.now().toISOString();
-    const rules = await this.store.due(now);
-    for (const runtime of rules)
+    const automations = await this.store.due(now);
+    for (const runtime of automations)
       await this.evaluate(runtime, {
         kind: 'time',
         id: runtime.nextEvaluationAt ?? now,
         occurredAt: now,
         data: { scheduledFor: runtime.nextEvaluationAt ?? now },
       });
-    return rules.length;
+    return automations.length;
   }
   async handleEvent(event: Event): Promise<number> {
-    const rules = await this.store.forEvent(event);
-    for (const runtime of rules)
+    const automations = await this.store.forEvent(event);
+    for (const runtime of automations)
       await this.evaluate(runtime, {
         kind: 'event',
         id: event.id,
         occurredAt: event.occurredAt,
         data: event.data,
       });
-    return rules.length;
+    return automations.length;
   }
   async handleStateChange(signal: StateChangeSignal): Promise<number> {
-    const rules = await this.store.forStateChange(signal);
-    for (const runtime of rules)
+    const automations = await this.store.forStateChange(signal);
+    for (const runtime of automations)
       await this.evaluate(runtime, {
         kind: 'stateChange',
         id: signal.id,
         occurredAt: signal.occurredAt,
         data: { itemIds: signal.itemIds, componentKeys: signal.componentKeys },
       });
-    return rules.length;
+    return automations.length;
   }
-  private async evaluate(runtime: RuleRuntime, trigger: TriggerContext): Promise<void> {
-    const { rule } = runtime;
+  private async evaluate(runtime: AutomationRuntime, trigger: TriggerContext): Promise<void> {
+    const { automation } = runtime;
     const now = this.clock.now().toISOString();
-    const deduplicationId = occurrenceIdentity(rule, trigger, runtime.occurrences + 1);
+    const deduplicationId = occurrenceIdentity(automation, trigger, runtime.occurrences + 1);
     if (runtime.deduplicationIds.has(deduplicationId))
       return this.record(runtime, trigger, 'duplicate', 'Trigger already processed', []);
-    if (rule.policy.expiresAt && rule.policy.expiresAt <= now)
-      return this.stop(runtime, trigger, 'expired', 'Rule expired');
+    if (automation.controls.expiresAt && automation.controls.expiresAt <= now)
+      return this.stop(runtime, trigger, 'expired', 'Automation expired');
     if (
-      rule.policy.maxOccurrences !== undefined &&
-      runtime.occurrences >= rule.policy.maxOccurrences
+      automation.controls.maxOccurrences !== undefined &&
+      runtime.occurrences >= automation.controls.maxOccurrences
     )
       return this.stop(runtime, trigger, 'stopped', 'Occurrence limit reached');
     const snapshot = await this.knowledge.loadKnowledge();
-    if (rule.policy.stopWhen && this.evaluator.evaluate(rule.policy.stopWhen, snapshot) === true)
+    if (
+      automation.controls.stopWhen &&
+      this.evaluator.evaluate(automation.controls.stopWhen, snapshot) === true
+    )
       return this.stop(runtime, trigger, 'stopped', 'Stopping condition is true');
     if (
       runtime.lastProducedAt &&
-      rule.policy.cooldownMs &&
-      Date.parse(now) < Date.parse(runtime.lastProducedAt) + rule.policy.cooldownMs
+      automation.controls.cooldownMs &&
+      Date.parse(now) < Date.parse(runtime.lastProducedAt) + automation.controls.cooldownMs
     )
-      return this.finish(runtime, trigger, 'cooldown', 'Rule is cooling down', []);
-    if (rule.given.some((condition) => this.evaluator.evaluate(condition, snapshot) !== true))
+      return this.finish(runtime, trigger, 'cooldown', 'Automation is cooling down', []);
+    if (automation.given.some((condition) => this.evaluator.evaluate(condition, snapshot) !== true))
       return this.finish(runtime, trigger, 'givenFalse', 'Given condition is not satisfied', []);
     const intentIds: string[] = [];
-    for (const template of rule.thenIntents)
+    for (const template of automation.thenIntents)
       intentIds.push(
         await this.intents.execute({
           ...template,
-          proposer: { kind: 'rule', id: rule.id },
-          evidence: rule.evidence,
+          proposer: { kind: 'automation', id: automation.id },
+          evidence: automation.evidence,
         }),
       );
     await this.finish(
@@ -100,13 +103,13 @@ export class RuleWorker {
     );
   }
   private async finish(
-    runtime: RuleRuntime,
+    runtime: AutomationRuntime,
     trigger: TriggerContext,
     outcome: 'produced' | 'givenFalse' | 'expired' | 'cooldown',
     reason: string,
     intentIds: readonly string[],
     produced = false,
-    deduplicationId = occurrenceIdentity(runtime.rule, trigger, runtime.occurrences + 1),
+    deduplicationId = occurrenceIdentity(runtime.automation, trigger, runtime.occurrences + 1),
   ): Promise<void> {
     const seen = new Set(runtime.deduplicationIds);
     seen.add(deduplicationId);
@@ -114,11 +117,11 @@ export class RuleWorker {
     const nextEvaluationAt = nextTime(runtime, trigger);
     const shouldStop =
       produced &&
-      runtime.rule.policy.maxOccurrences !== undefined &&
-      occurrences >= runtime.rule.policy.maxOccurrences;
+      runtime.automation.controls.maxOccurrences !== undefined &&
+      occurrences >= runtime.automation.controls.maxOccurrences;
     await this.store.save({
       ...runtime,
-      rule: shouldStop ? runtime.rule.stop() : runtime.rule,
+      automation: shouldStop ? runtime.automation.stop() : runtime.automation,
       occurrences,
       lastProducedAt: produced ? this.clock.now().toISOString() : runtime.lastProducedAt,
       nextEvaluationAt,
@@ -127,16 +130,20 @@ export class RuleWorker {
     await this.record(runtime, trigger, outcome, reason, intentIds);
   }
   private async stop(
-    runtime: RuleRuntime,
+    runtime: AutomationRuntime,
     trigger: TriggerContext,
     outcome: 'stopped' | 'expired',
     reason: string,
   ): Promise<void> {
-    await this.store.save({ ...runtime, rule: runtime.rule.stop(), nextEvaluationAt: undefined });
+    await this.store.save({
+      ...runtime,
+      automation: runtime.automation.stop(),
+      nextEvaluationAt: undefined,
+    });
     await this.record(runtime, trigger, outcome, reason, []);
   }
   private async record(
-    runtime: RuleRuntime,
+    runtime: AutomationRuntime,
     trigger: TriggerContext,
     outcome: 'produced' | 'givenFalse' | 'stopped' | 'expired' | 'cooldown' | 'duplicate',
     reason: string,
@@ -144,7 +151,7 @@ export class RuleWorker {
   ): Promise<void> {
     await this.store.appendResult({
       id: this.ids.generate(),
-      ruleId: runtime.rule.id,
+      automationId: runtime.automation.id,
       triggerId: trigger.id,
       evaluatedAt: this.clock.now().toISOString(),
       outcome,
@@ -155,19 +162,22 @@ export class RuleWorker {
 }
 
 export function occurrenceIdentity(
-  rule: Rule,
+  automation: Automation,
   trigger: TriggerContext,
   occurrence: number,
 ): string {
-  const policy = rule.policy.deduplication ?? 'trigger';
-  return policy === 'none'
-    ? `${rule.id}:none:${occurrence}:${trigger.id}`
-    : policy === 'occurrence'
-      ? `${rule.id}:occurrence:${occurrence}`
-      : `${rule.id}:${trigger.kind}:${trigger.id}`;
+  const deduplication = automation.controls.deduplication ?? 'trigger';
+  return deduplication === 'none'
+    ? `${automation.id}:none:${occurrence}:${trigger.id}`
+    : deduplication === 'occurrence'
+      ? `${automation.id}:occurrence:${occurrence}`
+      : `${automation.id}:${trigger.kind}:${trigger.id}`;
 }
-function nextTime(runtime: RuleRuntime, trigger: TriggerContext): string | undefined {
-  return runtime.rule.when.operator.key === 'time' && runtime.rule.policy.repeatEveryMs
-    ? new Date(Date.parse(trigger.occurredAt) + runtime.rule.policy.repeatEveryMs).toISOString()
+function nextTime(runtime: AutomationRuntime, trigger: TriggerContext): string | undefined {
+  return runtime.automation.when.operator.key === 'time' &&
+    runtime.automation.controls.repeatEveryMs
+    ? new Date(
+        Date.parse(trigger.occurredAt) + runtime.automation.controls.repeatEveryMs,
+      ).toISOString()
     : undefined;
 }

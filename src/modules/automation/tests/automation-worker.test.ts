@@ -1,100 +1,104 @@
 import { describe, expect, it } from 'vitest';
+import { createTriggerRegistry } from '../../../core/automation/registry.js';
 import { type Capability, CapabilityRegistry } from '../../../core/execution/capability.js';
 import { Event } from '../../../core/execution/event.js';
 import { createKnowledgeRegistry } from '../../../core/item/system.js';
 import type { ComponentValue } from '../../../core/item/types.js';
 import { Entry } from '../../../core/knowledge/entry.js';
-import { createTriggerRegistry } from '../../../core/rule/registry.js';
 import { createOperatorRegistry } from '../../../core/state/registry.js';
 import { MemoryExecutionStore } from '../../execution/adapters/memory/store.js';
 import { ProposeIntentCommand } from '../../execution/operations/propose.js';
 import { MemoryKnowledgeStore } from '../../knowledge/adapters/memory/store.js';
 import { StateEvaluator } from '../../state/services/evaluator.js';
-import { MemoryRuleStore } from '../adapters/memory/store.js';
-import { RegisterRuleCommand, type RegisterRuleInput } from '../operations/register.js';
-import { RuleWorker } from '../operations/worker.js';
+import { MemoryAutomationStore } from '../adapters/memory/store.js';
+import { RegisterAutomationCommand, type RegisterAutomationInput } from '../operations/register.js';
+import { AutomationWorker } from '../operations/worker.js';
 
-describe('declarative Rule worker', () => {
+describe('declarative Automation worker', () => {
   it('records false Given and handles repetition, stopping and expiration', async () => {
     const fixture = await createFixture();
-    const falseRule = await fixture.register.execute(
-      ruleInput(
+    const falseAutomation = await fixture.register.execute(
+      automationInput(
         { operator: { key: 'time', version: 1 }, afterMs: 0 },
         { given: [condition(false)] },
       ),
     );
     expect(await fixture.worker.runDue()).toBe(1);
-    expect(await fixture.rules.listResults(falseRule)).toMatchObject([{ outcome: 'givenFalse' }]);
-    const repeatRule = await fixture.register.execute(
-      ruleInput(
+    expect(await fixture.automations.listResults(falseAutomation)).toMatchObject([
+      { outcome: 'givenFalse' },
+    ]);
+    const repeatAutomation = await fixture.register.execute(
+      automationInput(
         { operator: { key: 'time', version: 1 }, afterMs: 0 },
-        { policy: { repeatEveryMs: 1000, maxOccurrences: 2 } },
+        { controls: { repeatEveryMs: 1000, maxOccurrences: 2 } },
       ),
     );
     await fixture.worker.runDue();
     fixture.clock.advance(1000);
     await fixture.worker.runDue();
-    expect((await fixture.rules.find(repeatRule))?.rule.status).toBe('stopped');
+    expect((await fixture.automations.find(repeatAutomation))?.automation.status).toBe('stopped');
     expect(
-      (await fixture.execution.listIntents()).filter((intent) => intent.proposer.id === repeatRule),
+      (await fixture.execution.listIntents()).filter(
+        (intent) => intent.proposer.id === repeatAutomation,
+      ),
     ).toHaveLength(2);
     const expired = await fixture.register.execute(
-      ruleInput(
+      automationInput(
         { operator: { key: 'event', version: 1 }, eventKey: 'tick' },
-        { policy: { expiresAt: '2026-08-02T16:00:00Z' } },
+        { controls: { expiresAt: '2026-08-02T16:00:00Z' } },
       ),
     );
     fixture.clock.advance(1000);
     await fixture.worker.handleEvent(
       event('expired-event', 'tick', fixture.clock.now().toISOString()),
     );
-    expect((await fixture.rules.find(expired))?.rule.status).toBe('stopped');
-    expect(await fixture.rules.listResults(expired)).toMatchObject([{ outcome: 'expired' }]);
+    expect((await fixture.automations.find(expired))?.automation.status).toBe('stopped');
+    expect(await fixture.automations.listResults(expired)).toMatchObject([{ outcome: 'expired' }]);
   });
 
   it('deduplicates Events, applies cooldown and stops on State', async () => {
     const fixture = await createFixture();
-    const duplicateRule = await fixture.register.execute(
-      ruleInput({ operator: { key: 'event', version: 1 }, eventKey: 'tick' }),
+    const duplicateAutomation = await fixture.register.execute(
+      automationInput({ operator: { key: 'event', version: 1 }, eventKey: 'tick' }),
     );
     const occurrence = event('event-one', 'tick', fixture.clock.now().toISOString());
     await fixture.worker.handleEvent(occurrence);
     await fixture.worker.handleEvent(occurrence);
-    expect(await fixture.rules.listResults(duplicateRule)).toMatchObject([
+    expect(await fixture.automations.listResults(duplicateAutomation)).toMatchObject([
       { outcome: 'produced' },
       { outcome: 'duplicate' },
     ]);
     expect(
       (await fixture.execution.listIntents()).filter(
-        (intent) => intent.proposer.id === duplicateRule,
+        (intent) => intent.proposer.id === duplicateAutomation,
       ),
     ).toHaveLength(1);
-    const cooldownRule = await fixture.register.execute(
-      ruleInput(
+    const cooldownAutomation = await fixture.register.execute(
+      automationInput(
         { operator: { key: 'event', version: 1 }, eventKey: 'cool' },
-        { policy: { cooldownMs: 5000 } },
+        { controls: { cooldownMs: 5000 } },
       ),
     );
     await fixture.worker.handleEvent(event('cool-1', 'cool', fixture.clock.now().toISOString()));
     await fixture.worker.handleEvent(event('cool-2', 'cool', fixture.clock.now().toISOString()));
-    expect(await fixture.rules.listResults(cooldownRule)).toMatchObject([
+    expect(await fixture.automations.listResults(cooldownAutomation)).toMatchObject([
       { outcome: 'produced' },
       { outcome: 'cooldown' },
     ]);
     const stopped = await fixture.register.execute(
-      ruleInput(
+      automationInput(
         { operator: { key: 'event', version: 1 }, eventKey: 'stop' },
-        { policy: { stopWhen: condition(true) } },
+        { controls: { stopWhen: condition(true) } },
       ),
     );
     await fixture.worker.handleEvent(event('stop-1', 'stop', fixture.clock.now().toISOString()));
-    expect((await fixture.rules.find(stopped))?.rule.status).toBe('stopped');
+    expect((await fixture.automations.find(stopped))?.automation.status).toBe('stopped');
   });
 
   it('uses dependency indexes and rejects unknown triggers or Then templates', async () => {
     const fixture = await createFixture();
-    const ruleId = await fixture.register.execute(
-      ruleInput({ operator: { key: 'stateChange', version: 1 }, componentKeys: ['status'] }),
+    const automationId = await fixture.register.execute(
+      automationInput({ operator: { key: 'stateChange', version: 1 }, componentKeys: ['status'] }),
     );
     expect(
       await fixture.worker.handleStateChange({
@@ -104,7 +108,7 @@ describe('declarative Rule worker', () => {
         componentKeys: ['location'],
       }),
     ).toBe(0);
-    expect(await fixture.rules.listResults(ruleId)).toEqual([]);
+    expect(await fixture.automations.listResults(automationId)).toEqual([]);
     expect(
       await fixture.worker.handleStateChange({
         id: 'related',
@@ -114,11 +118,13 @@ describe('declarative Rule worker', () => {
       }),
     ).toBe(1);
     await expect(
-      fixture.register.execute(ruleInput({ operator: { key: 'unknown', version: 1 } } as never)),
+      fixture.register.execute(
+        automationInput({ operator: { key: 'unknown', version: 1 } } as never),
+      ),
     ).rejects.toThrow('not registered');
     await expect(
       fixture.register.execute({
-        ...ruleInput({ operator: { key: 'event', version: 1 }, eventKey: 'tick' }),
+        ...automationInput({ operator: { key: 'event', version: 1 }, eventKey: 'tick' }),
         thenIntents: [{ ...template(), capability: { key: 'missing', version: 1 } }],
       }),
     ).rejects.toThrow('not registered');
@@ -126,9 +132,9 @@ describe('declarative Rule worker', () => {
 });
 
 class FakeCapability implements Capability {
-  readonly key = 'fakeRule';
+  readonly key = 'fakeAutomation';
   readonly version = 1;
-  readonly description = 'Rule fake';
+  readonly description = 'Automation fake';
   readonly defaultAutonomy = 'propose' as const;
   readonly safetyCeiling = 'execute' as const;
   validateInput(input: ComponentValue): void {
@@ -151,11 +157,11 @@ async function createFixture() {
       timestamp += milliseconds;
     },
   };
-  const ids = { generate: () => `rule-test-${++id}` };
+  const ids = { generate: () => `automation-test-${++id}` };
   const knowledge = new MemoryKnowledgeStore(createKnowledgeRegistry());
   await knowledge.saveEntry(
     Entry.create({
-      id: 'entry-rule',
+      id: 'entry-automation',
       content: { kind: 'text', text: 'Regla de prueba.' },
       origin: { source: 'test' },
       capturedAt: clock.now().toISOString(),
@@ -173,13 +179,13 @@ async function createFixture() {
     ids,
     clock,
   );
-  const rules = new MemoryRuleStore();
+  const automations = new MemoryAutomationStore();
   return {
     clock,
     execution,
-    rules,
-    register: new RegisterRuleCommand(
-      rules,
+    automations,
+    register: new RegisterAutomationCommand(
+      automations,
       createTriggerRegistry(),
       operators,
       capabilities,
@@ -187,8 +193,8 @@ async function createFixture() {
       ids,
       clock,
     ),
-    worker: new RuleWorker(
-      rules,
+    worker: new AutomationWorker(
+      automations,
       knowledge,
       new StateEvaluator(operators, clock),
       propose,
@@ -198,21 +204,21 @@ async function createFixture() {
   };
 }
 
-function ruleInput(
-  when: RegisterRuleInput['when'],
-  overrides: Partial<RegisterRuleInput> = {},
-): RegisterRuleInput {
+function automationInput(
+  when: RegisterAutomationInput['when'],
+  overrides: Partial<RegisterAutomationInput> = {},
+): RegisterAutomationInput {
   return {
     given: [condition(true)],
     when,
     thenIntents: [template()],
-    evidence: [{ entryId: 'entry-rule', sourceLocators: [] }],
+    evidence: [{ entryId: 'entry-automation', sourceLocators: [] }],
     ...overrides,
   };
 }
 function template() {
   return {
-    capability: { key: 'fakeRule', version: 1 },
+    capability: { key: 'fakeAutomation', version: 1 },
     input: { message: 'hola' },
     conditions: [condition(true)],
     expectedState: [condition(true)],
@@ -233,7 +239,7 @@ function event(id: string, key: string, occurredAt: string): Event {
     id,
     key,
     occurredAt,
-    causation: { entryId: 'entry-rule' },
+    causation: { entryId: 'entry-automation' },
     data: { active: true },
   });
 }

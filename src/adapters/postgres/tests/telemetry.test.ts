@@ -11,6 +11,7 @@ describe('PostgreSQL inference telemetry', () => {
     await telemetry.record(run);
 
     expect(database.statement).toContain('INSERT INTO telemetry.runs');
+    expect(database.statement).not.toContain('policy_version');
     expect(database.parameters).toContain('interpretation-id');
     expect(database.parameters).toContain('openai.luna');
     expect(database.parameters).not.toContain('prompt');
@@ -38,13 +39,12 @@ class RecordingDatabase implements Database {
 
 const run: InferenceRun = {
   interpretationId: 'interpretation-id',
-  operation: 'interpretEntry',
+  operation: 'interpret-entry',
   reasoning: 'low',
   target: 'openai.luna',
   provider: 'provider',
   requestedModel: 'requested-model',
   usedModel: 'used-model',
-  instructionsVersion: 'interpretEntry.v1',
   attempt: 1,
   durationMs: 10,
   result: 'knowledge',

@@ -1,10 +1,15 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
 import { UnavailableNotificationAdapter } from '../adapters/notification/unavailable.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
+import { createTriggerRegistry } from '../core/automation/registry.js';
 import { CapabilityRegistry } from '../core/execution/capability.js';
 import { createKnowledgeRegistry } from '../core/item/system.js';
-import { createTriggerRegistry } from '../core/rule/registry.js';
 import { createOperatorRegistry } from '../core/state/registry.js';
+import { MemoryAutomationStore } from '../modules/automation/adapters/memory/store.js';
+import type { AutomationModule } from '../modules/automation/module.js';
+import { ControlAutomationCommand } from '../modules/automation/operations/control.js';
+import { RegisterAutomationCommand } from '../modules/automation/operations/register.js';
+import { AutomationWorker } from '../modules/automation/operations/worker.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
 import { GetEntryQuery } from '../modules/capture/operations/get.js';
@@ -66,11 +71,6 @@ import { NotificationCapability } from '../modules/reminder/notification-capabil
 import { ReminderService } from '../modules/reminder/operations/manage.js';
 import { ReminderWorker } from '../modules/reminder/operations/worker.js';
 import type { NotificationPort } from '../modules/reminder/ports/notification.js';
-import { MemoryRuleStore } from '../modules/rule/adapters/memory/store.js';
-import type { RuleModule } from '../modules/rule/module.js';
-import { ControlRuleCommand } from '../modules/rule/operations/control.js';
-import { RegisterRuleCommand } from '../modules/rule/operations/register.js';
-import { RuleWorker } from '../modules/rule/operations/worker.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
 import { CreateStateCommand } from '../modules/state/operations/create.js';
@@ -106,7 +106,7 @@ export interface System {
   readonly projection: ProjectionModule;
   readonly execution: ExecutionModule;
   readonly state: StateModule;
-  readonly rule: RuleModule;
+  readonly automation: AutomationModule;
   readonly planning: PlanningModule;
   readonly reminder: ReminderModule;
   readonly proactivity: ProactivityModule;
@@ -135,7 +135,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   );
   const executionStore = new MemoryExecutionStore();
   const triggers = createTriggerRegistry();
-  const ruleStore = new MemoryRuleStore();
+  const automationStore = new MemoryAutomationStore();
   const reminderStore = new MemoryReminderStore();
   const proactivityStore = new MemoryProactivityStore();
   const detectors = createDetectorRegistry(options.detectorThresholds);
@@ -204,8 +204,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     clock,
   );
   const authorizeIntent = new AuthorizeIntentCommand(executionStore);
-  const registerRule = new RegisterRuleCommand(
-    ruleStore,
+  const registerAutomation = new RegisterAutomationCommand(
+    automationStore,
     triggers,
     operators,
     capabilities,
@@ -213,9 +213,9 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
-  const controlRule = new ControlRuleCommand(ruleStore);
-  const ruleWorker = new RuleWorker(
-    ruleStore,
+  const controlAutomation = new ControlAutomationCommand(automationStore);
+  const automationWorker = new AutomationWorker(
+    automationStore,
     knowledge,
     stateEvaluator,
     proposeIntent,
@@ -225,8 +225,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const reminderService = new ReminderService(
     reminderStore,
     planningCommands,
-    registerRule,
-    controlRule,
+    registerAutomation,
+    controlAutomation,
     ids,
     clock,
   );
@@ -301,11 +301,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       evaluate: stateEvaluator,
       derived: derivedStates,
     }),
-    rule: Object.freeze({
-      registerRule,
-      controlRule,
-      worker: ruleWorker,
-      store: ruleStore,
+    automation: Object.freeze({
+      registerAutomation,
+      controlAutomation,
+      worker: automationWorker,
+      store: automationStore,
     }),
     planning: Object.freeze({
       commands: planningCommands,
@@ -316,12 +316,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       manage: reminderService,
       worker: new ReminderWorker(
         reminderStore,
-        ruleStore,
-        ruleWorker,
+        automationStore,
+        automationWorker,
         executionStore,
         executeIntent,
         createState,
-        clock,
       ),
     }),
     proactivity: Object.freeze({

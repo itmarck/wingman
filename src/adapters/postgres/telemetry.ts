@@ -20,7 +20,6 @@ export class PostgresInferenceTelemetry implements InferenceTelemetry {
         provider,
         requested_model,
         used_model,
-        instructions_version,
         attempt,
         duration_ms,
         result,
@@ -30,7 +29,7 @@ export class PostgresInferenceTelemetry implements InferenceTelemetry {
         error_category,
         created_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
       )`,
       [
         run.interpretationId,
@@ -40,7 +39,6 @@ export class PostgresInferenceTelemetry implements InferenceTelemetry {
         run.provider,
         run.requestedModel,
         run.usedModel,
-        run.instructionsVersion,
         run.attempt,
         run.durationMs,
         run.result,

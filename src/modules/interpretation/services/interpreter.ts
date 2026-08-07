@@ -236,7 +236,6 @@ function createRun(
     provider: config.provider,
     requestedModel: config.model,
     usedModel: config.model,
-    instructionsVersion: request.instructionsVersion,
     attempt: execution.attempt,
     durationMs: Math.max(0, Math.round(performance.now() - started)),
     result,

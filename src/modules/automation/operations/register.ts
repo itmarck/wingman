@@ -1,16 +1,16 @@
+import { Automation, type CreateAutomationInput } from '../../../core/automation/automation.js';
+import type { TriggerRegistry } from '../../../core/automation/registry.js';
 import type { CapabilityRegistry } from '../../../core/execution/capability.js';
-import type { TriggerRegistry } from '../../../core/rule/registry.js';
-import { type CreateRuleInput, Rule } from '../../../core/rule/rule.js';
 import type { OperatorRegistry } from '../../../core/state/registry.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { InterpretationStore } from '../../interpretation/ports/store.js';
-import type { RuleStore } from '../ports/store.js';
+import type { AutomationStore } from '../ports/store.js';
 
-export type RegisterRuleInput = Omit<CreateRuleInput, 'id' | 'createdAt' | 'status'>;
-export class RegisterRuleCommand {
+export type RegisterAutomationInput = Omit<CreateAutomationInput, 'id' | 'createdAt' | 'status'>;
+export class RegisterAutomationCommand {
   constructor(
-    private readonly store: RuleStore,
+    private readonly store: AutomationStore,
     private readonly triggers: TriggerRegistry,
     private readonly operators: OperatorRegistry,
     private readonly capabilities: CapabilityRegistry,
@@ -18,11 +18,11 @@ export class RegisterRuleCommand {
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
   ) {}
-  async execute(input: RegisterRuleInput): Promise<string> {
+  async execute(input: RegisterAutomationInput): Promise<string> {
     this.triggers.require(input.when.operator.key, input.when.operator.version);
     for (const condition of [
       ...input.given,
-      ...(input.policy?.stopWhen ? [input.policy.stopWhen] : []),
+      ...(input.controls?.stopWhen ? [input.controls.stopWhen] : []),
     ])
       this.operators.validate(condition);
     for (const template of input.thenIntents) {
@@ -38,26 +38,29 @@ export class RegisterRuleCommand {
     for (const evidence of input.evidence)
       if (!snapshot.entries.some((entry) => entry.id === evidence.entryId))
         throw new InvalidInputError(`Entry ${evidence.entryId} does not exist`);
-    const rule = Rule.create({
+    const automation = Automation.create({
       ...input,
       id: this.ids.generate(),
       createdAt: this.clock.now().toISOString(),
     });
-    if (await this.store.find(rule.id)) throw new ConflictError(`Rule ${rule.id} already exists`);
+    if (await this.store.find(automation.id))
+      throw new ConflictError(`Automation ${automation.id} already exists`);
     await this.store.save({
-      rule,
-      nextEvaluationAt: initialTime(rule),
+      automation,
+      nextEvaluationAt: initialTime(automation),
       occurrences: 0,
       deduplicationIds: new Set(),
     });
-    return rule.id;
+    return automation.id;
   }
 }
-function initialTime(rule: Rule): string | undefined {
-  if (rule.when.operator.key !== 'time') return undefined;
-  const trigger = rule.when as Extract<
-    Rule['when'],
+function initialTime(automation: Automation): string | undefined {
+  if (automation.when.operator.key !== 'time') return undefined;
+  const trigger = automation.when as Extract<
+    Automation['when'],
     { readonly operator: { readonly key: 'time' } }
   >;
-  return trigger.at ?? new Date(Date.parse(rule.createdAt) + (trigger.afterMs ?? 0)).toISOString();
+  return (
+    trigger.at ?? new Date(Date.parse(automation.createdAt) + (trigger.afterMs ?? 0)).toISOString()
+  );
 }

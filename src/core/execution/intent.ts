@@ -7,7 +7,7 @@ import { assertConditionShape } from '../state/state.js';
 
 export type IntentStatus = 'proposed' | 'authorized' | 'cancelled' | 'completed';
 export interface IntentProposer {
-  readonly kind: 'user' | 'system' | 'rule';
+  readonly kind: 'user' | 'system' | 'automation';
   readonly id?: string;
 }
 export interface IntentTrigger {

@@ -10,7 +10,6 @@ export interface InferenceRun {
   readonly provider: string;
   readonly requestedModel: string;
   readonly usedModel: string;
-  readonly instructionsVersion: string;
   readonly attempt: number;
   readonly durationMs: number;
   readonly result: InferenceResult;

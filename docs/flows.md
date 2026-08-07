@@ -55,23 +55,23 @@ flowchart LR
     Snapshot --> Evaluator
     Evaluator --> Current[Current and unresolved State]
     Evaluator --> Planning[Planning projections]
-    Evaluator --> Rules[Rule dependency index]
+    Evaluator --> Automations[Automation dependency index]
     Evaluator --> Detectors[Proactive detectors]
 ```
 
 State is derived by default and persisted only when it cannot be reconstructed.
 
-## Declarative Rule evaluation
+## Declarative Automation evaluation
 
-Rules use closed `Given / When / Then` declarations and never call Capabilities directly.
+Automations use closed `Given / When / Then` declarations and never call Capabilities directly.
 
 ```mermaid
 flowchart LR
-    Trigger[Time, Event, or State change] --> Match[Match indexed Rules]
+    Trigger[Time, Event, or State change] --> Match[Match indexed Automations]
     Match --> Given{Given holds?}
     Given -- no --> Wait[Remain eligible]
-    Given -- yes --> Policy[Apply cooldown, expiry, stop, priority, dedupe]
-    Policy --> Intent[Create validated Intent]
+    Given -- yes --> Controls[Apply cooldown, expiry, stop, priority, dedupe]
+    Controls --> Intent[Create validated Intent]
 ```
 
 ## Intent execution and observation
@@ -80,7 +80,7 @@ Intent proposes; Capability executes; Attempt records the try; Event records the
 
 ```mermaid
 sequenceDiagram
-    participant Source as User, Rule, or detector
+    participant Source as User, Automation, or detector
     participant Intents
     participant Policy as Authorization and autonomy
     participant Capability
@@ -108,8 +108,8 @@ flowchart LR
     Capture[Entry or explicit proposal] --> Compose[Planning Item + Profile + Components]
     Compose --> State[Current and desired State]
     State --> Views[Next actions, blockers, unscheduled work, progress]
-    Views --> Rules[Rules and proactive detectors]
-    Rules --> Intents[Suggested or authorized Intents]
+    Views --> Automations[Automations and proactive detectors]
+    Automations --> Intents[Suggested or authorized Intents]
 ```
 
 ## Reminder workflow
@@ -119,13 +119,13 @@ Deadline and reminder cadence are independent.
 ```mermaid
 flowchart LR
     Entry[Reminder request] --> Structure[Task or subject + temporal Components]
-    Structure --> Rule[Reminder Rule]
-    Rule --> Intent[Notification Intent]
+    Structure --> Automation[Reminder Automation]
+    Automation --> Intent[Notification Intent]
     Intent --> Capability[Notification Capability]
     Capability --> Attempt[Delivery Attempt]
     Attempt --> Event[Delivery Event]
     Event --> State[Observed State]
-    State --> Rule
+    State --> Automation
 ```
 
 Completion stops stale reminders; retries create new Attempts without duplicating the logical notification.
@@ -158,7 +158,7 @@ flowchart LR
     Main --> Runtime[Runtime]
     Runtime --> API[HTTP server]
     Runtime --> Interpretation[Interpretation worker]
-    Runtime --> Scheduler[Rule scheduler]
+    Runtime --> Scheduler[Automation scheduler]
     Runtime --> Execution[Intent execution worker]
     Runtime --> System[System policies]
     Runtime --> Storage[Storage adapters]
