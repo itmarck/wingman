@@ -1,5 +1,4 @@
 import { MemoryLock } from '../adapters/memory/lock.js';
-import { UnavailableNotificationAdapter } from '../adapters/notification/unavailable.js';
 import { SystemClock, UuidGenerator } from '../adapters/runtime.js';
 import { createTriggerRegistry } from '../core/automation/registry.js';
 import { CapabilityRegistry } from '../core/execution/capability.js';
@@ -47,6 +46,10 @@ import {
 import { RegisterInterpretationCommand } from '../modules/interpretation/services/register.js';
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
 import { ComposeItemCommand } from '../modules/knowledge/operations/compose.js';
+import type { NotificationModule } from '../modules/notification/module.js';
+import { NotificationCapability } from '../modules/notification/notification-capability.js';
+import { NotificationService } from '../modules/notification/operations/service.js';
+import { NotificationWorker } from '../modules/notification/operations/worker.js';
 import type { PlanningModule } from '../modules/planning/module.js';
 import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
 import { PlanningCommandService } from '../modules/planning/operations/write.js';
@@ -66,11 +69,6 @@ import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
-import type { ReminderModule } from '../modules/reminder/module.js';
-import { NotificationCapability } from '../modules/reminder/notification-capability.js';
-import { ReminderService } from '../modules/reminder/operations/manage.js';
-import { NotificationWorker } from '../modules/reminder/operations/notification-worker.js';
-import type { NotificationPort } from '../modules/reminder/ports/notification.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
 import { CreateStateCommand } from '../modules/state/operations/create.js';
@@ -92,7 +90,6 @@ export interface SystemOptions {
   readonly telemetry?: InferenceTelemetry;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
-  readonly notification?: NotificationPort;
   readonly proactivity?: ProactivityPolicy;
   readonly detectorThresholds?: DetectorThresholds;
 }
@@ -108,7 +105,7 @@ export interface System {
   readonly state: StateModule;
   readonly automation: AutomationModule;
   readonly planning: PlanningModule;
-  readonly reminder: ReminderModule;
+  readonly notification: NotificationModule;
   readonly proactivity: ProactivityModule;
   readonly declarations: DeclarationOutcomeSource;
   readonly proposals: ProposalRegistry;
@@ -130,9 +127,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const stateEvaluator = new StateEvaluator(operators, clock);
   const derivedStates = new DerivedStateRegistry(operators);
   const capabilities = new CapabilityRegistry();
-  capabilities.register(
-    new NotificationCapability(options.notification ?? new UnavailableNotificationAdapter()),
-  );
+  capabilities.register(new NotificationCapability());
   const executionStore = new MemoryExecutionStore();
   const triggers = createTriggerRegistry();
   const automationStore = new MemoryAutomationStore();
@@ -253,14 +248,6 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       });
     },
   };
-  const reminderService = new ReminderService(
-    automationStore,
-    planningCommands,
-    registerAutomation,
-    controlAutomation,
-    ids,
-    clock,
-  );
   const declarationPublisher = new EntryDeclarationPublisher(
     declarationOutcomes,
     composeItem,
@@ -346,9 +333,9 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       queries: planningQueries,
       views: planningViews,
     }),
-    reminder: Object.freeze({
-      manage: reminderService,
-      worker: new NotificationWorker(automationWorker, executionStore, executeIntent, createState),
+    notification: Object.freeze({
+      service: new NotificationService(executionStore, automationStore, ids, clock),
+      worker: new NotificationWorker(automationWorker, executionStore, executeIntent),
     }),
     proactivity: Object.freeze({
       service: new ProactivityService(

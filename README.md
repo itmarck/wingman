@@ -58,13 +58,15 @@ Verbatim citations use the `quote` Literal and must match the original text exac
 
 Wingman notifications are passive launcher items. They become visible in the launcher and the user sees them when opening the mobile application; they do not produce push alerts, banners, sounds, vibration, foreground UI, or another interruption.
 
-The intended launcher API (pending implementation) exposes notifications directly, with commands to complete or dismiss them. Its active list is a derived view over Automations, Intents and State; there is no Notification or Reminder entity and no compatibility reminder API.
+`GET /api/notifications` exposes a compact active view derived from notification Intents and Events. `POST /api/notifications/:id/acknowledgement` removes a notice from that view without completing its subject. Notifications have no entity or table.
 
 Current product scope is tasks, objectives, plans, habits and notifications. New domains are added only when repeated use justifies their contracts.
 
 ### Deployment
 
 Wingman runs as one long-lived Railway service. HTTP, interpretation, scheduling and execution remain in the same process while that stays operationally viable.
+
+`railway.json` builds and starts that process and checks `/api/health`. Configure `DATABASE_URL`, `SERVER_SECRET`, one registered `INFERENCE_TARGET` with its API key, and `MUTATION_MODE` (`approval` initially; `write` when ready). Locally, `npm run build && npm start` exercises the same artifact.
 
 ---
 

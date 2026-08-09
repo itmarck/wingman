@@ -1,7 +1,7 @@
 import {
   InferenceAdapterError,
   type InferenceExecution,
-  InterpreterUnavailableError,
+  RetryableInferenceError,
 } from '../../modules/interpretation/services/interpreter.js';
 import { parseInterpretationOutput } from './schema.js';
 
@@ -146,7 +146,10 @@ function assertCompletedResponse(response: Record<string, unknown>): void {
   }
 
   if (response.status === 'in_progress') {
-    throw new InterpreterUnavailableError('Inference provider response is still in progress');
+    throw new RetryableInferenceError(
+      'transient',
+      'Inference provider response is still in progress',
+    );
   }
 
   if (response.status === 'failed') {
@@ -157,8 +160,8 @@ function assertCompletedResponse(response: Record<string, unknown>): void {
     const details = isRecord(response.incomplete_details) ? response.incomplete_details : {};
     const reason = optionalString(details.reason) ?? 'unknown reason';
 
-    throw new InferenceAdapterError(
-      'incomplete',
+    throw new RetryableInferenceError(
+      'invalidResponse',
       `Inference provider returned an incomplete response: ${reason}`,
     );
   }
@@ -214,11 +217,10 @@ function throwHttpError(response: Response, body: unknown): never {
   const { status } = response;
   const detail = status === 429 || status >= 500 ? undefined : safeProviderMessage(body);
   const message = `Inference provider request failed with status ${status}${detail ? `: ${detail}` : ''}`;
-  const retryable = status === 408 || status === 409 || status === 429 || status >= 500;
-
-  if (retryable) {
-    throw new InterpreterUnavailableError(message, readRetryAfterMs(response.headers));
-  }
+  if (status === 429)
+    throw new RetryableInferenceError('quota', message, readRetryAfterMs(response.headers));
+  if (status === 408 || status === 409 || status >= 500)
+    throw new RetryableInferenceError('transient', message, readRetryAfterMs(response.headers));
 
   const category = status === 401 || status === 403 ? 'authentication' : 'request';
 
@@ -246,13 +248,10 @@ function readRetryAfterMs(headers: Headers): number | undefined {
 function throwProviderFailure(error: Record<string, unknown>): never {
   const message = safeProviderMessage(error) ?? 'Inference provider failed to create a response';
   const code = optionalString(error.code)?.toLowerCase() ?? '';
-  const transient = ['rate_limit', 'server_error', 'timeout', 'unavailable'].some((value) =>
-    code.includes(value),
-  );
-
-  if (transient) {
-    throw new InterpreterUnavailableError(message);
-  }
+  if (['rate_limit', 'quota'].some((value) => code.includes(value)))
+    throw new RetryableInferenceError('quota', message);
+  if (['server_error', 'timeout', 'unavailable'].some((value) => code.includes(value)))
+    throw new RetryableInferenceError('transient', message);
 
   throw new InferenceAdapterError('provider', message);
 }
@@ -274,8 +273,8 @@ function readProviderMessage(value: unknown): string | undefined {
   return optionalString(error.message)?.slice(0, 500);
 }
 
-function invalidResponse(message: string): InferenceAdapterError {
-  return new InferenceAdapterError('invalidResponse', message);
+function invalidResponse(message: string): RetryableInferenceError {
+  return new RetryableInferenceError('invalidResponse', message);
 }
 
 function optionalNumber(value: unknown): number | undefined {

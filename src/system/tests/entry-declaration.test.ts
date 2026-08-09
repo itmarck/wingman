@@ -37,7 +37,7 @@ describe('interpreted Entry declarations', () => {
     const status = await system.interpretation.getEntryStatus.execute(entryId);
     expect(status.declarations.map(({ status: value }) => value)).toEqual(['applied', 'applied']);
     expect(await system.planning.queries.list('pending')).toHaveLength(1);
-    expect(await system.reminder.manage.list()).toHaveLength(1);
+    expect(await system.notification.service.list()).toEqual([]);
     expect(await system.automation.store.list()).toHaveLength(1);
     expect(await system.execution.store.listIntents()).toEqual([]);
     await system.close();
@@ -124,7 +124,7 @@ class DeclarationInterpreter {
                 {
                   capability: { key: 'notification', version: 1 },
                   input: {
-                    reminderId: 'notice',
+                    automationId: 'notice',
                     occurrenceId: '$trigger.id',
                     subjectItemId: 'task',
                     message: 'Paga',

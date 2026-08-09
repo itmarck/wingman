@@ -31,9 +31,9 @@ describe('run Interpretation worker', () => {
 });
 
 describe('system work command', () => {
-  it('advances interpretations and due reminders in the same cycle', async () => {
+  it('advances interpretations and due notifications in the same cycle', async () => {
     let interpretations = 1;
-    let reminders = 1;
+    let notifications = 1;
     const command = new SystemWorkCommand(
       {
         async execute() {
@@ -44,8 +44,8 @@ describe('system work command', () => {
       },
       {
         async runDue() {
-          const due = reminders;
-          reminders = 0;
+          const due = notifications;
+          notifications = 0;
           return due;
         },
       },
@@ -53,11 +53,11 @@ describe('system work command', () => {
 
     expect(await command.execute()).toBe(true);
     expect(await command.execute()).toBe(false);
-    expect({ interpretations, reminders }).toEqual({ interpretations: 0, reminders: 0 });
+    expect({ interpretations, notifications }).toEqual({ interpretations: 0, notifications: 0 });
   });
 
-  it('does not let failed interpretation work starve reminders', async () => {
-    let reminders = 0;
+  it('does not let failed interpretation work starve notifications', async () => {
+    let notifications = 0;
     const command = new SystemWorkCommand(
       {
         async execute() {
@@ -66,13 +66,13 @@ describe('system work command', () => {
       },
       {
         async runDue() {
-          reminders += 1;
+          notifications += 1;
           return 0;
         },
       },
     );
 
     await expect(command.execute()).rejects.toThrow('inference unavailable');
-    expect(reminders).toBe(1);
+    expect(notifications).toBe(1);
   });
 });

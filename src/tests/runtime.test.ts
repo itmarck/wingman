@@ -29,6 +29,32 @@ describe('Runtime lifecycle', () => {
       'database:close',
     ]);
   });
+
+  it('closes every owned resource when startup fails', async () => {
+    const events: string[] = [];
+    const worker = createWorker(events);
+    worker.start = () => {
+      events.push('worker:start');
+      throw new Error('worker failed');
+    };
+    const runtime = new Runtime({
+      server: createServer(events),
+      worker,
+      system: createClosable<System>('system', events),
+      database: createDatabase(events),
+    });
+
+    await expect(runtime.start()).rejects.toThrow('worker failed');
+    expect(events).toEqual([
+      'server:start',
+      'worker:start',
+      'runtime:startupFailure',
+      'server:close',
+      'worker:close',
+      'system:close',
+      'database:close',
+    ]);
+  });
 });
 
 function createServer(events: string[]): Server {

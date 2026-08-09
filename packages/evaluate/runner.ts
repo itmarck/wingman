@@ -7,10 +7,9 @@ import type {
   InferenceTelemetry,
 } from '../../src/modules/interpretation/ports/telemetry.js';
 import type { InterpretationAdapter } from '../../src/modules/interpretation/services/interpreter.js';
-import { InterpreterUnavailableError } from '../../src/modules/interpretation/services/interpreter.js';
+import { RetryableInferenceError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { GlossaryResult } from '../../src/modules/projection/domain/glossary.js';
 import type { CurrentItemsResult } from '../../src/modules/projection/domain/items.js';
-import type { ReminderExplanation } from '../../src/modules/reminder/operations/manage.js';
 import { createSystem, type System } from '../../src/system/system.js';
 
 const defaultEvaluationTimeoutMs = 30_000;
@@ -31,7 +30,6 @@ export interface EvaluationResult {
   readonly reviews: readonly ReviewResult[];
   readonly runs: readonly InferenceRun[];
   readonly profiles: readonly string[];
-  readonly reminders: readonly ReminderExplanation[];
   readonly automationCount: number;
   readonly intentCount: number;
   readonly attemptCount: number;
@@ -182,9 +180,9 @@ export function declarations(...expected: readonly string[]): Expectation {
   });
 }
 
-/** Expects the exact number of active reminder views. */
-export function reminders(expected: number): Expectation {
-  return count('Reminders', expected, (result) => result.reminders.length);
+/** Expects the exact number of declared Automations. */
+export function automations(expected: number): Expectation {
+  return count('Automations', expected, (result) => result.automationCount);
 }
 
 /** Requires interpretation to create no executable or proactive effect. */
@@ -270,7 +268,7 @@ async function execute(
       leaseDurationMs: 60_000,
       leaseRenewalIntervalMs: 10_000,
       pollingIntervalMs,
-      retryDelaysMs: Object.freeze(Array.from({ length: maxAttempts - 1 }, () => 0)),
+      retryDelaysMs: retryDelays(maxAttempts),
     },
   });
 
@@ -336,7 +334,7 @@ async function interpret(
       return observe(system, telemetry, adapter.outputs, entryId, current);
     }
 
-    if (processingError && !(processingError instanceof InterpreterUnavailableError)) {
+    if (processingError && !(processingError instanceof RetryableInferenceError)) {
       throw processingError;
     }
 
@@ -353,15 +351,13 @@ async function observe(
   entryId: string,
   current: EntryStatusResult,
 ): Promise<EvaluationResult> {
-  const [itemProjection, glossaryProjection, reviewPage, reminders, automations, intents] =
-    await Promise.all([
-      system.projection.readProjection.execute('system.currentItems'),
-      system.projection.readProjection.execute('system.glossary'),
-      system.interpretation.listReviews.execute(),
-      system.reminder.manage.list(),
-      system.automation.store.list(),
-      system.execution.store.listIntents(),
-    ]);
+  const [itemProjection, glossaryProjection, reviewPage, automations, intents] = await Promise.all([
+    system.projection.readProjection.execute('system.currentItems'),
+    system.projection.readProjection.execute('system.glossary'),
+    system.interpretation.listReviews.execute(),
+    system.automation.store.list(),
+    system.execution.store.listIntents(),
+  ]);
   const components = (itemProjection.data as CurrentItemsResult).items
     .flatMap((item) => item.components as readonly ComponentRevision[])
     .filter((component) => component.evidence.some((evidence) => evidence.entryId === entryId));
@@ -393,7 +389,6 @@ async function observe(
     reviews: Object.freeze(reviews),
     runs: telemetry.runs,
     profiles: Object.freeze(profiles),
-    reminders: Object.freeze([...reminders]),
     automationCount: automations.length,
     intentCount: intents.length,
     attemptCount: attempts.length,
@@ -529,9 +524,16 @@ class RecordingAdapter implements InterpretationAdapter {
       this.#outputs.push(structuredClone(output));
       return output;
     } catch (error) {
-      if (error instanceof InterpreterUnavailableError)
-        throw new InterpreterUnavailableError(error.message);
+      if (error instanceof RetryableInferenceError)
+        throw new RetryableInferenceError(error.retryClass, error.message, error.retryAfterMs);
       throw error;
     }
   }
+}
+
+function retryDelays(maxAttempts: number) {
+  const delays = Object.freeze(
+    Array.from({ length: Math.min(2, maxAttempts - 1) }, (_, index) => index),
+  );
+  return Object.freeze({ transient: delays, quota: delays, invalidResponse: delays });
 }

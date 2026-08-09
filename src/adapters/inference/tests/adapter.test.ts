@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { RetryableInferenceError } from '../../../modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../../modules/interpretation/services/request.js';
 import { createInferenceAdapter } from '../adapter.js';
 
@@ -60,6 +61,25 @@ describe('Gemini inference adapter', () => {
         },
       },
     });
+  });
+
+  it('classifies network failure as transient', async () => {
+    const adapter = createInferenceAdapter(
+      {
+        target: 'gemini.flash',
+        provider: 'gemini',
+        model: 'gemini-3.5-flash',
+        endpoint: 'https://example.test',
+        apiKey: 'gemini-secret',
+      },
+      async () => {
+        throw new Error('network down');
+      },
+    );
+
+    const error = await adapter.interpret(request).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(RetryableInferenceError);
+    expect(error).toMatchObject({ retryClass: 'transient', category: 'unavailable' });
   });
 });
 

@@ -260,7 +260,7 @@ function baseFinding(
     expiresInMs,
     capability: { key: 'notification', version: 1 },
     input: {
-      reminderId: '$proposalId',
+      automationId: '$proposalId',
       occurrenceId: 'proactive',
       subjectItemId: subjectItemId ?? 'system',
       message: rationale,

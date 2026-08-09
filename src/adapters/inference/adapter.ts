@@ -2,7 +2,7 @@ import type { InterpreterIdentity } from '../../modules/interpretation/domain/in
 import {
   type InferenceExecution,
   type InterpretationAdapter,
-  InterpreterUnavailableError,
+  RetryableInferenceError,
 } from '../../modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
 import type { InferenceAdapterConfig } from './config.js';
@@ -107,8 +107,8 @@ function createRequestBody(config: InferenceAdapterConfig, request: Interpretati
   };
 }
 
-function unavailable(error: unknown): InterpreterUnavailableError {
+function unavailable(error: unknown): RetryableInferenceError {
   const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
 
-  return new InterpreterUnavailableError(`Inference provider is unavailable${detail}`);
+  return new RetryableInferenceError('transient', `Inference provider is unavailable${detail}`);
 }

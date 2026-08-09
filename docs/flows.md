@@ -119,7 +119,7 @@ flowchart LR
 
 ## Launcher notifications
 
-Deadline and reminder cadence are independent.
+Deadline and notification cadence are independent.
 
 ```mermaid
 flowchart LR
@@ -133,11 +133,11 @@ flowchart LR
     State --> Automation
 ```
 
-The launcher uses a dedicated notification API. Reads derive the active list from Automations, Intents and State; completing or dismissing an item records the corresponding State and removes it from the active view. No Notification or Reminder entity or compatibility API exists.
+The launcher uses `/api/notifications`. Reads derive and compact delivered, unacknowledged notices from Automations, Intents and Events. Acknowledgement records an Event and never completes the subject.
 
 ## Retry policy
 
-Each operation allows at most three increasingly delayed attempts. Transient outages use backoff, quota limits honor provider reset or `Retry-After`, and invalid responses become visible failures rather than rapid retries. Retry state remains inside the Wingman process.
+Each operation allows at most three attempts. Transient outages use 1/5 minute delays, quota uses 15/60 minute lower bounds and honors provider timing, and invalid output uses 10/60 second delays. Authentication and configuration fail immediately; no target fallback occurs.
 
 ## Proactive assistance
 

@@ -61,7 +61,7 @@ Automations only produce Intents. Attempts and Events remain separate so an unce
 | --- | --- |
 | `automation_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
 
-There is no Reminder table. A notification reminder is represented by one `automation_definitions` row with subject references and a schedule trigger; reminder reads are derived views.
+There is no notification table. Scheduling uses `automation_definitions`; launcher reads derive delivered, unacknowledged notices from Intents and Events.
 
 The in-process mutation approval registry is not persisted. Its entries contain executable callbacks and cannot be safely restored after a restart until proposal application has a durable command contract.
 

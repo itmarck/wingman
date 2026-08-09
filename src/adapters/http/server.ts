@@ -8,11 +8,11 @@ import { entryRoutes } from './entry.js';
 import { registerErrorHandling } from './error.js';
 import { executionRoutes } from './execution.js';
 import { readMutationMode } from './mutation.js';
+import { notificationRoutes } from './notification.js';
 import { planningRoutes } from './planning.js';
 import { proactivityRoutes } from './proactivity.js';
 import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
-import { reminderRoutes } from './reminder.js';
 import { reviewRoutes } from './review.js';
 import { stateRoutes } from './state.js';
 
@@ -61,7 +61,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Execution' },
         { name: 'Automations' },
         { name: 'Planning' },
-        { name: 'Reminders' },
+        { name: 'Notifications' },
         { name: 'Proactivity' },
       ],
     },
@@ -119,7 +119,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(executionRoutes, { system });
       await protectedServer.register(automationRoutes, { system });
       await protectedServer.register(planningRoutes, { system });
-      await protectedServer.register(reminderRoutes, { system });
+      await protectedServer.register(notificationRoutes, { system });
       await protectedServer.register(proactivityRoutes, { system });
     },
     { prefix: '/api' },

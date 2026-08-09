@@ -1,4 +1,5 @@
 import type { Entry } from '../../../core/knowledge/entry.js';
+import type { InferenceRetryClass } from '../config.js';
 import type { RegisterInterpretationInput } from '../domain/input.js';
 import type { InterpreterIdentity } from '../domain/interpretation.js';
 import type { InferenceResult, InferenceRun, InferenceTelemetry } from '../ports/telemetry.js';
@@ -75,22 +76,23 @@ export class InferenceAdapterError extends Error {
 /**
  * Signals a temporary provider failure that can be retried by the queue.
  */
-export class InterpreterUnavailableError extends InferenceAdapterError {
+export class RetryableInferenceError extends InferenceAdapterError {
   constructor(
+    readonly retryClass: InferenceRetryClass,
     message: string,
     readonly retryAfterMs?: number,
   ) {
-    super('unavailable', message);
-    this.name = 'InterpreterUnavailableError';
+    super(retryClass === 'transient' ? 'unavailable' : retryClass, message);
+    this.name = 'RetryableInferenceError';
   }
 }
 
 /**
  * Represents a completed adapter call whose output cannot be accepted as an Interpretation.
  */
-export class InvalidInterpretationError extends Error {
+export class InvalidInterpretationError extends RetryableInferenceError {
   constructor(message: string) {
-    super(message);
+    super('invalidResponse', message);
     this.name = 'InvalidInterpretationError';
   }
 }

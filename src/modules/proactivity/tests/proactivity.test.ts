@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { TestNotificationAdapter } from '../../../adapters/notification/test.js';
 import type { Capability } from '../../../core/execution/capability.js';
 import { Event } from '../../../core/execution/event.js';
 import type { ComponentValue, Evidence } from '../../../core/item/types.js';
@@ -9,10 +8,8 @@ import type { ProactiveDetector } from '../domain/detector.js';
 
 describe('proactive assistance', () => {
   it('detects useful planning risks with complete explanations and no direct effects', async () => {
-    const notifications = new TestNotificationAdapter();
     const system = createTestSystem({
       adapter: new EmptyInterpreter(),
-      notification: notifications,
       detectorThresholds: { blockerMs: 0, deadlineLeadMs: 86_400_000, inactivityMs: 0 },
     });
     const entryId = await entry(system, 'Objetivo, bloqueo y fecha.');
@@ -58,7 +55,7 @@ describe('proactive assistance', () => {
         autonomy: { resolved: 'propose', explicitAuthorization: true },
         intentId: expect.any(String),
       });
-    expect(notifications.deliveries).toEqual([]);
+    expect(await system.notification.service.list()).toEqual([]);
     expect(await system.proactivity.service.evaluate({ kind: 'scan' })).toEqual([]);
     await system.close();
   });

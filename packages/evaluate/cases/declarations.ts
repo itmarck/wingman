@@ -1,9 +1,9 @@
 import {
+  automations,
   declarations,
   define,
   noExecutableEffects,
   profiles,
-  reminders,
   reviews,
   status,
 } from '../runner.js';
@@ -25,7 +25,7 @@ define('creates a deadline notification with a separate planning subject', () =>
     reviews(0),
     profiles('task'),
     declarations('applied', 'applied'),
-    reminders(1),
+    automations(1),
     noExecutableEffects(),
   ],
 }));
@@ -37,7 +37,7 @@ define('keeps an unavailable email event source unsupported', () => ({
     reviews(0),
     profiles('task'),
     declarations('applied', 'unsupported'),
-    reminders(0),
+    automations(0),
     noExecutableEffects(),
   ],
 }));

@@ -58,3 +58,10 @@ Interpretation and Automations SHALL create Intents only from registered Capabil
 #### Scenario: Unsupported external action request
 - **WHEN** no registered Capability represents the requested effect
 - **THEN** the declaration outcome is unsupported and no executable operation is invented
+
+### Requirement: Notification outcomes remain independent
+Notification delivery and acknowledgement SHALL be distinct immutable Events and SHALL NOT establish completion State for the subject Item.
+
+#### Scenario: Notification is acknowledged
+- **WHEN** a delivered notification is acknowledged
+- **THEN** the acknowledgement Event references its notification Intent and no subject completion action is invoked

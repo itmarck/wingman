@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createAccessToken } from '../../src/adapters/http/auth.js';
 import { createHttpServer } from '../../src/adapters/http/server.js';
-import { InterpreterUnavailableError } from '../../src/modules/interpretation/services/interpreter.js';
+import { RetryableInferenceError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../src/modules/interpretation/services/request.js';
 import { createSystem } from '../../src/system/system.js';
 import { check, createQualityReport, type QualityCheck, type QualityReport } from './quality.js';
@@ -42,9 +42,9 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
     ),
     check(
       'semantic',
-      'genuinely missing reminder data does not execute',
-      incomplete.declarationStatus === 'needsInput' && successful.reminderCount === 1,
-      `declarations=${incomplete.declarationStatus} totalReminders=${successful.reminderCount}`,
+      'genuinely missing notification data does not execute',
+      incomplete.declarationStatus === 'needsInput' && successful.automationCount === 1,
+      `declarations=${incomplete.declarationStatus} totalAutomations=${successful.automationCount}`,
       { critical: true, weight: 2 },
     ),
     check(
@@ -52,7 +52,7 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
       'incomplete declaration exposes stable identity and reason',
       incomplete.declarations.some(
         (declaration) =>
-          declaration.reference === 'reminder' &&
+          declaration.reference === 'notification' &&
           declaration.kind === 'automation' &&
           declaration.status === 'needsInput' &&
           Boolean(declaration.reason),
@@ -69,8 +69,8 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
     ),
     check(
       'observability',
-      'invalid interpretation exposes a terminal failure',
-      invalid.status === 'failed' && Boolean(invalid.error) && invalid.attempts === 1,
+      'invalid interpretation exhausts bounded short retries',
+      invalid.status === 'exhausted' && Boolean(invalid.error) && invalid.attempts === 3,
       `status=${invalid.status} attempts=${invalid.attempts} error=${invalid.error ?? 'none'}`,
       { weight: 2 },
     ),
@@ -102,7 +102,7 @@ async function runOperationalScenarios(): Promise<{
   readonly mixed: PublicStatus;
   readonly incomplete: PublicStatus;
   readonly mixedHasKnowledge: boolean;
-  readonly reminderCount: number;
+  readonly automationCount: number;
 }> {
   const system = createSystem('memory', {
     inference: { target: 'quality.local', provider: 'local', model: 'operational-fixtures' },
@@ -157,7 +157,7 @@ async function runOperationalScenarios(): Promise<{
           component.evidence.some((evidence) => evidence.entryId === mixedId),
         ),
       ),
-      reminderCount: (await system.reminder.manage.list()).length,
+      automationCount: (await system.automation.store.list()).length,
     };
   } finally {
     await server.close();
@@ -176,7 +176,11 @@ async function observeFailedInterpretation(
       leaseDurationMs: 1_000,
       leaseRenewalIntervalMs: 100,
       pollingIntervalMs: 1,
-      retryDelaysMs: [0, 0],
+      retryDelaysMs: {
+        transient: [0, 1],
+        quota: [0, 1],
+        invalidResponse: [0, 1],
+      },
     },
   });
   const server = createHttpServer(system, { signingSecret });
@@ -280,7 +284,7 @@ function operationalDeclarations(
       {
         kind: 'automation' as const,
         version: 1 as const,
-        reference: 'reminder',
+        reference: 'notification',
         dependsOn: ['task'],
         unresolved,
         subjects: ['task'],
@@ -293,7 +297,7 @@ function operationalDeclarations(
           {
             capability: { key: 'notification', version: 1 },
             input: {
-              reminderId: 'reminder',
+              automationId: 'notification',
               occurrenceId: '$trigger.id',
               subjectItemId: 'task',
               message: title,
@@ -320,7 +324,7 @@ class InvalidQualityInterpreter {
 class UnavailableQualityInterpreter {
   readonly identity = Object.freeze({ key: 'unavailableQuality' });
   async interpret(): Promise<never> {
-    throw new InterpreterUnavailableError('Synthetic provider unavailable', 0);
+    throw new RetryableInferenceError('transient', 'Synthetic provider unavailable', 0);
   }
 }
 

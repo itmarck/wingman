@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { InterpreterUnavailableError } from '../../../modules/interpretation/services/interpreter.js';
+import {
+  InferenceAdapterError,
+  RetryableInferenceError,
+} from '../../../modules/interpretation/services/interpreter.js';
 import { readChatCompletionResponse, readInferenceResponse } from '../response.js';
 
 describe('inference response errors', () => {
@@ -16,13 +19,32 @@ describe('inference response errors', () => {
 
     const error = await readInferenceResponse(response).catch((value: unknown) => value);
 
-    expect(error).toBeInstanceOf(InterpreterUnavailableError);
+    expect(error).toBeInstanceOf(RetryableInferenceError);
     expect(error).toMatchObject({
       message: 'Inference provider request failed with status 429',
+      retryClass: 'quota',
       retryAfterMs: 12_000,
     });
     expect(String(error)).not.toContain('org_secret');
     expect(String(error)).not.toContain('example.test');
+  });
+
+  it('distinguishes outages, invalid output and authentication', async () => {
+    const outage = await readInferenceResponse(new Response('{}', { status: 503 })).catch(
+      (value: unknown) => value,
+    );
+    const invalid = await readInferenceResponse(
+      new Response('not-json', { status: 200, headers: { 'content-type': 'text/plain' } }),
+    ).catch((value: unknown) => value);
+    const authentication = await readInferenceResponse(
+      new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }),
+    ).catch((value: unknown) => value);
+
+    expect(outage).toMatchObject({ retryClass: 'transient', category: 'unavailable' });
+    expect(invalid).toMatchObject({ retryClass: 'invalidResponse', category: 'invalidResponse' });
+    expect(authentication).toBeInstanceOf(InferenceAdapterError);
+    expect(authentication).not.toBeInstanceOf(RetryableInferenceError);
+    expect(authentication).toMatchObject({ category: 'authentication' });
   });
 });
 

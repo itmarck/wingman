@@ -33,9 +33,18 @@ export class Runtime {
       return;
     }
 
-    await this.#server.start();
-    this.#worker.start();
-    this.#started = true;
+    try {
+      await this.#server.start();
+      this.#worker.start();
+      this.#started = true;
+    } catch (error) {
+      try {
+        await this.close('startupFailure');
+      } catch (closeError) {
+        throw new AggregateError([error, closeError], 'Runtime startup and cleanup failed');
+      }
+      throw error;
+    }
   }
 
   async close(reason: string): Promise<void> {

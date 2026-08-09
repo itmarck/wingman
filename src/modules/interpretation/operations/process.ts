@@ -14,8 +14,8 @@ import type { InterpretationContextSource } from '../services/context.js';
 import {
   type InterpretationResult,
   type Interpreter,
-  InterpreterUnavailableError,
   InvalidInterpretationError,
+  RetryableInferenceError,
 } from '../services/interpreter.js';
 import type { RegisterInterpretationCommand } from '../services/register.js';
 
@@ -106,10 +106,13 @@ export class ProcessInterpretationCommand {
 
     const failedAt = this.clock.now();
     const message = getErrorMessage(error);
-    const configuredRetryDelay = this.config.retryDelaysMs[started.attempts - 1];
+    const configuredRetryDelay =
+      error instanceof RetryableInferenceError
+        ? this.config.retryDelaysMs[error.retryClass][started.attempts - 1]
+        : undefined;
 
-    if (error instanceof InterpreterUnavailableError && configuredRetryDelay !== undefined) {
-      const retryDelay = error.retryAfterMs ?? configuredRetryDelay;
+    if (error instanceof RetryableInferenceError && configuredRetryDelay !== undefined) {
+      const retryDelay = Math.max(configuredRetryDelay, error.retryAfterMs ?? 0);
       const availableAt = new Date(failedAt.getTime() + retryDelay).toISOString();
       const queued = started.reschedule(message, failedAt.toISOString(), availableAt, context);
 
@@ -118,7 +121,7 @@ export class ProcessInterpretationCommand {
     }
 
     const failed =
-      error instanceof InterpreterUnavailableError
+      error instanceof RetryableInferenceError
         ? started.exhaust(message, failedAt.toISOString(), context)
         : started.fail(message, failedAt.toISOString(), context);
 

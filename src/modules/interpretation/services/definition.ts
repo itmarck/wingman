@@ -85,21 +85,21 @@ export const Policy = Object.freeze({
     'Use Item, State, Automation and Intent declarations instead of product-specific request kinds.',
     'Use unresolved only for genuinely missing required source values.',
   ),
-  requireExplicitReminderSchedule: definePolicy(
-    'Represent a reminder as one notification Automation whose schedule trigger contains all explicit UTC occurrences.',
+  requireExplicitNotificationSchedule: definePolicy(
+    'Represent a notification request as one notification Automation whose schedule trigger contains all explicit UTC occurrences.',
     'Reference its subject Item and stop it when the subject completion condition becomes true.',
   ),
-  preserveReminderDeadline: definePolicy(
+  preserveNotificationDeadline: definePolicy(
     'Copy a source deadline into the subject temporal Component as UTC.',
     'For fin de mes or end of month, calculate the deadline as the final UTC instant of the month containing entry.capturedAt.',
     'Treat the end-of-month instant as a derived boundary, not an invented exact time.',
   ),
-  preserveExplicitReminderRequests: definePolicy(
+  preserveExplicitNotificationRequests: definePolicy(
     'Include a notification Automation for every explicit remind, notify, avísame, or recuérdame request even when its trigger or Capability is unavailable.',
     'Record unsupported behavior after interpretation.',
   ),
   preserveTemporalPrecision: definePolicy(
-    'Keep temporal source precision separate from reminder cadence.',
+    'Keep temporal source precision separate from notification cadence.',
     'Never invent exact people, organizations, times, Events, connectors, or operations.',
   ),
 });
