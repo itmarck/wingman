@@ -2,7 +2,7 @@ interface InterpretationWork {
   execute(): Promise<boolean>;
 }
 
-interface ReminderWork {
+interface ScheduledNotificationWork {
   runDue(): Promise<number>;
 }
 
@@ -10,16 +10,16 @@ interface ReminderWork {
 export class SystemWorkCommand {
   constructor(
     private readonly interpretations: InterpretationWork,
-    private readonly reminders: ReminderWork,
+    private readonly notifications: ScheduledNotificationWork,
   ) {}
 
   async execute(): Promise<boolean> {
-    const [interpretation, reminders] = await Promise.allSettled([
+    const [interpretation, notifications] = await Promise.allSettled([
       this.interpretations.execute(),
-      this.reminders.runDue(),
+      this.notifications.runDue(),
     ]);
 
-    const errors = [interpretation, reminders].flatMap((result) =>
+    const errors = [interpretation, notifications].flatMap((result) =>
       result.status === 'rejected' ? [result.reason] : [],
     );
     if (errors.length > 0) {
@@ -30,8 +30,8 @@ export class SystemWorkCommand {
     }
 
     const interpreted = interpretation.status === 'fulfilled' && interpretation.value;
-    const reminderCount = reminders.status === 'fulfilled' ? reminders.value : 0;
+    const notificationCount = notifications.status === 'fulfilled' ? notifications.value : 0;
 
-    return interpreted || reminderCount > 0;
+    return interpreted || notificationCount > 0;
   }
 }

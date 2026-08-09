@@ -3,7 +3,7 @@ import { TestNotificationAdapter } from '../../../adapters/notification/test.js'
 import { createTestSystem } from '../../../system/tests/support.js';
 import type { InterpretationRequest } from '../../interpretation/services/request.js';
 
-describe('reminder workflow', () => {
+describe('notification schedule compatibility view', () => {
   it('keeps a deadline range separate from repeated occurrences and delivers end to end', async () => {
     const notifications = new TestNotificationAdapter();
     const system = createTestSystem({
@@ -26,6 +26,12 @@ describe('reminder workflow', () => {
       sourceEntryId: entryId,
       temporal,
       occurrences: [past, second],
+    });
+    const [runtime] = await system.automation.store.list();
+    expect(runtime?.automation).toMatchObject({
+      id,
+      subjects: [{ kind: 'itemReference' }],
+      when: { operator: { key: 'schedule', version: 1 }, occurrences: [past, second] },
     });
     expect(await system.reminder.worker.runDue()).toBe(2);
     expect(notifications.deliveries).toHaveLength(2);

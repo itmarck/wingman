@@ -114,9 +114,7 @@ export class MemoryKnowledgeStore
           .map(({ key, version, description }) => Object.freeze({ key, version, description })),
       ),
       profiles: Object.freeze(
-        this.registry
-          .listProfiles()
-          .map(({ key, version, description }) => Object.freeze({ key, version, description })),
+        this.registry.listProfiles().map((profile) => Object.freeze(structuredClone(profile))),
       ),
     });
   }

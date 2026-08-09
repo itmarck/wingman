@@ -38,12 +38,12 @@ Evaluation SHALL use the configured inference adapter with a fresh in-memory sys
 Semantic quality SHALL measure observable outcomes for exact quotations, Reviews, planning, reminders, unsupported capabilities, and destructive requests rather than implementation-specific classes.
 
 #### Scenario: Model produces a partially correct interpretation
-- **WHEN** the model returns the right terminal status but loses an exact quote, creates the wrong workflow, or emits invalid structured output
+- **WHEN** the model returns the right terminal status but loses an exact quote, creates the wrong declaration, or emits invalid structured output
 - **THEN** real-model quality decreases and the report identifies the failing case
 
 ### Requirement: Structural quality measurement
-The evaluator SHALL measure simplicity, observability, HTTP contracts, security, and evolution through focused checks with stable evidence and without a scripted deterministic smoke workflow.
+The evaluator SHALL measure simplicity, observability, HTTP contracts, security, and evolution through focused checks with stable evidence and without a scripted deterministic smoke scenario.
 
 #### Scenario: Stable contract regresses
-- **WHEN** dependency direction, public workflow status, authentication, trusted origin, or generic scoring behavior regresses
+- **WHEN** dependency direction, public declaration status, authentication, trusted origin, or generic scoring behavior regresses
 - **THEN** the corresponding axis fails with actionable evidence

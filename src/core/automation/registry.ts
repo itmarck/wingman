@@ -1,11 +1,13 @@
 import { DomainError } from '../error.js';
 import { assertRegistryKey, assertVersion } from '../item/item.js';
 import type { AutomationTrigger } from './automation.js';
+import { validateAutomationTrigger } from './automation.js';
 
 export interface TriggerOperator {
   readonly key: AutomationTrigger['operator']['key'];
   readonly version: number;
   readonly description: string;
+  validate(trigger: AutomationTrigger): void;
 }
 /** Immutable catalog of the tagged trigger language. */
 export class TriggerRegistry {
@@ -23,10 +25,22 @@ export class TriggerRegistry {
     if (!operator) throw new DomainError(`Trigger operator ${key}@${version} is not registered`);
     return operator;
   }
+  list(): readonly TriggerOperator[] {
+    return Object.freeze([...this.#operators.values()]);
+  }
 }
 export function createTriggerRegistry(): TriggerRegistry {
   const registry = new TriggerRegistry();
-  for (const key of ['time', 'event', 'stateChange'] as const)
-    registry.register({ key, version: 1, description: `Trigger ${key}` });
+  for (const key of ['time', 'event', 'stateChange', 'schedule'] as const)
+    registry.register({
+      key,
+      version: 1,
+      description: `Trigger ${key}`,
+      validate(trigger) {
+        if (trigger.operator.key !== key)
+          throw new DomainError(`Trigger payload does not match operator ${key}@1`);
+        validateAutomationTrigger(trigger);
+      },
+    });
   return registry;
 }

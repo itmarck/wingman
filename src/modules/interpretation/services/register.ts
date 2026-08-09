@@ -112,7 +112,7 @@ export class RegisterInterpretationCommand {
     if (
       prepared.registration.items.length === 0 &&
       prepared.registration.revisions.length === 0 &&
-      (input.workflows?.length ?? 0) === 0
+      declarationCount(input) === 0
     )
       throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
     return Object.freeze({
@@ -144,7 +144,7 @@ export class RegisterInterpretationCommand {
     if (
       prepared.registration.items.length === 0 &&
       prepared.registration.revisions.length === 0 &&
-      (input.workflows?.length ?? 0) === 0
+      declarationCount(input) === 0
     )
       throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
     const completed = interpretation.completeKnowledge(
@@ -156,6 +156,16 @@ export class RegisterInterpretationCommand {
     await this.lifecycle.publish(completed, prepared.registration, claim);
     return Object.freeze({ interpretation: completed, reviewIds: Object.freeze([]) });
   }
+}
+
+function declarationCount(input: RegisterInterpretationInput): number {
+  const declarations = input.declarations;
+  return declarations
+    ? declarations.items.length +
+        declarations.states.length +
+        declarations.automations.length +
+        declarations.intents.length
+    : 0;
 }
 
 function createRegistration(

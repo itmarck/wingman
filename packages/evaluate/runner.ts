@@ -172,17 +172,17 @@ export function profiles(...expected: readonly string[]): Expectation {
   );
 }
 
-/** Expects the exact workflow outcome sequence exposed by Entry status. */
-export function workflows(...expected: readonly string[]): Expectation {
-  return expectation(`workflows equal ${expected.join(',') || 'none'}`, (result) => {
-    const actual = result.status.workflows.map((workflow) => workflow.status);
+/** Expects the exact declaration outcome sequence exposed by Entry status. */
+export function declarations(...expected: readonly string[]): Expectation {
+  return expectation(`declarations equal ${expected.join(',') || 'none'}`, (result) => {
+    const actual = result.status.declarations.map((declaration) => declaration.status);
     return sameValues(actual, expected)
       ? undefined
       : `Expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`;
   });
 }
 
-/** Expects the exact number of active reminder workflows. */
+/** Expects the exact number of active reminder views. */
 export function reminders(expected: number): Expectation {
   return count('Reminders', expected, (result) => result.reminders.length);
 }
@@ -479,7 +479,7 @@ function isStable(iterations: readonly IterationReport[]): boolean {
       error: iteration.error,
       checks: iteration.checks.map((item) => ({ name: item.name, passed: item.passed })),
       status: iteration.result?.status.status,
-      workflows: iteration.result?.status.workflows.map((workflow) => workflow.status),
+      declarations: iteration.result?.status.declarations.map((declaration) => declaration.status),
       profiles: iteration.result?.profiles,
     }),
   );

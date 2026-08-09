@@ -1,21 +1,17 @@
 import type { ComponentValue } from '../../../core/item/types.js';
 import { NotFoundError } from '../../../system/error.js';
 import type { AutomationWorker } from '../../automation/operations/worker.js';
-import type { AutomationStore } from '../../automation/ports/store.js';
 import type { ExecuteIntentCommand } from '../../execution/operations/execute.js';
 import type { ExecutionStore } from '../../execution/ports/store.js';
 import type { PersistStateInput } from '../../state/operations/create.js';
-import type { ReminderStore } from '../ports/store.js';
 
 interface StateWriter {
   execute(input: PersistStateInput): Promise<string>;
 }
 
 /** Produces due Intents, executes them and records passive launcher availability. */
-export class ReminderWorker {
+export class NotificationWorker {
   constructor(
-    private readonly reminders: ReminderStore,
-    private readonly automations: AutomationStore,
     private readonly automationWorker: Pick<AutomationWorker, 'runDue'>,
     private readonly executions: ExecutionStore,
     private readonly executeIntent: Pick<ExecuteIntentCommand, 'execute'>,
@@ -29,7 +25,6 @@ export class ReminderWorker {
       (intent) => !before.has(intent.id) && isNotificationInput(intent.input),
     );
     for (const intent of intents) await this.execute(intent.id);
-    await this.completeFinishedReminders();
     return intents.length;
   }
 
@@ -42,7 +37,6 @@ export class ReminderWorker {
         intent.input as Readonly<Record<string, ComponentValue>>,
         intent.evidence,
       );
-    await this.completeFinishedReminders();
     return outcome;
   }
 
@@ -63,23 +57,6 @@ export class ReminderWorker {
       author: { kind: 'system' },
       evidence,
     });
-  }
-  private async completeFinishedReminders(): Promise<void> {
-    for (const reminder of await this.reminders.list()) {
-      if (reminder.status !== 'active') continue;
-      const runtimes = await Promise.all(
-        reminder.automationIds.map((id) => this.automations.find(id)),
-      );
-      const results = (
-        await Promise.all(reminder.automationIds.map((id) => this.automations.listResults(id)))
-      ).flat();
-      const intentIds = results.flatMap((result) => result.intentIds);
-      const intents = await Promise.all(intentIds.map((id) => this.executions.findIntent(id)));
-      const settled =
-        intentIds.length === 0 || intents.every((intent) => intent?.status === 'completed');
-      if (settled && runtimes.every((runtime) => runtime?.automation.status === 'stopped'))
-        await this.reminders.save(Object.freeze({ ...reminder, status: 'completed' }));
-    }
   }
 }
 

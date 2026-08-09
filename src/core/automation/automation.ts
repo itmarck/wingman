@@ -1,7 +1,7 @@
 import { DomainError } from '../error.js';
 import type { CreateIntentInput } from '../execution/intent.js';
 import { assertRegistryKey, assertVersion } from '../item/item.js';
-import type { Evidence } from '../item/types.js';
+import type { Evidence, ItemReference } from '../item/types.js';
 import { assertText, assertUtcDateTime } from '../knowledge/guard.js';
 import type { Condition } from '../state/condition.js';
 import { assertConditionShape } from '../state/state.js';
@@ -18,6 +18,10 @@ export type AutomationTrigger =
       readonly operator: { readonly key: 'stateChange'; readonly version: 1 };
       readonly itemIds?: readonly string[];
       readonly componentKeys?: readonly string[];
+    }
+  | {
+      readonly operator: { readonly key: 'schedule'; readonly version: 1 };
+      readonly occurrences: readonly string[];
     };
 
 export type IntentTemplate = Omit<
@@ -37,6 +41,7 @@ export interface CreateAutomationInput {
   readonly id: string;
   readonly given: readonly Condition[];
   readonly when: AutomationTrigger;
+  readonly subjects?: readonly ItemReference[];
   readonly thenIntents: readonly IntentTemplate[];
   readonly controls?: AutomationControls;
   readonly evidence: readonly Evidence[];
@@ -49,6 +54,7 @@ export class Automation {
   readonly id: string;
   readonly given: readonly Condition[];
   readonly when: AutomationTrigger;
+  readonly subjects: readonly ItemReference[];
   readonly thenIntents: readonly IntentTemplate[];
   readonly controls: AutomationControls;
   readonly evidence: readonly Evidence[];
@@ -58,6 +64,7 @@ export class Automation {
     this.id = input.id;
     this.given = Object.freeze(structuredClone(input.given));
     this.when = Object.freeze(structuredClone(input.when));
+    this.subjects = Object.freeze(structuredClone(input.subjects ?? []));
     this.thenIntents = Object.freeze(structuredClone(input.thenIntents));
     this.controls = Object.freeze(structuredClone(input.controls ?? {}));
     this.evidence = Object.freeze(structuredClone(input.evidence));
@@ -74,7 +81,11 @@ export class Automation {
       throw new DomainError('Automation requires at least one Then Intent template');
     if (input.evidence.length === 0) throw new DomainError('Automation requires evidence');
     for (const condition of input.given) assertConditionShape(condition);
-    validateTrigger(input.when);
+    validateAutomationTrigger(input.when);
+    for (const subject of input.subjects ?? []) {
+      if (subject.kind !== 'itemReference') throw new DomainError('Automation subject is invalid');
+      assertText(subject.itemId, 'Automation subject Item id');
+    }
     validateControls(input.controls ?? {});
     return new Automation(input);
   }
@@ -91,9 +102,17 @@ export class Automation {
   stop(): Automation {
     return new Automation({ ...this, status: 'stopped' });
   }
+  reschedule(occurrences: readonly string[], expiresAt?: string): Automation {
+    return Automation.create({
+      ...this,
+      when: { operator: { key: 'schedule', version: 1 }, occurrences },
+      controls: { ...this.controls, expiresAt },
+      status: 'active',
+    });
+  }
 }
 
-function validateTrigger(trigger: AutomationTrigger): void {
+export function validateAutomationTrigger(trigger: AutomationTrigger): void {
   assertRegistryKey(trigger.operator.key, 'Trigger operator key');
   assertVersion(trigger.operator.version, 'Trigger operator version');
   if (trigger.operator.key === 'time') {
@@ -112,13 +131,30 @@ function validateTrigger(trigger: AutomationTrigger): void {
         .eventKey,
       'Event trigger key',
     );
-  else {
+  else if (trigger.operator.key === 'stateChange') {
     const stateChange = trigger as Extract<
       AutomationTrigger,
       { readonly operator: { readonly key: 'stateChange' } }
     >;
     if ((stateChange.itemIds?.length ?? 0) + (stateChange.componentKeys?.length ?? 0) === 0)
       throw new DomainError('State-change trigger requires Item or Component dependencies');
+  } else {
+    const schedule = trigger as Extract<
+      AutomationTrigger,
+      { readonly operator: { readonly key: 'schedule' } }
+    >;
+    if (schedule.occurrences.length === 0)
+      throw new DomainError('Schedule trigger requires occurrences');
+    for (const occurrence of schedule.occurrences)
+      assertUtcDateTime(occurrence, 'Schedule trigger occurrence');
+    if (new Set(schedule.occurrences).size !== schedule.occurrences.length)
+      throw new DomainError('Schedule trigger occurrences must be unique');
+    if (
+      schedule.occurrences.some(
+        (value, index) => index > 0 && value <= (schedule.occurrences.at(index - 1) ?? value),
+      )
+    )
+      throw new DomainError('Schedule trigger occurrences must be ordered');
   }
 }
 

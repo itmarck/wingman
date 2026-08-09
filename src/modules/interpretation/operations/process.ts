@@ -3,13 +3,13 @@ import type { Clock } from '../../../system/runtime.js';
 import type { EntryStore } from '../../capture/ports/store.js';
 import type { ProcessingConfig } from '../config.js';
 import type { FailedInterpretationContext, Interpretation } from '../domain/interpretation.js';
+import type { InterpretationDeclarationPublisher } from '../ports/declaration.js';
 import {
   type InterpretationClaim,
   InterpretationClaimError,
   type InterpretationQueue,
 } from '../ports/queue.js';
 import type { InterpretationStateStore } from '../ports/state.js';
-import type { InterpretationWorkflowRouter } from '../ports/workflow.js';
 import type { InterpretationContextSource } from '../services/context.js';
 import {
   type InterpretationResult,
@@ -30,7 +30,7 @@ export class ProcessInterpretationCommand {
     private readonly contexts: InterpretationContextSource,
     private readonly interpreter: Interpreter,
     private readonly registerInterpretation: RegisterInterpretationCommand,
-    private readonly workflows: InterpretationWorkflowRouter,
+    private readonly declarations: InterpretationDeclarationPublisher,
     private readonly clock: Clock,
     private readonly config: ProcessingConfig,
   ) {}
@@ -82,7 +82,7 @@ export class ProcessInterpretationCommand {
         claim,
       );
       if (registered.interpretation.status === 'completed')
-        await this.workflows.execute(result.draft);
+        await this.declarations.execute(result.draft);
       return;
     }
 

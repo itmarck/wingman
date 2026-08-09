@@ -14,6 +14,8 @@ export class MemoryAutomationStore implements AutomationStore {
   readonly #componentIndex = new Map<string, Set<string>>();
   readonly #results: AutomationEvaluationResult[] = [];
   async save(runtime: AutomationRuntime): Promise<void> {
+    const current = this.#automations.get(runtime.automation.id);
+    if (current) this.unindex(current);
     this.#automations.set(runtime.automation.id, freezeRuntime(runtime));
     this.index(runtime);
   }
@@ -81,6 +83,11 @@ export class MemoryAutomationStore implements AutomationStore {
       for (const key of stateChange.componentKeys ?? [])
         add(this.#componentIndex, key, runtime.automation.id);
     }
+  }
+  private unindex(runtime: AutomationRuntime): void {
+    const id = runtime.automation.id;
+    for (const index of [this.#eventIndex, this.#itemIndex, this.#componentIndex])
+      for (const values of index.values()) values.delete(id);
   }
 }
 function add(index: Map<string, Set<string>>, key: string, id: string): void {

@@ -1,6 +1,6 @@
 # Wingman
 
-Personal knowledge and automation server. Wingman preserves original Entries, derives composable Items and workflow requests, resolves uncertain Item references through Reviews, and exposes planning, reminders, proactive proposals and Projections through an authenticated API.
+Personal knowledge and automation server. Wingman preserves original Entries, derives composable Items and declarative operations, resolves uncertain Item references through Reviews, and exposes planning, notification views, proactive proposals and Projections through an authenticated API.
 
 ## Setup
 
@@ -57,6 +57,8 @@ Verbatim citations use the `quote` Literal and must match the original text exac
 ### Passive notifications
 
 Wingman notifications are passive launcher items. They become visible in the launcher and the user sees them when opening the mobile application; they do not produce push alerts, banners, sounds, vibration, foreground UI, or another interruption.
+
+A reminder is not a stored entity. It is a derived view of one notification Automation with a multi-occurrence schedule and references to its subject Items. Cancelling and rescheduling the compatibility reminder API controls that Automation directly.
 
 ---
 

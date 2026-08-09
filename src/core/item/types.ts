@@ -38,6 +38,23 @@ export interface ComponentRequirement {
   readonly version: number;
 }
 
+export interface ProfileInitialComponent extends ComponentRequirement {
+  readonly value: ComponentValue;
+}
+
+export interface ProfileLifecycle {
+  readonly component: ComponentRequirement;
+  readonly initial: string;
+  readonly transitions: Readonly<Record<string, readonly string[]>>;
+}
+
+export interface ProfileStateTemplate {
+  readonly modality: 'observed' | 'desired' | 'required' | 'forbidden' | 'believed' | 'predicted';
+  readonly operator: { readonly key: string; readonly version: number };
+  readonly component: { readonly key: string; readonly field?: string };
+  readonly value: ComponentValue;
+}
+
 export interface ComponentSchema {
   readonly key: string;
   readonly version: number;
@@ -50,5 +67,9 @@ export interface Profile {
   readonly version: number;
   readonly description: string;
   readonly components: readonly ComponentRequirement[];
+  readonly optionalComponents?: readonly ComponentRequirement[];
+  readonly initialComponents?: readonly ProfileInitialComponent[];
+  readonly lifecycle?: ProfileLifecycle;
+  readonly states?: readonly ProfileStateTemplate[];
   readonly relationship?: boolean;
 }

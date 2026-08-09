@@ -1,7 +1,6 @@
 import type { Entry } from '../../../core/knowledge/entry.js';
 import type { RegisterInterpretationInput } from '../domain/input.js';
 import type { InterpreterIdentity } from '../domain/interpretation.js';
-import type { InterpretationWorkflowDraft } from '../domain/workflow.js';
 import type { InferenceResult, InferenceRun, InferenceTelemetry } from '../ports/telemetry.js';
 import type { InterpretationContext } from './context.js';
 import { createInterpretationRequest, type InterpretationRequest } from './request.js';
@@ -175,7 +174,7 @@ function parseOutput(value: unknown, entryId: string): InterpretationAdapterOutp
 
     const draft = normalizeDraft(value.draft);
     const hasKnowledge =
-      draft.items.length > 0 || draft.components.length > 0 || (draft.workflows?.length ?? 0) > 0;
+      draft.items.length > 0 || draft.components.length > 0 || declarationCount(draft) > 0;
 
     return hasKnowledge
       ? Object.freeze({
@@ -264,64 +263,48 @@ function isDraft(value: unknown): value is RegisterInterpretationInput {
     typeof value.entryId === 'string' &&
     Array.isArray(value.items) &&
     Array.isArray(value.components) &&
-    (value.workflows === undefined ||
-      (Array.isArray(value.workflows) && value.workflows.every(isWorkflowDraft)))
+    (value.declarations === undefined || isDeclarations(value.declarations))
   );
 }
 
 function normalizeDraft(draft: RegisterInterpretationInput): RegisterInterpretationInput {
-  return Object.freeze({ ...draft, workflows: Object.freeze([...(draft.workflows ?? [])]) });
+  return Object.freeze({
+    ...draft,
+    declarations: draft.declarations
+      ? Object.freeze(structuredClone(draft.declarations))
+      : undefined,
+  });
 }
 
-function isWorkflowDraft(value: unknown): value is InterpretationWorkflowDraft {
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    typeof value.reference !== 'string' ||
-    !Array.isArray(value.unresolved) ||
-    !value.unresolved.every((item) => typeof item === 'string')
-  )
-    return false;
-  if (value.kind === 'planningRequest')
-    return (
-      ['task', 'objective', 'plan', 'habit'].includes(String(value.profile)) &&
-      typeof value.title === 'string' &&
-      optionalString(value.notes) &&
-      optionalString(value.recurrence) &&
-      optionalTemporal(value.temporal)
-    );
-  if (
-    value.kind !== 'reminderRequest' ||
-    typeof value.subjectReference !== 'string' ||
-    typeof value.message !== 'string' ||
-    !optionalTemporal(value.temporal) ||
-    !isRecord(value.schedule)
-  )
-    return false;
-  if (value.schedule.kind === 'occurrences')
-    return (
-      Array.isArray(value.schedule.at) &&
-      value.schedule.at.every((item) => typeof item === 'string')
-    );
-  if (value.schedule.kind === 'deadlineOffsets')
-    return (
-      Array.isArray(value.schedule.offsetsBeforeMs) &&
-      value.schedule.offsetsBeforeMs.every(
-        (item) => Number.isSafeInteger(item) && Number(item) >= 0,
-      )
-    );
-  return value.schedule.kind === 'event' && typeof value.schedule.eventKey === 'string';
-}
-
-function optionalString(value: unknown): boolean {
-  return value === undefined || typeof value === 'string';
-}
-function optionalTemporal(value: unknown): boolean {
-  return (
-    value === undefined ||
-    (isRecord(value) &&
-      ['exact', 'day', 'month', 'range', 'unspecified'].includes(String(value.precision)) &&
-      optionalString(value.from) &&
-      optionalString(value.to))
+function isDeclarations(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (['items', 'states', 'automations', 'intents'] as const).every(
+    (key) =>
+      Array.isArray(value[key]) &&
+      (value[key] as unknown[]).every(
+        (declaration) => isDeclaration(declaration) && declaration.kind === singular(key),
+      ),
   );
+}
+function isDeclaration(value: unknown): value is Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    ['item', 'state', 'automation', 'intent'].includes(String(value.kind)) &&
+    value.version === 1 &&
+    typeof value.reference === 'string' &&
+    (value.dependsOn === undefined || Array.isArray(value.dependsOn)) &&
+    (value.unresolved === undefined || Array.isArray(value.unresolved))
+  );
+}
+function singular(key: 'items' | 'states' | 'automations' | 'intents'): string {
+  return key.slice(0, -1);
+}
+function declarationCount(draft: RegisterInterpretationInput): number {
+  const declarations = draft.declarations;
+  return declarations
+    ? declarations.items.length +
+        declarations.states.length +
+        declarations.automations.length +
+        declarations.intents.length
+    : 0;
 }

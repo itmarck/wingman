@@ -47,60 +47,75 @@ const resolution = object({
   question: Type.String(),
   candidateItemIds: Type.Array(Type.String()),
 });
-const temporal = object({
-  from: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
-  to: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
-  precision: Type.Union([
-    Type.Literal('exact'),
-    Type.Literal('day'),
-    Type.Literal('month'),
-    Type.Literal('range'),
-    Type.Literal('unspecified'),
-  ]),
-});
-const planningWorkflow = object({
-  kind: Type.Literal('planningRequest'),
+const declarationBase = {
   version: Type.Literal(1),
   reference: Type.String(),
-  profile: Type.Union([
-    Type.Literal('task'),
-    Type.Literal('objective'),
-    Type.Literal('plan'),
-    Type.Literal('habit'),
-  ]),
-  title: Type.String(),
-  notes: Type.Union([Type.String(), Type.Null()]),
-  temporal: Type.Union([temporal, Type.Null()]),
-  recurrence: Type.Union([Type.String(), Type.Null()]),
+  dependsOn: Type.Array(Type.String()),
   unresolved: Type.Array(Type.String()),
+};
+const itemDeclaration = object({
+  ...declarationBase,
+  kind: Type.Literal('item'),
+  profile,
+  components: Type.Array(
+    object({
+      key: Type.String({ pattern: keyPattern.source }),
+      version: Type.Integer({ minimum: 1 }),
+      value: Type.Unknown(),
+    }),
+  ),
 });
-const reminderSchedule = Type.Union([
-  object({
-    kind: Type.Literal('occurrences'),
-    at: Type.Array(Type.String({ pattern: utcPattern.source }), { minItems: 1 }),
-  }),
-  object({
-    kind: Type.Literal('deadlineOffsets'),
-    offsetsBeforeMs: Type.Array(Type.Integer({ minimum: 0 }), { minItems: 1 }),
-  }),
-  object({ kind: Type.Literal('event'), eventKey: Type.String({ pattern: keyPattern.source }) }),
-]);
-const reminderWorkflow = object({
-  kind: Type.Literal('reminderRequest'),
-  version: Type.Literal(1),
-  reference: Type.String(),
-  subjectReference: Type.String(),
-  message: Type.String(),
-  temporal: Type.Union([temporal, Type.Null()]),
-  schedule: reminderSchedule,
-  unresolved: Type.Array(Type.String()),
+const stateDeclaration = object({
+  ...declarationBase,
+  kind: Type.Literal('state'),
+  modality: Type.Union([
+    Type.Literal('observed'),
+    Type.Literal('believed'),
+    Type.Literal('desired'),
+    Type.Literal('required'),
+    Type.Literal('forbidden'),
+    Type.Literal('predicted'),
+  ]),
+  condition: Type.Unknown(),
+  validTime: Type.Union([
+    object({
+      from: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
+      to: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
+    }),
+    Type.Null(),
+  ]),
+  confidence: Type.Union([Type.Number({ minimum: 0, maximum: 1 }), Type.Null()]),
+});
+const automationDeclaration = object({
+  ...declarationBase,
+  kind: Type.Literal('automation'),
+  subjects: Type.Array(Type.String()),
+  given: Type.Array(Type.Unknown()),
+  when: Type.Unknown(),
+  thenIntents: Type.Array(Type.Unknown(), { minItems: 1 }),
+  controls: Type.Union([Type.Unknown(), Type.Null()]),
+});
+const intentDeclaration = object({
+  ...declarationBase,
+  kind: Type.Literal('intent'),
+  capability: profile,
+  input: Type.Unknown(),
+  conditions: Type.Array(Type.Unknown()),
+  expectedState: Type.Array(Type.Unknown()),
+  authorization: Type.Union([Type.Literal('none'), Type.Literal('explicit')]),
+  trigger: Type.Union([Type.Unknown(), Type.Null()]),
 });
 const draft = object({
   entryId: Type.String(),
   items: Type.Array(item),
   components: Type.Array(component),
   referenceResolutions: Type.Array(resolution),
-  workflows: Type.Array(Type.Union([planningWorkflow, reminderWorkflow])),
+  declarations: object({
+    items: Type.Array(itemDeclaration),
+    states: Type.Array(stateDeclaration),
+    automations: Type.Array(automationDeclaration),
+    intents: Type.Array(intentDeclaration),
+  }),
 });
 
 export const interpretationOutputSchema = {
@@ -140,37 +155,11 @@ type StrictDraft = RegisterInterpretationInput & {
     readonly validTime: RegisterInterpretationInput['components'][number]['validTime'] | null;
     readonly supersedesReference: string | null;
   })[];
-  readonly workflows: readonly StrictWorkflow[];
-};
-
-type StrictWorkflow =
-  | (Extract<
-      NonNullable<RegisterInterpretationInput['workflows']>[number],
-      { readonly kind: 'planningRequest' }
-    > & {
-      readonly notes: string | null;
-      readonly temporal: StrictTemporal | null;
-      readonly recurrence: string | null;
-    })
-  | (Extract<
-      NonNullable<RegisterInterpretationInput['workflows']>[number],
-      { readonly kind: 'reminderRequest' }
-    > & {
-      readonly temporal: StrictTemporal | null;
-    });
-type StrictTemporal = {
-  readonly from: string | null;
-  readonly to: string | null;
-  readonly precision: 'exact' | 'day' | 'month' | 'range' | 'unspecified';
+  readonly declarations: NonNullable<RegisterInterpretationInput['declarations']>;
 };
 
 function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
-  const workflows = normalizeWorkflows(draft.workflows);
-  const components = draft.components.filter(
-    (component) =>
-      componentHasContent(component) &&
-      !(workflows.length > 0 && generatedPlanningComponents.has(component.key)),
-  );
+  const components = draft.components.filter(componentHasContent);
   const referencedItems = new Set([
     ...components.map((component) => component.itemReference),
     ...(draft.referenceResolutions ?? []).map((resolution) => resolution.reference),
@@ -201,19 +190,44 @@ function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
         }),
       ),
     ),
-    workflows,
+    declarations: normalizeDeclarations(draft.declarations),
   });
 }
 
-const generatedPlanningComponents = new Set([
-  'assignment',
-  'descriptive',
-  'lifecycle',
-  'planning',
-  'progress',
-  'temporal',
-  'unresolved',
-]);
+function normalizeDeclarations(
+  declarations: NonNullable<RegisterInterpretationInput['declarations']>,
+): NonNullable<RegisterInterpretationInput['declarations']> {
+  return Object.freeze({
+    items: Object.freeze(structuredClone(declarations.items)),
+    states: Object.freeze(
+      declarations.states.map((state) => {
+        const strict = state as typeof state & {
+          validTime?: typeof state.validTime | null;
+          confidence?: number | null;
+        };
+        return Object.freeze({
+          ...state,
+          validTime: strict.validTime ?? undefined,
+          confidence: strict.confidence ?? undefined,
+        });
+      }),
+    ),
+    automations: Object.freeze(
+      declarations.automations.map((automation) => {
+        const strict = automation as typeof automation & {
+          controls?: typeof automation.controls | null;
+        };
+        return Object.freeze({ ...automation, controls: strict.controls ?? undefined });
+      }),
+    ),
+    intents: Object.freeze(
+      declarations.intents.map((intent) => {
+        const strict = intent as typeof intent & { trigger?: typeof intent.trigger | null };
+        return Object.freeze({ ...intent, trigger: strict.trigger ?? undefined });
+      }),
+    ),
+  });
+}
 
 function meaningful(value: unknown): boolean {
   if (typeof value === 'string') return value.trim().length > 0;
@@ -248,53 +262,4 @@ function componentHasContent(component: {
   if (component.key === 'participants')
     return Array.isArray(component.value) && component.value.filter(meaningful).length >= 2;
   return meaningful(component.value);
-}
-
-function normalizeWorkflows(
-  workflows: readonly StrictWorkflow[],
-): readonly NonNullable<RegisterInterpretationInput['workflows']>[number][] {
-  const normalized = workflows.map(normalizeWorkflow);
-  return Object.freeze(
-    normalized.map((workflow) => {
-      if (
-        workflow.kind !== 'reminderRequest' ||
-        workflow.schedule.kind !== 'deadlineOffsets' ||
-        workflow.temporal?.to
-      )
-        return workflow;
-      const subject = normalized.find(
-        (candidate) =>
-          candidate.kind === 'planningRequest' && candidate.reference === workflow.subjectReference,
-      );
-      return subject?.temporal?.to
-        ? Object.freeze({ ...workflow, temporal: subject.temporal })
-        : workflow;
-    }),
-  );
-}
-
-function normalizeWorkflow(
-  workflow: StrictWorkflow,
-): NonNullable<RegisterInterpretationInput['workflows']>[number] {
-  const temporal = workflow.temporal
-    ? Object.freeze({
-        from: workflow.temporal.from ?? undefined,
-        to: workflow.temporal.to ?? undefined,
-        precision: workflow.temporal.precision,
-      })
-    : undefined;
-  if (workflow.kind === 'planningRequest')
-    return Object.freeze({
-      ...workflow,
-      notes: workflow.notes ?? undefined,
-      temporal,
-      recurrence: workflow.recurrence ?? undefined,
-      unresolved: Object.freeze([...workflow.unresolved]),
-    });
-  return Object.freeze({
-    ...workflow,
-    temporal,
-    unresolved: Object.freeze([...workflow.unresolved]),
-    schedule: Object.freeze(structuredClone(workflow.schedule)),
-  });
 }

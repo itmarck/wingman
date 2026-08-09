@@ -33,32 +33,32 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
   return [
     check(
       'semantic',
-      'mixed knowledge and workflow remain independently observable',
+      'mixed knowledge and declarations remain independently observable',
       mixed.status === 'completed' &&
-        mixed.workflows.filter((workflow) => workflow.status === 'applied').length === 2 &&
+        mixed.declarations.filter((declaration) => declaration.status === 'applied').length === 2 &&
         successful.mixedHasKnowledge,
-      `status=${mixed.status} workflows=${mixed.workflows.map((workflow) => workflow.status).join(',')} knowledge=${successful.mixedHasKnowledge}`,
+      `status=${mixed.status} declarations=${mixed.declarations.map((declaration) => declaration.status).join(',')} knowledge=${successful.mixedHasKnowledge}`,
       { weight: 2 },
     ),
     check(
       'semantic',
       'genuinely missing reminder data does not execute',
-      incomplete.workflowStatus === 'needsInput' && successful.reminderCount === 1,
-      `workflow=${incomplete.workflowStatus} totalReminders=${successful.reminderCount}`,
+      incomplete.declarationStatus === 'needsInput' && successful.reminderCount === 1,
+      `declarations=${incomplete.declarationStatus} totalReminders=${successful.reminderCount}`,
       { critical: true, weight: 2 },
     ),
     check(
       'observability',
-      'incomplete workflow exposes stable identity and reason',
-      incomplete.workflows.some(
-        (workflow) =>
-          workflow.reference === 'reminder' &&
-          workflow.kind === 'reminderRequest' &&
-          workflow.status === 'needsInput' &&
-          Boolean(workflow.reason),
+      'incomplete declaration exposes stable identity and reason',
+      incomplete.declarations.some(
+        (declaration) =>
+          declaration.reference === 'reminder' &&
+          declaration.kind === 'automation' &&
+          declaration.status === 'needsInput' &&
+          Boolean(declaration.reason),
       ),
       JSON.stringify(
-        incomplete.workflows.map(({ reference, kind, status, reason }) => ({
+        incomplete.declarations.map(({ reference, kind, status, reason }) => ({
           reference,
           kind,
           status,
@@ -84,7 +84,7 @@ async function inspectOperationalSemantics(): Promise<readonly QualityCheck[]> {
   ];
 }
 
-interface PublicWorkflow {
+interface PublicDeclaration {
   readonly reference: string;
   readonly kind: string;
   readonly status: string;
@@ -94,8 +94,8 @@ interface PublicStatus {
   readonly status: string;
   readonly attempts: number;
   readonly error?: string;
-  readonly workflowStatus: string;
-  readonly workflows: readonly PublicWorkflow[];
+  readonly declarationStatus: string;
+  readonly declarations: readonly PublicDeclaration[];
 }
 
 async function runOperationalScenarios(): Promise<{
@@ -234,27 +234,10 @@ class OperationalQualityInterpreter {
               sourceLocators: [],
             },
           ],
-          workflows: [
-            {
-              kind: 'planningRequest' as const,
-              version: 1 as const,
-              reference: 'task',
-              profile: 'task' as const,
-              title: 'Documentar la iniciativa Atlas',
-              temporal: { to: '2030-01-02T23:59:59.000Z', precision: 'day' as const },
-              unresolved: [],
-            },
-            {
-              kind: 'reminderRequest' as const,
-              version: 1 as const,
-              reference: 'reminder',
-              subjectReference: 'task',
-              message: 'Documentar la iniciativa Atlas',
-              temporal: { to: '2030-01-02T23:59:59.000Z', precision: 'day' as const },
-              schedule: { kind: 'deadlineOffsets' as const, offsetsBeforeMs: [3_600_000] },
-              unresolved: [],
-            },
-          ],
+          declarations: operationalDeclarations(
+            'Documentar la iniciativa Atlas',
+            '2030-01-02T22:59:59.000Z',
+          ),
         },
       };
     return {
@@ -263,31 +246,68 @@ class OperationalQualityInterpreter {
         entryId: request.entry.id,
         items: [],
         components: [],
-        workflows: [
-          {
-            kind: 'planningRequest' as const,
-            version: 1 as const,
-            reference: 'task',
-            profile: 'task' as const,
-            title: 'Presentar el informe',
-            unresolved: [],
-          },
-          {
-            kind: 'reminderRequest' as const,
-            version: 1 as const,
-            reference: 'reminder',
-            subjectReference: 'task',
-            message: 'Presentar el informe',
-            schedule: {
-              kind: 'occurrences' as const,
-              at: ['2030-01-02T09:00:00.000Z'],
-            },
-            unresolved: ['schedule'],
-          },
-        ],
+        declarations: operationalDeclarations('Presentar el informe', '2030-01-02T09:00:00.000Z', [
+          'schedule',
+        ]),
       },
     };
   }
+}
+
+function operationalDeclarations(
+  title: string,
+  occurrence: string,
+  unresolved: readonly string[] = [],
+) {
+  return {
+    items: [
+      {
+        kind: 'item' as const,
+        version: 1 as const,
+        reference: 'task',
+        dependsOn: [],
+        unresolved: [],
+        profile: { key: 'task', version: 1 },
+        components: [
+          { key: 'descriptive', version: 1, value: { title } },
+          { key: 'temporal', version: 1, value: { dueAt: occurrence } },
+        ],
+      },
+    ],
+    states: [],
+    intents: [],
+    automations: [
+      {
+        kind: 'automation' as const,
+        version: 1 as const,
+        reference: 'reminder',
+        dependsOn: ['task'],
+        unresolved,
+        subjects: ['task'],
+        given: [],
+        when: {
+          operator: { key: 'schedule' as const, version: 1 as const },
+          occurrences: [occurrence],
+        },
+        thenIntents: [
+          {
+            capability: { key: 'notification', version: 1 },
+            input: {
+              reminderId: 'reminder',
+              occurrenceId: '$trigger.id',
+              subjectItemId: 'task',
+              message: title,
+            },
+            conditions: [],
+            expectedState: [],
+            authorization: 'none' as const,
+            trigger: { kind: 'time' as const, value: occurrence },
+          },
+        ],
+        controls: { maxOccurrences: 1, deduplication: 'trigger' as const },
+      },
+    ],
+  };
 }
 
 class InvalidQualityInterpreter {

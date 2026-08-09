@@ -31,6 +31,9 @@ export class OperatorRegistry {
     operator.validate(condition);
     for (const operand of condition.operands) if (isCondition(operand)) this.validate(operand);
   }
+  list(): readonly Operator[] {
+    return Object.freeze([...this.#operators.values()]);
+  }
 }
 
 export function createOperatorRegistry(): OperatorRegistry {

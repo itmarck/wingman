@@ -55,7 +55,7 @@ export const reminderRoutes: FastifyPluginAsyncTypebox<Options> = async (server,
     {
       schema: {
         tags: ['Reminders'],
-        summary: 'Compose an explicit reminder workflow',
+        summary: 'Compose a scheduled notification Automation',
         headers: mutationHeadersSchema,
         body: createSchema,
         response: {

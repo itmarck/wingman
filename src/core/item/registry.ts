@@ -33,9 +33,55 @@ export class SchemaRegistry {
       throw new DomainError(`Profile ${identity} is already registered`);
     }
     const components = Object.freeze(profile.components.map(assertRequirement));
-    for (const requirement of components)
-      this.requireComponent(requirement.key, requirement.version);
-    this.#profiles.set(identity, Object.freeze({ ...profile, components }));
+    const optionalComponents = Object.freeze(
+      (profile.optionalComponents ?? []).map(assertRequirement),
+    );
+    const declared = [...components, ...optionalComponents];
+    if (new Set(declared.map(({ key }) => key)).size !== declared.length)
+      throw new DomainError(`Profile ${identity} declares a Component more than once`);
+    for (const requirement of declared) this.requireComponent(requirement.key, requirement.version);
+    const initialComponents = Object.freeze(
+      (profile.initialComponents ?? []).map((initial) => {
+        const requirement = assertRequirement(initial);
+        const schema = this.requireComponent(requirement.key, requirement.version);
+        if (
+          !declared.some(({ key, version }) => key === initial.key && version === initial.version)
+        )
+          throw new DomainError(
+            `Initial Component ${initial.key}@${initial.version} is not declared by Profile ${identity}`,
+          );
+        schema.validate(initial.value);
+        return freezeValue({ ...initial, value: structuredClone(initial.value) });
+      }),
+    );
+    if (profile.lifecycle) {
+      const lifecycle = assertRequirement(profile.lifecycle.component);
+      if (
+        !declared.some(({ key, version }) => key === lifecycle.key && version === lifecycle.version)
+      )
+        throw new DomainError(`Profile ${identity} lifecycle Component is not declared`);
+      assertText(profile.lifecycle.initial, 'Profile lifecycle initial status');
+      if (!profile.lifecycle.transitions[profile.lifecycle.initial])
+        throw new DomainError(`Profile ${identity} lifecycle initial status has no transitions`);
+    }
+    for (const state of profile.states ?? []) {
+      const component = declared.find(({ key }) => key === state.component.key);
+      if (!component)
+        throw new DomainError(
+          `Profile ${identity} State Component ${state.component.key} is not declared`,
+        );
+      this.requireComponent(component.key, component.version);
+    }
+    this.#profiles.set(
+      identity,
+      freezeValue({
+        ...profile,
+        components,
+        optionalComponents,
+        initialComponents,
+        states: structuredClone(profile.states ?? []),
+      }),
+    );
   }
 
   requireComponent(key: string, version: number): ComponentSchema {
@@ -189,4 +235,16 @@ function assertRequirement(requirement: ComponentRequirement): ComponentRequirem
 
 function contractIdentity(key: string, version: number): string {
   return `${key}@${version}`;
+}
+
+function freezeValue<Value>(value: Value): Value {
+  if (Array.isArray(value)) {
+    for (const child of value) freezeValue(child);
+    return Object.freeze(value) as Value;
+  }
+  if (value && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeValue(child);
+    return Object.freeze(value);
+  }
+  return value;
 }

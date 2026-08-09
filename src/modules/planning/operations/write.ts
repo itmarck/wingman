@@ -1,7 +1,8 @@
 import { ComponentRevision } from '../../../core/item/component.js';
 import { Item } from '../../../core/item/item.js';
+import type { SchemaRegistry } from '../../../core/item/registry.js';
 import { itemReference, selectCurrentRevisions } from '../../../core/item/registry.js';
-import type { ComponentValue, Evidence } from '../../../core/item/types.js';
+import type { ComponentValue, Evidence, Profile } from '../../../core/item/types.js';
 import {
   initialStatus,
   type LifecycleValue,
@@ -9,7 +10,6 @@ import {
   planningProfiles,
   transitionLifecycle,
 } from '../../../core/planning/lifecycle.js';
-import type { Condition } from '../../../core/state/condition.js';
 import { InvalidInputError, NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { ItemStore } from '../../knowledge/ports/store.js';
@@ -67,11 +67,13 @@ export class PlanningCommandService implements PlanningCommands {
     private readonly states: StateWriter,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
+    private readonly registry: SchemaRegistry,
   ) {}
 
   async create(input: CreatePlanningItemInput): Promise<string> {
     if (!planningProfiles.includes(input.profile))
       throw new InvalidInputError(`Planning Profile ${input.profile} is invalid`);
+    const profile = this.registry.requireProfile(input.profile, 1);
     const now = this.clock.now().toISOString();
     const item = Item.create({
       id: this.ids.generate(),
@@ -89,22 +91,21 @@ export class PlanningCommandService implements PlanningCommands {
         item.id,
         'lifecycle',
         {
-          status: initialStatus(input.profile),
-          transitions: [{ to: initialStatus(input.profile), at: now }],
+          status: initialStatus(profile),
+          transitions: [{ to: initialStatus(profile), at: now }],
         },
         input.evidence,
       ),
     ];
-    if (input.profile === 'objective')
-      revisions.push(
-        this.revision(
-          item.id,
-          'progress',
-          input.progress ?? { current: 0, target: 1 },
-          input.evidence,
-        ),
-      );
-    else revisions.push(this.revision(item.id, 'planning', planningValue(input), input.evidence));
+    for (const initial of profile.initialComponents ?? []) {
+      const supplied =
+        initial.key === 'progress' && input.progress
+          ? input.progress
+          : initial.key === 'planning'
+            ? planningValue(input)
+            : initial.value;
+      revisions.push(this.revision(item.id, initial.key, supplied, input.evidence));
+    }
     if (input.startAt || input.dueAt || input.recurrence)
       revisions.push(this.revision(item.id, 'temporal', temporalValue(input), input.evidence));
     if (input.responsibleItemId)
@@ -126,8 +127,8 @@ export class PlanningCommandService implements PlanningCommands {
       input.responsibleItemId,
     );
     await this.knowledge.saveItems({ items: [item], revisions });
-    if (input.profile === 'objective')
-      await this.states.execute(desiredObjective(item.id, input.evidence));
+    for (const state of profile.states ?? [])
+      await this.states.execute(profileState(item.id, state, input.evidence));
     return item.id;
   }
 
@@ -136,7 +137,10 @@ export class PlanningCommandService implements PlanningCommands {
     const revision = requireComponent(current, 'lifecycle');
     const lifecycle = revision.value as unknown as LifecycleValue;
     const value = transitionLifecycle(
-      item.profile?.key as PlanningProfile,
+      this.registry.requireProfile(
+        item.profile?.key as PlanningProfile,
+        item.profile?.version ?? 1,
+      ),
       lifecycle,
       status,
       this.clock.now().toISOString(),
@@ -338,15 +342,23 @@ function dependencyIds(value?: ComponentValue): readonly string[] {
       )
     : [];
 }
-function desiredObjective(itemId: string, evidence: readonly Evidence[]): PersistStateInput {
-  const condition: Condition = {
-    operator: { key: 'equal', version: 1 },
-    operands: [
-      { kind: 'component', itemId, key: 'lifecycle', field: 'status' },
-      { kind: 'literal', value: 'achieved' },
-    ],
+function profileState(
+  itemId: string,
+  template: NonNullable<Profile['states']>[number],
+  evidence: readonly Evidence[],
+): PersistStateInput {
+  return {
+    modality: template.modality,
+    condition: {
+      operator: template.operator,
+      operands: [
+        { kind: 'component', itemId, key: template.component.key, field: template.component.field },
+        { kind: 'literal', value: template.value },
+      ],
+    },
+    author: { kind: 'user' },
+    evidence,
   };
-  return { modality: 'desired', condition, author: { kind: 'user' }, evidence };
 }
 function compact<Value>(value: Value): Value {
   if (Array.isArray(value)) return value.map(compact) as Value;

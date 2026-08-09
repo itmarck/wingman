@@ -7,7 +7,9 @@ import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { InterpretationStore } from '../../interpretation/ports/store.js';
 import type { AutomationStore } from '../ports/store.js';
 
-export type RegisterAutomationInput = Omit<CreateAutomationInput, 'id' | 'createdAt' | 'status'>;
+export type RegisterAutomationInput = Omit<CreateAutomationInput, 'id' | 'createdAt' | 'status'> & {
+  readonly id?: string;
+};
 export class RegisterAutomationCommand {
   constructor(
     private readonly store: AutomationStore,
@@ -19,7 +21,9 @@ export class RegisterAutomationCommand {
     private readonly clock: Clock,
   ) {}
   async execute(input: RegisterAutomationInput): Promise<string> {
-    this.triggers.require(input.when.operator.key, input.when.operator.version);
+    this.triggers
+      .require(input.when.operator.key, input.when.operator.version)
+      .validate(input.when);
     for (const condition of [
       ...input.given,
       ...(input.controls?.stopWhen ? [input.controls.stopWhen] : []),
@@ -40,7 +44,7 @@ export class RegisterAutomationCommand {
         throw new InvalidInputError(`Entry ${evidence.entryId} does not exist`);
     const automation = Automation.create({
       ...input,
-      id: this.ids.generate(),
+      id: input.id ?? this.ids.generate(),
       createdAt: this.clock.now().toISOString(),
     });
     if (await this.store.find(automation.id))
@@ -55,6 +59,9 @@ export class RegisterAutomationCommand {
   }
 }
 function initialTime(automation: Automation): string | undefined {
+  if (automation.when.operator.key === 'schedule')
+    return (automation.when as Extract<Automation['when'], { operator: { key: 'schedule' } }>)
+      .occurrences[0];
   if (automation.when.operator.key !== 'time') return undefined;
   const trigger = automation.when as Extract<
     Automation['when'],

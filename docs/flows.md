@@ -19,19 +19,20 @@ sequenceDiagram
     Capture-->>Connector: committed identity
     Capture->>Queue: enqueue Interpretation
     Queue->>Interpreter: input + selected context
-    Interpreter->>Interpreter: draft Items, Components, Profiles, references, evidence
+    Interpreter->>Interpreter: knowledge + Item, State, Automation and Intent declarations
     alt consequential reference is ambiguous
         Interpreter->>Reviews: open referenceResolution
         Reviews-->>Interpreter: selected Item or confirmed proposal
     end
-    Interpreter->>Knowledge: validate and publish complete draft atomically
+    Interpreter->>Knowledge: validate and publish knowledge atomically
+    Interpreter->>Knowledge: publish declarations in dependency order through domain commands
 ```
 
 Simple connections use typed references; relationships requiring their own evidence or history are Items.
 
 ## Review and conflict resolution
 
-`referenceResolution` resolves identity ambiguity, not workflow approval. Conflicting evidence is preserved.
+`referenceResolution` resolves identity ambiguity, not mutation approval. Conflicting evidence is preserved.
 
 ```mermaid
 flowchart LR
@@ -99,27 +100,30 @@ sequenceDiagram
 
 Conditions are reevaluated before every Attempt. A Capability's safety ceiling always limits autonomy.
 
-## Task planning
+## Profile composition and task planning
 
 Tasks, objectives, plans, and habits are Item compositions, not separate storage models.
 
 ```mermaid
 flowchart LR
-    Capture[Entry or explicit proposal] --> Compose[Planning Item + Profile + Components]
-    Compose --> State[Current and desired State]
+    Capture[Entry or explicit proposal] --> Profile[Profile contract]
+    Profile --> Compose[Required and optional Components + defaults]
+    Profile --> Lifecycle[Lifecycle transitions]
+    Profile --> State[Persisted State templates]
+    Compose --> State
     State --> Views[Next actions, blockers, unscheduled work, progress]
     Views --> Automations[Automations and proactive detectors]
     Automations --> Intents[Suggested or authorized Intents]
 ```
 
-## Reminder workflow
+## Notification schedule
 
 Deadline and reminder cadence are independent.
 
 ```mermaid
 flowchart LR
-    Entry[Reminder request] --> Structure[Task or subject + temporal Components]
-    Structure --> Automation[Reminder Automation]
+    Entry[Notification declaration] --> Structure[Subject Item + temporal Components]
+    Structure --> Automation[One scheduled Automation with all occurrences]
     Automation --> Intent[Notification Intent]
     Intent --> Capability[Notification Capability]
     Capability --> Attempt[Delivery Attempt]
@@ -128,7 +132,7 @@ flowchart LR
     State --> Automation
 ```
 
-Completion stops stale reminders; retries create new Attempts without duplicating the logical notification.
+The reminder HTTP surface is a compatibility view over notification Automations; no Reminder entity or table exists. Completion stops stale schedules, and retries create new Attempts without duplicating a logical occurrence.
 
 ## Proactive assistance
 

@@ -1,7 +1,7 @@
 import type { ReminderService } from './operations/manage.js';
-import type { ReminderWorker } from './operations/worker.js';
+import type { NotificationWorker } from './operations/notification-worker.js';
 
 export interface ReminderModule {
   readonly manage: ReminderService;
-  readonly worker: ReminderWorker;
+  readonly worker: NotificationWorker;
 }

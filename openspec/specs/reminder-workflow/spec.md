@@ -2,31 +2,31 @@
 
 ## Purpose
 
-Deliver a complete, safe reminder workflow that turns captured requests and planning State into scheduled notification Intents with auditable delivery outcomes.
+Provide a safe derived reminder experience over scheduled notification Automations with auditable delivery outcomes.
 
 ## Requirements
 
 ### Requirement: Reminder interpretation
-The system SHALL interpret an explicit reminder Entry into preserved Entry evidence, a referenced or new planning subject, a separate temporal constraint and reminder policy, a declarative Rule, and a notification Intent template. Processing SHALL NOT report successful workflow completion when a required reminder field remains invalid or unresolved.
+The system SHALL interpret an explicit reminder Entry into preserved Entry evidence, a referenced or new subject Item, one scheduled Automation, and a notification Intent template. Reminder semantics SHALL NOT require a persisted Reminder entity.
 
 #### Scenario: Reminder before a deadline
 - **WHEN** the user asks to be reminded to complete a task before the end of the month
-- **THEN** the system creates or references the task, preserves the end-of-month deadline separately from a documented reminder cadence policy, and keeps every artifact traceable to the Entry
+- **THEN** the system creates or references the task, preserves its deadline separately, and creates one traceable scheduled notification Automation
 
 #### Scenario: Reminder lacks a required resolved value
 - **WHEN** inference cannot resolve a value required to identify the reminder subject or schedule
-- **THEN** the system preserves the planning request but marks the reminder workflow as needing input and creates no executable notification Intent until resolution
+- **THEN** the system preserves independent valid declarations, marks the Automation declaration as needing input, and creates no executable notification Intent
 
 #### Scenario: Event source is unavailable
-- **WHEN** an Entry asks for a notification on an external Event whose source Capability is not registered
-- **THEN** the request remains explainable as unsupported and no Rule, Intent, connector call, or fabricated Event is created
+- **WHEN** an Entry asks for a notification on an external Event whose trigger or source is not registered
+- **THEN** the declaration remains explainable as unsupported and no Automation, Intent, connector call, or fabricated Event is created
 
 ### Requirement: Repeated and imprecise timing policy
-The system SHALL preserve source temporal precision and use explicit schedules for repeated passive reminder availability.
+The system SHALL preserve source temporal precision and represent every explicit or recurring reminder occurrence in one Automation schedule.
 
 #### Scenario: Multiple reminders
 - **WHEN** a schedule contains multiple occurrences
-- **THEN** each occurrence is evaluated independently with expiration and occurrence limits but no quiet hours
+- **THEN** one Automation evaluates each occurrence independently with expiration, stopping and deduplication controls
 
 ### Requirement: Stale reminder prevention
 The system SHALL reevaluate current State before producing or executing each notification Intent.
@@ -35,23 +35,20 @@ The system SHALL reevaluate current State before producing or executing each not
 - **WHEN** the related task is completed before a reminder occurrence
 - **THEN** the notification is not delivered and the stopping reason is recorded
 
-### Requirement: Provider-independent passive notification
-Notification delivery SHALL create or update a passive launcher item through a registered Capability and port, preserve auditable outcomes, and SHALL NOT model sounds, vibration, banners, foreground presentation, or quiet hours.
-
-#### Scenario: Notification becomes available
-- **WHEN** a notification Intent succeeds
-- **THEN** the item is available when the user opens the launcher without interrupting the user
-
 ### Requirement: Reminder explanation and control
-The system SHALL explain what is being remembered, why, which Entry or subject caused it, when it will recur, and how it can be cancelled or changed.
+The system SHALL derive reminder views from notification Automations and SHALL control cancellation or rescheduling through the Automation lifecycle and schedule.
 
 #### Scenario: User inspects reminder
-- **WHEN** the user reads an active reminder
-- **THEN** the response includes subject, schedule policy, next occurrence, stopping conditions, and evidence
+- **WHEN** a consumer reads the reminder view
+- **THEN** it receives the Automation identity, subject, message, schedule, next occurrence, stopping conditions, evidence and available controls
 
-### Requirement: Entry workflow idempotency
-Reprocessing an Entry SHALL NOT create duplicate planning subjects, reminders, Automations, or Intent templates for the same accepted workflow draft.
+#### Scenario: Last occurrence finishes
+- **WHEN** a reminder Automation exhausts its schedule
+- **THEN** its lifecycle no longer reports an active reminder
 
-#### Scenario: Retry completed workflow routing
-- **WHEN** an applied Entry workflow is retried
-- **THEN** existing artifacts are reused or duplication is rejected
+### Requirement: Entry declaration idempotency
+Reprocessing an Entry SHALL NOT create duplicate subjects, Automations, or Intent templates for the same accepted declaration references.
+
+#### Scenario: Retry completed declaration publication
+- **WHEN** an applied Entry is reprocessed
+- **THEN** existing declaration outcomes are reused or duplication is rejected

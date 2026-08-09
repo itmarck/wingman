@@ -1,230 +1,134 @@
 import { describe, expect, it } from 'vitest';
 import { parseInterpretationOutput } from '../schema.js';
 
-describe('interpretation workflow schema', () => {
-  it('normalizes closed planning and reminder workflow drafts', () => {
-    const output = parseInterpretationOutput({
-      kind: 'knowledge',
-      reason: null,
-      draft: {
-        entryId: 'entry-1',
-        items: [],
-        components: [],
-        referenceResolutions: [],
-        workflows: [
-          {
-            kind: 'planningRequest',
-            version: 1,
-            reference: 'task',
-            profile: 'task',
-            title: 'Anular tarjeta',
-            notes: null,
-            temporal: { from: null, to: '2026-08-31T23:59:59.000Z', precision: 'month' },
-            recurrence: null,
-            unresolved: ['{bankName}'],
-          },
-          {
-            kind: 'reminderRequest',
-            version: 1,
-            reference: 'reminder',
-            subjectReference: 'task',
-            message: 'Anula la tarjeta',
-            temporal: { from: null, to: '2026-08-31T23:59:59.000Z', precision: 'month' },
-            schedule: { kind: 'deadlineOffsets', offsetsBeforeMs: [86_400_000] },
-            unresolved: [],
-          },
-        ],
-      },
-    });
-    expect(output).toMatchObject({
-      kind: 'knowledge',
-      draft: {
-        workflows: [
-          {
-            kind: 'planningRequest',
-            notes: undefined,
-            recurrence: undefined,
-            temporal: { from: undefined },
-          },
-          { kind: 'reminderRequest', schedule: { kind: 'deadlineOffsets' } },
-        ],
-      },
-    });
-  });
-
-  it('rejects invented workflow kinds and malformed temporal policy', () => {
-    const base = {
-      kind: 'knowledge',
-      reason: null,
-      draft: { entryId: 'entry-1', items: [], components: [], referenceResolutions: [] },
-    };
-    expect(
-      parseInterpretationOutput({
-        ...base,
-        draft: { ...base.draft, workflows: [{ kind: 'deleteFolder', version: 1 }] },
-      }),
-    ).toBeUndefined();
-    expect(
-      parseInterpretationOutput({
-        ...base,
-        draft: {
-          ...base.draft,
-          workflows: [
-            {
-              kind: 'reminderRequest',
-              version: 1,
-              reference: 'reminder',
-              subjectReference: 'task',
-              message: 'Reminder',
-              temporal: null,
-              schedule: { kind: 'occurrences', at: [] },
-              unresolved: [],
-            },
-          ],
-        },
-      }),
-    ).toBeUndefined();
-    expect(
-      parseInterpretationOutput({
-        ...base,
-        draft: {
-          ...base.draft,
-          workflows: [
-            {
-              kind: 'planningRequest',
-              version: 1,
-              reference: 'task',
-              profile: 'task',
-              title: 'Task',
-              notes: null,
-              temporal: { from: null, to: 'tomorrow', precision: 'exact' },
-              recurrence: null,
-              unresolved: [],
-            },
-          ],
-        },
-      }),
-    ).toBeUndefined();
-  });
-
-  it('drops empty provider filler without publishing orphan Items', () => {
-    const output = parseInterpretationOutput({
-      kind: 'knowledge',
-      reason: null,
-      draft: {
-        entryId: 'entry-1',
+describe('interpretation declaration schema', () => {
+  it('accepts the four stable declaration collections', () => {
+    const output = parseInterpretationOutput(
+      knowledge({
         items: [
-          { reference: 'filler', profile: null, referenceStatus: 'identified' },
-          { reference: 'unknown', profile: null, referenceStatus: 'uncertain' },
-        ],
-        components: [
           {
-            reference: 'emptyQuote',
-            itemReference: 'filler',
-            key: 'quote',
-            schemaVersion: 1,
-            value: '',
-            sourceLocators: [],
+            kind: 'item',
+            version: 1,
+            reference: 'task',
+            dependsOn: [],
+            unresolved: [],
+            profile: { key: 'task', version: 1 },
+            components: [{ key: 'descriptive', version: 1, value: { title: 'Pagar' } }],
+          },
+        ],
+        states: [
+          {
+            kind: 'state',
+            version: 1,
+            reference: 'goal',
+            dependsOn: ['task'],
+            unresolved: [],
+            modality: 'desired',
+            condition: { operator: { key: 'equal', version: 1 }, operands: [] },
             validTime: null,
-            status: 'accepted',
-            supersedesReference: null,
-          },
-          {
-            reference: 'emptyStatement',
-            itemReference: 'unknown',
-            key: 'statement',
-            schemaVersion: 1,
-            value: { attribute: '', value: '' },
-            sourceLocators: [],
-            validTime: null,
-            status: 'accepted',
-            supersedesReference: null,
+            confidence: null,
           },
         ],
-        referenceResolutions: [
+        automations: [
           {
-            reference: 'unknown',
-            question: 'Who is this person?',
-            candidateItemIds: [],
+            kind: 'automation',
+            version: 1,
+            reference: 'notice',
+            dependsOn: ['task'],
+            unresolved: [],
+            subjects: ['task'],
+            given: [],
+            when: {
+              operator: { key: 'schedule', version: 1 },
+              occurrences: ['2026-08-31T12:00:00.000Z'],
+            },
+            thenIntents: [{ capability: { key: 'notification', version: 1 } }],
+            controls: null,
           },
         ],
-        workflows: [],
-      },
-    });
-
+        intents: [
+          {
+            kind: 'intent',
+            version: 1,
+            reference: 'action',
+            dependsOn: [],
+            unresolved: [],
+            capability: { key: 'notification', version: 1 },
+            input: {},
+            conditions: [],
+            expectedState: [],
+            authorization: 'explicit',
+            trigger: null,
+          },
+        ],
+      }),
+    );
     expect(output).toMatchObject({
       kind: 'knowledge',
-      draft: {
-        items: [{ reference: 'unknown' }],
-        components: [],
-      },
+      draft: { declarations: { items: [{ kind: 'item' }] } },
     });
   });
 
-  it('drops generated planning filler and inherits a subject deadline', () => {
-    const output = parseInterpretationOutput({
-      kind: 'knowledge',
-      reason: null,
-      draft: {
-        entryId: 'entry-1',
-        items: [{ reference: 'filler', profile: null, referenceStatus: 'identified' }],
-        components: [
+  it('rejects product-specific and malformed declaration shapes', () => {
+    expect(
+      parseInterpretationOutput(
+        knowledge({
+          items: [{ kind: 'shoppingRequest', version: 1, reference: 'buy' }],
+          states: [],
+          automations: [],
+          intents: [],
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseInterpretationOutput(
+        knowledge(
+          { items: [], states: [], automations: [], intents: [] },
           {
-            reference: 'descriptive',
-            itemReference: 'filler',
-            key: 'descriptive',
-            schemaVersion: 1,
-            value: { title: '' },
-            sourceLocators: [],
-            validTime: null,
-            status: 'accepted',
-            supersedesReference: null,
+            extra: true,
           },
-        ],
-        referenceResolutions: [],
-        workflows: [
-          {
-            kind: 'planningRequest',
-            version: 1,
-            reference: 'task',
-            profile: 'task',
-            title: 'Complete task',
-            notes: null,
-            temporal: {
-              from: null,
-              to: '2026-08-31T23:59:59.000Z',
-              precision: 'month',
-            },
-            recurrence: null,
-            unresolved: [],
-          },
-          {
-            kind: 'reminderRequest',
-            version: 1,
-            reference: 'reminder',
-            subjectReference: 'task',
-            message: 'Complete task',
-            temporal: null,
-            schedule: { kind: 'deadlineOffsets', offsetsBeforeMs: [86_400_000] },
-            unresolved: [],
-          },
-        ],
-      },
-    });
+        ),
+      ),
+    ).toBeUndefined();
+  });
 
-    expect(output).toMatchObject({
-      kind: 'knowledge',
-      draft: {
-        items: [],
-        components: [],
-        workflows: [
-          { kind: 'planningRequest' },
-          {
-            kind: 'reminderRequest',
-            temporal: { to: '2026-08-31T23:59:59.000Z', precision: 'month' },
-          },
-        ],
+  it('drops empty knowledge filler without orphan Items', () => {
+    const value = knowledge({ items: [], states: [], automations: [], intents: [] });
+    value.draft.items = [{ reference: 'filler', profile: null, referenceStatus: 'identified' }];
+    value.draft.components = [
+      {
+        reference: 'emptyQuote',
+        itemReference: 'filler',
+        key: 'quote',
+        schemaVersion: 1,
+        value: '',
+        sourceLocators: [],
+        validTime: null,
+        status: 'accepted',
+        supersedesReference: null,
       },
+    ];
+    expect(parseInterpretationOutput(value)).toMatchObject({
+      kind: 'knowledge',
+      draft: { items: [], components: [] },
     });
   });
 });
+
+function knowledge(
+  declarations: Record<string, unknown>,
+  extraDraft: Record<string, unknown> = {},
+) {
+  return {
+    kind: 'knowledge' as const,
+    reason: null,
+    draft: {
+      entryId: 'entry-1',
+      items: [] as Record<string, unknown>[],
+      components: [] as Record<string, unknown>[],
+      referenceResolutions: [],
+      declarations,
+      ...extraDraft,
+    },
+  };
+}

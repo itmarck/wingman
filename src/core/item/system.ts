@@ -123,6 +123,34 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
   });
 
   for (const profile of ['task', 'plan', 'habit'] as const) {
+    const lifecycle = {
+      task: {
+        initial: 'pending',
+        transitions: {
+          pending: ['inProgress', 'completed', 'cancelled'],
+          inProgress: ['pending', 'completed', 'cancelled'],
+          completed: ['pending'],
+          cancelled: ['pending'],
+        },
+      },
+      plan: {
+        initial: 'draft',
+        transitions: {
+          draft: ['active', 'cancelled'],
+          active: ['completed', 'cancelled'],
+          completed: ['active'],
+          cancelled: ['draft'],
+        },
+      },
+      habit: {
+        initial: 'active',
+        transitions: {
+          active: ['paused', 'retired'],
+          paused: ['active', 'retired'],
+          retired: ['active'],
+        },
+      },
+    }[profile];
     registry.registerProfile({
       key: profile,
       version: 1,
@@ -132,6 +160,19 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
         { key: 'lifecycle', version: 1 },
         { key: 'planning', version: 1 },
       ],
+      optionalComponents: [
+        { key: 'temporal', version: 1 },
+        { key: 'assignment', version: 1 },
+        { key: 'unresolved', version: 1 },
+      ],
+      initialComponents: [{ key: 'planning', version: 1, value: { dependencies: [] } }],
+      lifecycle: {
+        component: { key: 'lifecycle', version: 1 },
+        initial: lifecycle.initial,
+        transitions: lifecycle.transitions as unknown as Readonly<
+          Record<string, readonly string[]>
+        >,
+      },
     });
   }
   registry.registerProfile({
@@ -142,6 +183,29 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
       { key: 'descriptive', version: 1 },
       { key: 'lifecycle', version: 1 },
       { key: 'progress', version: 1 },
+    ],
+    optionalComponents: [
+      { key: 'temporal', version: 1 },
+      { key: 'assignment', version: 1 },
+      { key: 'unresolved', version: 1 },
+    ],
+    initialComponents: [{ key: 'progress', version: 1, value: { current: 0, target: 1 } }],
+    lifecycle: {
+      component: { key: 'lifecycle', version: 1 },
+      initial: 'active',
+      transitions: {
+        active: ['achieved', 'abandoned'],
+        achieved: ['active'],
+        abandoned: ['active'],
+      },
+    },
+    states: [
+      {
+        modality: 'desired',
+        operator: { key: 'equal', version: 1 },
+        component: { key: 'lifecycle', field: 'status' },
+        value: 'achieved',
+      },
     ],
   });
 }

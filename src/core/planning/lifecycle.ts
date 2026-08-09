@@ -1,4 +1,5 @@
 import { DomainError } from '../error.js';
+import type { Profile } from '../item/types.js';
 
 export const planningProfiles = ['task', 'objective', 'plan', 'habit'] as const;
 export type PlanningProfile = (typeof planningProfiles)[number];
@@ -14,36 +15,19 @@ export interface LifecycleValue {
   readonly transitions: readonly LifecycleTransition[];
 }
 
-const transitions: Readonly<Record<PlanningProfile, Readonly<Record<string, readonly string[]>>>> =
-  {
-    task: {
-      pending: ['inProgress', 'completed', 'cancelled'],
-      inProgress: ['pending', 'completed', 'cancelled'],
-      completed: ['pending'],
-      cancelled: ['pending'],
-    },
-    objective: { active: ['achieved', 'abandoned'], achieved: ['active'], abandoned: ['active'] },
-    plan: {
-      draft: ['active', 'cancelled'],
-      active: ['completed', 'cancelled'],
-      completed: ['active'],
-      cancelled: ['draft'],
-    },
-    habit: { active: ['paused', 'retired'], paused: ['active', 'retired'], retired: ['active'] },
-  };
-
-export function initialStatus(profile: PlanningProfile): string {
-  return { task: 'pending', objective: 'active', plan: 'draft', habit: 'active' }[profile];
+export function initialStatus(profile: Profile): string {
+  if (!profile.lifecycle) throw new DomainError(`Profile ${profile.key} has no lifecycle`);
+  return profile.lifecycle.initial;
 }
 
 export function transitionLifecycle(
-  profile: PlanningProfile,
+  profile: Profile,
   lifecycle: LifecycleValue,
   to: string,
   at: string,
 ): LifecycleValue {
-  if (!transitions[profile][lifecycle.status]?.includes(to)) {
-    throw new DomainError(`${profile} cannot transition from ${lifecycle.status} to ${to}`);
+  if (!profile.lifecycle?.transitions[lifecycle.status]?.includes(to)) {
+    throw new DomainError(`${profile.key} cannot transition from ${lifecycle.status} to ${to}`);
   }
   return Object.freeze({
     status: to,

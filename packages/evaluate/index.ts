@@ -1,6 +1,6 @@
 import './cases/quotes.js';
 import './cases/reviews.js';
-import './cases/workflows.js';
+import './cases/declarations.js';
 import { readOption, readPositiveInteger } from './cli.js';
 import { runLocalQuality } from './local.js';
 import { check, createQualityReport, printQuality } from './quality.js';

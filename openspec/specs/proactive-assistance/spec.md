@@ -14,7 +14,7 @@ The system SHALL detect configured missing next actions, blockers, approaching d
 - **THEN** the applicable detector may propose a planning Intent
 
 ### Requirement: Explainable proposals
-Every proactive proposal SHALL identify its detector or Rule, relevant State, evidence, rationale, urgency, expected effect, and expiration.
+Every proactive proposal SHALL identify its detector or Automation, relevant State, evidence, rationale, urgency, expected effect, and expiration.
 
 #### Scenario: Blocked plan suggestion
 - **WHEN** a high-priority plan remains blocked beyond its review window

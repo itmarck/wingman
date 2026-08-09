@@ -80,25 +80,22 @@ export const Policy = Object.freeze({
     'Return empty only when the Entry contains no durable reusable knowledge.',
     'Return invalid only when this contract cannot be satisfied.',
   ),
-  routeActionRequestsToWorkflows: definePolicy(
-    'Return workflows with empty items and components when an Entry only requests a task, objective, plan, habit, or reminder.',
+  routeActionRequestsToDeclarations: definePolicy(
+    'Return declarations with empty knowledge items and components when an Entry requests an operational result.',
+    'Use Item, State, Automation and Intent declarations instead of product-specific request kinds.',
     'Use unresolved only for genuinely missing required source values.',
-    'Template placeholders are resolved before an Entry reaches Wingman.',
   ),
   requireExplicitReminderSchedule: definePolicy(
-    'Never emit empty reminder occurrences or deadline offsets.',
-    'Use an event schedule for explicit external event triggers.',
-    'Use deadlineOffsets for reminders stated relative to a deadline.',
+    'Represent a reminder as one notification Automation whose schedule trigger contains all explicit UTC occurrences.',
+    'Reference its subject Item and stop it when the subject completion condition becomes true.',
   ),
   preserveReminderDeadline: definePolicy(
-    'Copy a deadlineOffsets source deadline into reminder temporal.to as UTC.',
-    'Copy the same deadline into the planning subject.',
-    'Retain the original day or month precision.',
-    'For fin de mes or end of month, calculate temporal.to as the final UTC instant of the month containing entry.capturedAt.',
+    'Copy a source deadline into the subject temporal Component as UTC.',
+    'For fin de mes or end of month, calculate the deadline as the final UTC instant of the month containing entry.capturedAt.',
     'Treat the end-of-month instant as a derived boundary, not an invented exact time.',
   ),
   preserveExplicitReminderRequests: definePolicy(
-    'Include a reminderRequest for every explicit remind, notify, avísame, or recuérdame request even when its event source or Capability is unavailable.',
+    'Include a notification Automation for every explicit remind, notify, avísame, or recuérdame request even when its trigger or Capability is unavailable.',
     'Record unsupported behavior after interpretation.',
   ),
   preserveTemporalPrecision: definePolicy(
@@ -112,11 +109,13 @@ export const entryInterpretation = defineInterpretation({
   reasoning: 'low',
   policies: Object.values(Policy),
   outputContract: `Return exactly one result:
-- knowledge: a Draft containing entryId, items, components, referenceResolutions and workflows. Items/components or workflows may be empty, but not both.
+- knowledge: a Draft containing entryId, items, components, referenceResolutions and declarations. Knowledge or declarations may be empty, but not both.
 - empty: an explicit valid decision that the Entry contains no durable knowledge.
 - invalid: a reason explaining why the contract could not be satisfied.
-Workflow drafts are closed:
-- planningRequest@1: reference, profile (task|objective|plan|habit), title, optional notes/temporal/recurrence, and unresolved required source values.
-- reminderRequest@1: reference, subjectReference to a planningRequest in the same Draft, message, optional source temporal constraint, one occurrences|deadlineOffsets|event schedule, and unresolved required source values.
-Temporal precision is exact|day|month|range|unspecified. A reminder schedule is system policy and never evidence of source precision.`,
+Declarations are stable semantic primitives:
+- item@1 composes a registered Profile from declared Components; Profile supplies defaults, lifecycle and State templates.
+- state@1 persists modal meaning as a registered Condition.
+- automation@1 declares Given/When/Then Intent templates and optional subject references.
+- intent@1 proposes a registered Capability invocation.
+Every declaration has a local reference, dependencies and unresolved source values. Publication resolves local Item references in dependency order.`,
 });

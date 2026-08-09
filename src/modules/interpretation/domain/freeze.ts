@@ -55,6 +55,8 @@ export function freezeDraft(draft: RegisterInterpretationInput): RegisterInterpr
     referenceDecisions: draft.referenceDecisions
       ? Object.freeze(draft.referenceDecisions.map((decision) => Object.freeze({ ...decision })))
       : undefined,
-    workflows: Object.freeze(structuredClone(draft.workflows ?? [])),
+    declarations: draft.declarations
+      ? Object.freeze(structuredClone(draft.declarations))
+      : undefined,
   });
 }

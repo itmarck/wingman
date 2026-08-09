@@ -65,6 +65,46 @@ describe('composable Item model', () => {
     const actual = ComponentRevision.create({ ...participants, itemId: relationship.id });
     expect(() => registry.validateComposition(relationship, [actual])).not.toThrow();
   });
+
+  it('keeps composition defaults, lifecycle and State templates inside Profile', () => {
+    const registry = new SchemaRegistry();
+    for (const key of ['descriptive', 'lifecycle', 'planning'])
+      registry.registerComponent({
+        key,
+        version: 1,
+        description: key,
+        validate: () => undefined,
+      });
+    registry.registerProfile({
+      key: 'task',
+      version: 1,
+      description: 'Task semantics',
+      components: [
+        { key: 'descriptive', version: 1 },
+        { key: 'lifecycle', version: 1 },
+        { key: 'planning', version: 1 },
+      ],
+      initialComponents: [{ key: 'planning', version: 1, value: { dependencies: [] } }],
+      lifecycle: {
+        component: { key: 'lifecycle', version: 1 },
+        initial: 'pending',
+        transitions: { pending: ['completed'], completed: ['pending'] },
+      },
+      states: [
+        {
+          modality: 'desired',
+          operator: { key: 'equal', version: 1 },
+          component: { key: 'lifecycle', field: 'status' },
+          value: 'completed',
+        },
+      ],
+    });
+    expect(registry.requireProfile('task', 1)).toMatchObject({
+      lifecycle: { initial: 'pending' },
+      initialComponents: [{ key: 'planning' }],
+      states: [{ modality: 'desired' }],
+    });
+  });
 });
 
 function revision(

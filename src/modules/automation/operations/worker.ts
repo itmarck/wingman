@@ -24,15 +24,21 @@ export class AutomationWorker {
   ) {}
   async runDue(): Promise<number> {
     const now = this.clock.now().toISOString();
-    const automations = await this.store.due(now);
-    for (const runtime of automations)
-      await this.evaluate(runtime, {
-        kind: 'time',
-        id: runtime.nextEvaluationAt ?? now,
-        occurredAt: now,
-        data: { scheduledFor: runtime.nextEvaluationAt ?? now },
-      });
-    return automations.length;
+    let processed = 0;
+    for (;;) {
+      const automations = await this.store.due(now);
+      if (automations.length === 0) return processed;
+      for (const runtime of automations) {
+        await this.evaluate(runtime, {
+          kind: 'time',
+          id: runtime.nextEvaluationAt ?? now,
+          occurredAt: now,
+          data: { scheduledFor: runtime.nextEvaluationAt ?? now },
+        });
+        processed += 1;
+      }
+      if (processed >= 10_000) throw new Error('Automation due-work limit exceeded');
+    }
   }
   async handleEvent(event: Event): Promise<number> {
     const automations = await this.store.forEvent(event);
@@ -88,6 +94,11 @@ export class AutomationWorker {
       intentIds.push(
         await this.intents.execute({
           ...template,
+          input: materialize(template.input, trigger),
+          trigger: {
+            kind: trigger.kind === 'stateChange' ? 'event' : trigger.kind,
+            value: trigger.id,
+          },
           proposer: { kind: 'automation', id: automation.id },
           evidence: automation.evidence,
         }),
@@ -116,9 +127,10 @@ export class AutomationWorker {
     const occurrences = runtime.occurrences + (produced ? 1 : 0);
     const nextEvaluationAt = nextTime(runtime, trigger);
     const shouldStop =
-      produced &&
-      runtime.automation.controls.maxOccurrences !== undefined &&
-      occurrences >= runtime.automation.controls.maxOccurrences;
+      (produced &&
+        runtime.automation.controls.maxOccurrences !== undefined &&
+        occurrences >= runtime.automation.controls.maxOccurrences) ||
+      (isFiniteTimeTrigger(runtime.automation) && nextEvaluationAt === undefined);
     await this.store.save({
       ...runtime,
       automation: shouldStop ? runtime.automation.stop() : runtime.automation,
@@ -160,6 +172,16 @@ export class AutomationWorker {
     });
   }
 }
+function materialize(value: ComponentValue, trigger: TriggerContext): ComponentValue {
+  if (value === '$trigger.id') return trigger.id;
+  if (value === '$trigger.occurredAt') return trigger.occurredAt;
+  if (Array.isArray(value)) return value.map((child) => materialize(child, trigger));
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, materialize(child, trigger)]),
+    );
+  return value;
+}
 
 export function occurrenceIdentity(
   automation: Automation,
@@ -174,10 +196,23 @@ export function occurrenceIdentity(
       : `${automation.id}:${trigger.kind}:${trigger.id}`;
 }
 function nextTime(runtime: AutomationRuntime, trigger: TriggerContext): string | undefined {
+  if (runtime.automation.when.operator.key === 'schedule') {
+    const schedule = runtime.automation.when as Extract<
+      Automation['when'],
+      { operator: { key: 'schedule' } }
+    >;
+    return schedule.occurrences.find((occurrence) => occurrence > trigger.id);
+  }
   return runtime.automation.when.operator.key === 'time' &&
     runtime.automation.controls.repeatEveryMs
     ? new Date(
         Date.parse(trigger.occurredAt) + runtime.automation.controls.repeatEveryMs,
       ).toISOString()
     : undefined;
+}
+function isFiniteTimeTrigger(automation: Automation): boolean {
+  return (
+    automation.when.operator.key === 'schedule' ||
+    (automation.when.operator.key === 'time' && !automation.controls.repeatEveryMs)
+  );
 }

@@ -9,11 +9,10 @@ erDiagram
     CORE_ENTRIES ||--o{ INTERPRETATION_RUNS : receives
     CORE_ENTRIES ||--o{ INTERPRETATION_REVIEWS : originates
     CORE_ENTRIES ||--o{ EXECUTION_EVENTS : causes
-    CORE_ENTRIES ||--o{ INTERPRETATION_WORKFLOW_OUTCOMES : produces
+    CORE_ENTRIES ||--o{ INTERPRETATION_DECLARATION_OUTCOMES : produces
 
     CORE_ITEMS ||--o{ CORE_COMPONENTS : composes
     CORE_COMPONENTS o|--o{ CORE_COMPONENTS : supersedes
-    CORE_ITEMS ||--o{ AUTOMATION_REMINDERS : subject
     CORE_ITEMS o|--o{ AUTOMATION_SUGGESTIONS : subject
 
     INTERPRETATION_RUNS ||--o{ INTERPRETATION_REVIEWS : requires
@@ -39,7 +38,7 @@ erDiagram
 | `interpretation_runs` | Interpretation history, retries, queue availability and worker leases. |
 | `interpretation_reviews` | Generic `referenceResolution` questions and their decisions. |
 | `interpretation_review_locks` | Durable mutual exclusion while the final Review publishes an Interpretation. |
-| `interpretation_workflow_outcomes` | Idempotent result of each interpreted planning or reminder draft. |
+| `interpretation_declaration_outcomes` | Idempotent result of each interpreted Item, State, Automation or Intent declaration. |
 
 Planning does not have separate task, objective, plan or habit tables. Each planning entity is an `core_items` row whose Profile is `task`, `objective`, `plan` or `habit`; its lifecycle, temporal data, dependencies and progress are versioned Components.
 
@@ -56,12 +55,13 @@ Planning does not have separate task, objective, plan or habit tables. Each plan
 
 Automations only produce Intents. Attempts and Events remain separate so an uncertain external result can be represented without claiming that an action succeeded.
 
-### Workflows and proactivity
+### Proactivity
 
 | Table | Purpose |
 | --- | --- |
-| `automation_reminders` | Reminder aggregate, schedule, generated Automation ids and lifecycle. |
 | `automation_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
+
+There is no Reminder table. A notification reminder is represented by one `automation_definitions` row with subject references and a schedule trigger; reminder reads are derived views.
 
 The in-process mutation approval registry is not persisted. Its entries contain executable callbacks and cannot be safely restored after a restart until proposal application has a durable command contract.
 

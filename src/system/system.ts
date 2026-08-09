@@ -20,10 +20,10 @@ import { AuthorizeIntentCommand } from '../modules/execution/operations/authoriz
 import { CancelIntentCommand } from '../modules/execution/operations/cancel.js';
 import { ExecuteIntentCommand } from '../modules/execution/operations/execute.js';
 import { ProposeIntentCommand } from '../modules/execution/operations/propose.js';
+import { MemoryDeclarationRegistry } from '../modules/interpretation/adapters/memory/declaration.js';
 import { MemoryInterpretations } from '../modules/interpretation/adapters/memory/interpretation.js';
 import { MemoryInterpretationLifecycle } from '../modules/interpretation/adapters/memory/lifecycle.js';
 import { MemoryReviewStore } from '../modules/interpretation/adapters/memory/review.js';
-import { MemoryWorkflowRegistry } from '../modules/interpretation/adapters/memory/workflow.js';
 import {
   assertProcessingConfig,
   defaultProcessingConfig,
@@ -37,8 +37,8 @@ import { ResolveReviewCommand } from '../modules/interpretation/operations/resol
 import { RetryEntryCommand } from '../modules/interpretation/operations/retry.js';
 import { GetEntryStatusQuery } from '../modules/interpretation/operations/status.js';
 import { ProcessNextCommand } from '../modules/interpretation/operations/worker.js';
+import type { DeclarationOutcomeSource } from '../modules/interpretation/ports/declaration.js';
 import type { InferenceTelemetry } from '../modules/interpretation/ports/telemetry.js';
-import type { WorkflowOutcomeSource } from '../modules/interpretation/ports/workflow.js';
 import {
   type InferenceConfig,
   type InterpretationAdapter,
@@ -46,6 +46,7 @@ import {
 } from '../modules/interpretation/services/interpreter.js';
 import { RegisterInterpretationCommand } from '../modules/interpretation/services/register.js';
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
+import { ComposeItemCommand } from '../modules/knowledge/operations/compose.js';
 import type { PlanningModule } from '../modules/planning/module.js';
 import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
 import { PlanningCommandService } from '../modules/planning/operations/write.js';
@@ -65,11 +66,10 @@ import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
 import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
 import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
-import { MemoryReminderStore } from '../modules/reminder/adapters/memory/store.js';
 import type { ReminderModule } from '../modules/reminder/module.js';
 import { NotificationCapability } from '../modules/reminder/notification-capability.js';
 import { ReminderService } from '../modules/reminder/operations/manage.js';
-import { ReminderWorker } from '../modules/reminder/operations/worker.js';
+import { NotificationWorker } from '../modules/reminder/operations/notification-worker.js';
 import type { NotificationPort } from '../modules/reminder/ports/notification.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
@@ -78,9 +78,9 @@ import { DerivedStateRegistry } from '../modules/state/operations/define.js';
 import { ListStateViewQuery } from '../modules/state/operations/list.js';
 import { StateEvaluator } from '../modules/state/services/evaluator.js';
 import { ApprovalInterpretationLifecycle } from './approval.js';
+import { EntryDeclarationPublisher } from './declaration.js';
 import { type MutationMode, ProposalRegistry } from './proposal.js';
 import type { SystemStorage } from './storage.js';
-import { EntryWorkflowRouter } from './workflow.js';
 
 export const storageTypes = ['memory', 'postgres'] as const;
 
@@ -110,7 +110,7 @@ export interface System {
   readonly planning: PlanningModule;
   readonly reminder: ReminderModule;
   readonly proactivity: ProactivityModule;
-  readonly workflow: WorkflowOutcomeSource;
+  readonly declarations: DeclarationOutcomeSource;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
 }
@@ -136,10 +136,9 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const executionStore = new MemoryExecutionStore();
   const triggers = createTriggerRegistry();
   const automationStore = new MemoryAutomationStore();
-  const reminderStore = new MemoryReminderStore();
   const proactivityStore = new MemoryProactivityStore();
   const detectors = createDetectorRegistry(options.detectorThresholds);
-  const workflowOutcomes = new MemoryWorkflowRegistry();
+  const declarationOutcomes = new MemoryDeclarationRegistry();
   const projections = new MemoryProjectionRegistry([
     new CurrentItemsProjection(),
     new GlossaryProjection(),
@@ -186,8 +185,9 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     clock,
   );
   const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
-  const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock);
+  const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock, registry);
   const planningQueries = new PlanningQueryService(knowledge, () => clock.now());
+  const composeItem = new ComposeItemCommand(knowledge, createState, registry, ids, clock);
   const stateViews = new ListStateViewQuery(
     stateStore,
     derivedStates,
@@ -222,28 +222,62 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
+  const interpretationContexts = {
+    async findInterpretationContext(
+      entry: Parameters<typeof knowledge.findInterpretationContext>[0],
+    ) {
+      const context = await knowledge.findInterpretationContext(entry);
+      const describe = (contract: {
+        readonly key: string;
+        readonly version: number;
+        readonly description: string;
+      }) =>
+        Object.freeze({
+          key: contract.key,
+          version: contract.version,
+          description: contract.description,
+        });
+      return Object.freeze({
+        ...context,
+        conditionOperators: Object.freeze(operators.list().map(describe)),
+        triggerOperators: Object.freeze(triggers.list().map(describe)),
+        capabilities: Object.freeze(
+          capabilities.list().map((capability) =>
+            Object.freeze({
+              ...describe(capability),
+              defaultAutonomy: capability.defaultAutonomy,
+              safetyCeiling: capability.safetyCeiling,
+            }),
+          ),
+        ),
+      });
+    },
+  };
   const reminderService = new ReminderService(
-    reminderStore,
+    automationStore,
     planningCommands,
     registerAutomation,
     controlAutomation,
     ids,
     clock,
   );
-  const workflowRouter = new EntryWorkflowRouter(
-    workflowOutcomes,
-    planningCommands,
-    reminderService,
+  const declarationPublisher = new EntryDeclarationPublisher(
+    declarationOutcomes,
+    composeItem,
+    createState,
+    registerAutomation,
+    proposeIntent,
+    ids,
     clock,
   );
   const processInterpretation = new ProcessInterpretationCommand(
     knowledge,
     interpretations,
     interpretations,
-    knowledge,
+    interpretationContexts,
     interpreter,
     registerInterpretation,
-    workflowRouter,
+    declarationPublisher,
     clock,
     processing,
   );
@@ -275,11 +309,11 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         interpretations,
         registerInterpretation,
         storage.lifecycle,
-        workflowRouter,
+        declarationPublisher,
         clock,
       ),
       retryEntry: new RetryEntryCommand(interpretations, lifecycle, clock),
-      getEntryStatus: new GetEntryStatusQuery(interpretations, reviews, workflowOutcomes),
+      getEntryStatus: new GetEntryStatusQuery(interpretations, reviews, declarationOutcomes),
       getReview: new GetReviewQuery(reviews),
       listReviews: new ListReviewsQuery(reviews),
     }),
@@ -314,14 +348,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     reminder: Object.freeze({
       manage: reminderService,
-      worker: new ReminderWorker(
-        reminderStore,
-        automationStore,
-        automationWorker,
-        executionStore,
-        executeIntent,
-        createState,
-      ),
+      worker: new NotificationWorker(automationWorker, executionStore, executeIntent, createState),
     }),
     proactivity: Object.freeze({
       service: new ProactivityService(
@@ -339,7 +366,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       ),
       detectors,
     }),
-    workflow: workflowOutcomes,
+    declarations: declarationOutcomes,
     proposals,
     async close(): Promise<void> {
       proposals.close();
