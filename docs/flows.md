@@ -1,6 +1,6 @@
 # Flows
 
-Target runtime flows; the implementation may retain legacy behavior until the related OpenSpec changes are archived.
+Target runtime decisions. Implementation gaps require explicit OpenSpec changes.
 
 ## Capture, interpretation, and publication
 
@@ -33,6 +33,7 @@ Simple connections use typed references; relationships requiring their own evide
 ## Review and conflict resolution
 
 `referenceResolution` resolves identity ambiguity, not mutation approval. Conflicting evidence is preserved.
+Pending Reviews SHALL remain visible to the launcher until resolved.
 
 ```mermaid
 flowchart LR
@@ -116,7 +117,7 @@ flowchart LR
     Automations --> Intents[Suggested or authorized Intents]
 ```
 
-## Notification schedule
+## Launcher notifications
 
 Deadline and reminder cadence are independent.
 
@@ -132,7 +133,11 @@ flowchart LR
     State --> Automation
 ```
 
-The reminder HTTP surface is a compatibility view over notification Automations; no Reminder entity or table exists. Completion stops stale schedules, and retries create new Attempts without duplicating a logical occurrence.
+The launcher uses a dedicated notification API. Reads derive the active list from Automations, Intents and State; completing or dismissing an item records the corresponding State and removes it from the active view. No Notification or Reminder entity or compatibility API exists.
+
+## Retry policy
+
+Each operation allows at most three increasingly delayed attempts. Transient outages use backoff, quota limits honor provider reset or `Retry-After`, and invalid responses become visible failures rather than rapid retries. Retry state remains inside the Wingman process.
 
 ## Proactive assistance
 
@@ -155,6 +160,7 @@ Inference may structure or rank proposals, but cannot mutate or execute directly
 ## Runtime lifecycle
 
 `main.ts` delegates lifecycle to `Runtime`; infrastructure remains behind ports.
+Production runs as one long-lived Railway service; HTTP, interpretation, scheduling and execution stay in the same process.
 
 ```mermaid
 flowchart LR

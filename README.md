@@ -12,7 +12,7 @@ npm start
 ```
 
 Configure the runtime in `.env`; every supported variable is documented in `.env.example`.
-`INFERENCE_TARGET` is required and must be `gemini.flash`, `groq.gptoss`, or `openai.luna`. Only the API key for its resolved provider is required. Use `gemini.flash` with `INFERENCE_API_KEY_GEMINI` for local development and tests; keep `groq.gptoss` with `INFERENCE_API_KEY_GROQ` in the production environment.
+`INFERENCE_TARGET` selects the inference adapter and model. The domain remains provider-agnostic and requires only the API key resolved by that target.
 
 Generate a development access token:
 
@@ -31,7 +31,7 @@ npm run build
 
 `npm test` runs deterministic tests without calling an inference provider. `npm run evaluate` runs the semantic cases against the configured real inference target; authentication, quota, availability, or semantic failures make that command exit nonzero.
 
-The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; the safe default is `readonly`. The current OpenAPI document is publicly available at `/api/openapi.json` for importing into API clients.
+The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; omitting the header means `readonly`. `MUTATION_MODE=approval` is the initial system policy for development and production; production may move to `write` after validation. The current OpenAPI document is publicly available at `/api/openapi.json`.
 
 The built-in projections are `system.currentItems` and `system.glossary`. Together they expose current Item compositions and their human-readable catalog.
 
@@ -58,7 +58,13 @@ Verbatim citations use the `quote` Literal and must match the original text exac
 
 Wingman notifications are passive launcher items. They become visible in the launcher and the user sees them when opening the mobile application; they do not produce push alerts, banners, sounds, vibration, foreground UI, or another interruption.
 
-A reminder is not a stored entity. It is a derived view of one notification Automation with a multi-occurrence schedule and references to its subject Items. Cancelling and rescheduling the compatibility reminder API controls that Automation directly.
+The intended launcher API (pending implementation) exposes notifications directly, with commands to complete or dismiss them. Its active list is a derived view over Automations, Intents and State; there is no Notification or Reminder entity and no compatibility reminder API.
+
+Current product scope is tasks, objectives, plans, habits and notifications. New domains are added only when repeated use justifies their contracts.
+
+### Deployment
+
+Wingman runs as one long-lived Railway service. HTTP, interpretation, scheduling and execution remain in the same process while that stays operationally viable.
 
 ---
 
