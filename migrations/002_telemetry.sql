@@ -5,10 +5,10 @@ CREATE TABLE telemetry.runs (
   interpretation_id text NOT NULL,
   operation text NOT NULL CHECK (btrim(operation) <> ''),
   reasoning text NOT NULL CHECK (reasoning IN ('low', 'high')),
+  target text NOT NULL CHECK (btrim(target) <> ''),
   provider text NOT NULL CHECK (btrim(provider) <> ''),
   requested_model text NOT NULL CHECK (btrim(requested_model) <> ''),
   used_model text NOT NULL CHECK (btrim(used_model) <> ''),
-  instructions_version text NOT NULL CHECK (btrim(instructions_version) <> ''),
   attempt integer NOT NULL CHECK (attempt > 0),
   duration_ms integer NOT NULL CHECK (duration_ms >= 0),
   result text NOT NULL CHECK (result IN ('empty', 'error', 'invalid', 'knowledge')),
@@ -30,3 +30,6 @@ CREATE INDEX inference_runs_interpretation
 
 CREATE INDEX inference_runs_created_at
   ON telemetry.runs (created_at DESC);
+
+CREATE INDEX inference_runs_target
+  ON telemetry.runs (target, created_at DESC);

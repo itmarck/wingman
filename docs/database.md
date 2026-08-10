@@ -11,9 +11,9 @@ erDiagram
     CORE_ENTRIES ||--o{ EXECUTION_EVENTS : causes
     CORE_ENTRIES ||--o{ INTERPRETATION_DECLARATION_OUTCOMES : produces
 
-    CORE_ITEMS ||--o{ CORE_COMPONENTS : composes
-    CORE_COMPONENTS o|--o{ CORE_COMPONENTS : supersedes
-    CORE_ITEMS o|--o{ AUTOMATION_SUGGESTIONS : subject
+    CORE_ITEMS ||--o{ CORE_COMPONENT_REVISIONS : composes
+    CORE_COMPONENT_REVISIONS o|--o{ CORE_COMPONENT_REVISIONS : supersedes
+    CORE_ITEMS o|--o{ PROACTIVITY_SUGGESTIONS : subject
 
     INTERPRETATION_RUNS ||--o{ INTERPRETATION_REVIEWS : requires
     INTERPRETATION_RUNS ||--o| INTERPRETATION_REVIEW_LOCKS : locks
@@ -21,7 +21,7 @@ erDiagram
     EXECUTION_INTENTS ||--o{ EXECUTION_ATTEMPTS : executes
     EXECUTION_INTENTS ||--o{ EXECUTION_EVENTS : causes
     EXECUTION_ATTEMPTS ||--o{ EXECUTION_EVENTS : causes
-    EXECUTION_INTENTS o|--o{ AUTOMATION_SUGGESTIONS : realizes
+    EXECUTION_INTENTS o|--o{ PROACTIVITY_SUGGESTIONS : realizes
 
     AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_DEDUPLICATIONS : remembers
     AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_EVALUATIONS : evaluates
@@ -33,8 +33,8 @@ erDiagram
 | --- | --- |
 | `core_entries` | Immutable user or connector input, with external-origin idempotency. |
 | `core_items` | Stable identity and optional versioned Profile. |
-| `core_components` | Immutable, evidence-backed Component values and supersession history. |
-| `core_assertions` | Persisted observed, believed, desired, required, forbidden or predicted State. |
+| `core_component_revisions` | Immutable, evidence-backed Component values and supersession history. |
+| `core_states` | Persisted observed, believed, desired, required, forbidden or predicted State. |
 | `interpretation_runs` | Interpretation history, retries, queue availability and worker leases. |
 | `interpretation_reviews` | Generic `referenceResolution` questions and their decisions. |
 | `interpretation_review_locks` | Durable mutual exclusion while the final Review publishes an Interpretation. |
@@ -59,7 +59,7 @@ Automations only produce Intents. Attempts and Events remain separate so an unce
 
 | Table | Purpose |
 | --- | --- |
-| `automation_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
+| `proactivity_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
 
 There is no notification table. Scheduling uses `automation_definitions`; launcher reads derive delivered, unacknowledged notices from Intents and Events.
 
@@ -74,11 +74,16 @@ no table and cannot be changed through Entries, connectors, or the HTTP API.
 - Timestamps use `timestamptz` and temporal ranges enforce `from < to` when both ends exist.
 - Statuses and modalities use checked `text`, matching the closed unions in the domain.
 - `JSONB` is limited to recursive domain values such as Conditions, evidence, triggers, policies and adapter payloads. These structures are validated again by domain rehydration.
-- Frequently queried fields remain relational columns and have targeted indexes: queue leases, Profiles, Component lookup, due Automations, event keys, Intent status and proposal fingerprints.
+- Frequently queried fields remain relational columns and have targeted indexes: queue leases, Profiles, Component lookup, due Automations, event keys, Intent status and Suggestion fingerprints.
 - Foreign keys use restrictive deletion for immutable domain history. Cascades are limited to runtime support rows that have no independent meaning.
 - `telemetry.runs` remains in the separate `telemetry` schema and is not part of functional state.
 - `pgmigrations` is migration-runner metadata and is intentionally omitted from the model.
 
-## Removed legacy tables
+## Migration baseline
 
-The replacement migration removes `concepts`, `predicates`, `axioms`, `aliases` and `links`. Their responsibilities now belong to Items, Profiles and immutable Component revisions.
+- `001_system.sql` creates the complete functional schema.
+- `002_telemetry.sql` creates only inference telemetry.
+- The baseline requires an empty database without a `pgmigrations` history.
+- Later schema changes are append-only starting at `003`.
+
+Legacy `concepts`, `predicates`, `axioms`, `aliases`, `links`, Reminders and request-kind tables are absent. Their current responsibilities belong to generic Items, Components, States, Automations and Intents.
