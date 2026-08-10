@@ -14,7 +14,8 @@ export interface NotificationInput {
 export class NotificationCapability implements Capability {
   readonly key = 'notification';
   readonly version = 1;
-  readonly description = 'Make a passive notification available to the launcher';
+  readonly description =
+    'Make a passive notification available to the launcher. Input: { automationId: local Automation reference, occurrenceId: "$trigger.id", subjectItemId: local Item reference, message: string, priority?: integer }.';
   readonly defaultAutonomy = 'execute' as const;
   readonly safetyCeiling = 'execute' as const;
 

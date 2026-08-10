@@ -31,11 +31,19 @@ export class TriggerRegistry {
 }
 export function createTriggerRegistry(): TriggerRegistry {
   const registry = new TriggerRegistry();
+  const descriptions = {
+    time: 'Value: { operator: { key: "time", version: 1 }, at: UTC } or replace at with afterMs.',
+    event: 'Value: { operator: { key: "event", version: 1 }, eventKey: string }.',
+    stateChange:
+      'Value: { operator: { key: "stateChange", version: 1 }, itemIds?: string[], componentKeys?: string[] } with at least one dependency.',
+    schedule:
+      'Value: { operator: { key: "schedule", version: 1 }, occurrences: ordered unique UTC[] }.',
+  } as const;
   for (const key of ['time', 'event', 'stateChange', 'schedule'] as const)
     registry.register({
       key,
       version: 1,
-      description: `Trigger ${key}`,
+      description: descriptions[key],
       validate(trigger) {
         if (trigger.operator.key !== key)
           throw new DomainError(`Trigger payload does not match operator ${key}@1`);

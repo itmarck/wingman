@@ -35,7 +35,12 @@ export function createKnowledgeRegistry(): SchemaRegistry {
       }
     },
   });
-  registry.registerComponent(textSchema('quote', 'Cita textual exacta'));
+  registry.registerComponent(
+    textSchema(
+      'quote',
+      'Valor string que es un substring exacto, sensible a mayúsculas, de la Entry',
+    ),
+  );
   registry.registerComponent({
     key: 'participants',
     version: 1,
@@ -60,7 +65,7 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
   registry.registerComponent(
     recordSchema(
       'descriptive',
-      'Título y notas de planificación',
+      'Valor { title: texto no vacío, notes?: texto }',
       (value) =>
         typeof value.title === 'string' &&
         Boolean(value.title.trim()) &&
@@ -70,24 +75,26 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
   registry.registerComponent(
     recordSchema(
       'lifecycle',
-      'Estado actual e historial de transiciones',
+      'Valor { status: texto, transitions: array }; el Profile lo inicializa, no declararlo al crear',
       (value) => typeof value.status === 'string' && Array.isArray(value.transitions),
     ),
   );
   registry.registerComponent(
-    recordSchema('temporal', 'Restricciones temporales opcionales', (value) =>
+    recordSchema('temporal', 'Valor { startAt?: UTC, dueAt?: UTC, recurrence?: texto }', (value) =>
       ['startAt', 'dueAt', 'recurrence'].every(
         (key) => value[key] === undefined || typeof value[key] === 'string',
       ),
     ),
   );
   registry.registerComponent(
-    recordSchema('assignment', 'Item responsable', (value) => isItemReference(value.responsible)),
+    recordSchema('assignment', 'Valor { responsible: itemReference }', (value) =>
+      isItemReference(value.responsible),
+    ),
   );
   registry.registerComponent(
     recordSchema(
       'planning',
-      'Objetivo, plan y dependencias tipadas',
+      'Valor { objective?: itemReference, plan?: itemReference, dependencies?: itemReference[] }; el Profile inicializa dependencies',
       (value) =>
         (value.objective === undefined || isItemReference(value.objective)) &&
         (value.plan === undefined || isItemReference(value.plan)) &&
@@ -98,7 +105,7 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
   registry.registerComponent(
     recordSchema(
       'progress',
-      'Medición explícita de progreso',
+      'Valor { current: número, target: número positivo, unit?: texto }',
       (value) =>
         typeof value.current === 'number' &&
         Number.isFinite(value.current) &&
@@ -111,7 +118,7 @@ function registerPlanningSchemas(registry: SchemaRegistry): void {
   registry.registerComponent({
     key: 'unresolved',
     version: 1,
-    description: 'Valores fuente pendientes de resolución',
+    description: 'Valor string[] no vacío con datos fuente pendientes',
     validate(value) {
       if (
         !Array.isArray(value) ||

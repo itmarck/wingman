@@ -16,6 +16,37 @@ const profile = object({
   key: Type.String({ pattern: keyPattern.source }),
   version: Type.Integer({ minimum: 1 }),
 });
+const authorization = Type.Union([Type.Literal('none'), Type.Literal('explicit')], {
+  description:
+    'Consent requirement: none or explicit. This is not Capability autonomy; never use propose, approve, or execute.',
+});
+const automationTrigger = Type.Union([
+  object({
+    operator: object({ key: Type.Literal('time'), version: Type.Literal(1) }),
+    at: Type.Union([Type.String({ pattern: utcPattern.source }), Type.Null()]),
+    afterMs: Type.Union([Type.Integer({ minimum: 0 }), Type.Null()]),
+  }),
+  object({
+    operator: object({ key: Type.Literal('event'), version: Type.Literal(1) }),
+    eventKey: Type.String({ pattern: keyPattern.source }),
+  }),
+  object({
+    operator: object({ key: Type.Literal('stateChange'), version: Type.Literal(1) }),
+    itemIds: Type.Array(Type.String()),
+    componentKeys: Type.Array(Type.String({ pattern: keyPattern.source })),
+  }),
+  object({
+    operator: object({ key: Type.Literal('schedule'), version: Type.Literal(1) }),
+    occurrences: Type.Array(Type.String({ pattern: utcPattern.source }), { minItems: 1 }),
+  }),
+]);
+const intentTemplate = object({
+  capability: profile,
+  input: Type.Unknown(),
+  conditions: Type.Array(Type.Unknown()),
+  expectedState: Type.Array(Type.Unknown()),
+  authorization,
+});
 const item = object({
   reference: Type.String(),
   profile: Type.Union([profile, Type.Null()]),
@@ -35,11 +66,13 @@ const component = object({
     }),
     Type.Null(),
   ]),
-  status: Type.Union([
-    Type.Literal('accepted'),
-    Type.Literal('candidate'),
-    Type.Literal('rejected'),
-  ]),
+  status: Type.Union(
+    [Type.Literal('accepted'), Type.Literal('candidate'), Type.Literal('rejected')],
+    {
+      description:
+        'Knowledge revision status: accepted, candidate, or rejected. Never use Intent lifecycle values such as proposed.',
+    },
+  ),
   supersedesReference: Type.Union([Type.String(), Type.Null()]),
 });
 const resolution = object({
@@ -91,8 +124,8 @@ const automationDeclaration = object({
   kind: Type.Literal('automation'),
   subjects: Type.Array(Type.String()),
   given: Type.Array(Type.Unknown()),
-  when: Type.Unknown(),
-  thenIntents: Type.Array(Type.Unknown(), { minItems: 1 }),
+  when: automationTrigger,
+  thenIntents: Type.Array(intentTemplate, { minItems: 1 }),
   controls: Type.Union([Type.Unknown(), Type.Null()]),
 });
 const intentDeclaration = object({
@@ -102,7 +135,7 @@ const intentDeclaration = object({
   input: Type.Unknown(),
   conditions: Type.Array(Type.Unknown()),
   expectedState: Type.Array(Type.Unknown()),
-  authorization: Type.Union([Type.Literal('none'), Type.Literal('explicit')]),
+  authorization,
   trigger: Type.Union([Type.Unknown(), Type.Null()]),
 });
 const draft = object({
@@ -120,7 +153,10 @@ const draft = object({
 
 export const interpretationOutputSchema = {
   ...object({
-    kind: Type.Union([Type.Literal('knowledge'), Type.Literal('empty'), Type.Literal('invalid')]),
+    kind: Type.Union([Type.Literal('knowledge'), Type.Literal('empty'), Type.Literal('invalid')], {
+      description:
+        'Exact result discriminator: knowledge, empty, or invalid. Never use interpreted.',
+    }),
     reason: Type.Union([Type.String(), Type.Null()]),
     draft: Type.Union([draft, Type.Null()]),
   }),

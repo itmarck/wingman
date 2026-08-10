@@ -42,7 +42,20 @@ describe('interpretation declaration schema', () => {
               operator: { key: 'schedule', version: 1 },
               occurrences: ['2026-08-31T12:00:00.000Z'],
             },
-            thenIntents: [{ capability: { key: 'notification', version: 1 } }],
+            thenIntents: [
+              {
+                capability: { key: 'notification', version: 1 },
+                input: {
+                  automationId: 'notice',
+                  occurrenceId: '$trigger.id',
+                  subjectItemId: 'task',
+                  message: 'Pagar',
+                },
+                conditions: [],
+                expectedState: [],
+                authorization: 'none',
+              },
+            ],
             controls: null,
           },
         ],
@@ -77,6 +90,53 @@ describe('interpretation declaration schema', () => {
           states: [],
           automations: [],
           intents: [],
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseInterpretationOutput(
+        knowledge({
+          items: [],
+          states: [],
+          automations: [
+            {
+              kind: 'automation',
+              version: 1,
+              reference: 'notice',
+              dependsOn: [],
+              unresolved: [],
+              subjects: [],
+              given: [],
+              when: { operator: 'schedule', occurrences: ['2026-08-31T12:00:00.000Z'] },
+              thenIntents: [],
+              controls: null,
+            },
+          ],
+          intents: [],
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseInterpretationOutput(
+        knowledge({
+          items: [],
+          states: [],
+          automations: [],
+          intents: [
+            {
+              kind: 'intent',
+              version: 1,
+              reference: 'notice',
+              dependsOn: [],
+              unresolved: [],
+              capability: { key: 'notification', version: 1 },
+              input: {},
+              conditions: [],
+              expectedState: [],
+              authorization: 'execute',
+              trigger: null,
+            },
+          ],
         }),
       ),
     ).toBeUndefined();

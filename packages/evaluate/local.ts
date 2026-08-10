@@ -134,7 +134,10 @@ async function runOperationalScenarios(): Promise<{
       'incomplete',
       'Recuérdame presentar el informe, pero todavía no decidí cuándo.',
     );
-    while (await processIgnoringExpectedFailure(system)) {}
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await processIgnoringExpectedFailure(system);
+      if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 2));
+    }
     const [mixedResponse, incompleteResponse, projection] = await Promise.all([
       server.inject({ method: 'GET', url: `/api/entries/${mixedId}/status`, headers }),
       server.inject({ method: 'GET', url: `/api/entries/${incompleteId}/status`, headers }),
@@ -198,7 +201,15 @@ async function observeFailedInterpretation(
       },
     });
     const id = captured.json<{ id: string }>().id;
-    while (await processIgnoringExpectedFailure(system)) {}
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await processIgnoringExpectedFailure(system);
+      const status = await system.interpretation.getEntryStatus.execute(id);
+
+      if (status.status !== 'queued' || !status.availableAt) break;
+
+      const waitMs = Math.max(1, Date.parse(status.availableAt) - Date.now() + 1);
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
     return (
       await server.inject({ method: 'GET', url: `/api/entries/${id}/status`, headers })
     ).json<PublicStatus>();
@@ -210,11 +221,11 @@ async function observeFailedInterpretation(
 
 async function processIgnoringExpectedFailure(
   system: ReturnType<typeof createSystem>,
-): Promise<boolean> {
+): Promise<void> {
   try {
-    return await system.interpretation.processNext.execute();
+    await system.interpretation.processNext.execute();
   } catch {
-    return true;
+    // The probe observes the persisted failure lifecycle after bounded attempts.
   }
 }
 

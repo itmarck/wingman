@@ -85,8 +85,19 @@ export const Policy = Object.freeze({
     'Use Item, State, Automation and Intent declarations instead of product-specific request kinds.',
     'Use unresolved only for genuinely missing required source values.',
   ),
+  distinguishIntentAuthorization: definePolicy(
+    'Intent authorization expresses consent, not Capability autonomy.',
+    'Use authorization none when no explicit consent is required and explicit when user consent is required.',
+    'Never use autonomy values such as propose, approve, or execute as Intent authorization.',
+  ),
+  honorRegisteredComponentValues: definePolicy(
+    'Use only value field names stated by registered Component descriptions.',
+    'Do not declare a Profile lifecycle Component or its initial Components because Profile materialization supplies them.',
+    'Leave unsupported or missing values unresolved instead of inventing fields.',
+  ),
   requireExplicitNotificationSchedule: definePolicy(
-    'Represent a notification request as one notification Automation whose schedule trigger contains all explicit UTC occurrences.',
+    'Represent a notification request as one notification Automation whose schedule trigger contains all source-supported or Policy-derived UTC occurrences.',
+    'When a reminder supplies a deadline but no separate occurrence, use that derived deadline boundary as its single occurrence.',
     'Reference its subject Item and stop it when the subject completion condition becomes true.',
   ),
   preserveNotificationDeadline: definePolicy(
@@ -108,7 +119,7 @@ export const entryInterpretation = defineInterpretation({
   operation: 'interpret-entry',
   reasoning: 'low',
   policies: Object.values(Policy),
-  outputContract: `Return exactly one result:
+  outputContract: `Return exactly one result whose kind is exactly knowledge, empty or invalid; never use interpreted:
 - knowledge: a Draft containing entryId, items, components, referenceResolutions and declarations. Knowledge or declarations may be empty, but not both.
 - empty: an explicit valid decision that the Entry contains no durable knowledge.
 - invalid: a reason explaining why the contract could not be satisfied.
@@ -117,5 +128,7 @@ Declarations are stable semantic primitives:
 - state@1 persists modal meaning as a registered Condition.
 - automation@1 declares Given/When/Then Intent templates and optional subject references.
 - intent@1 proposes a registered Capability invocation.
+Automation triggers use the exact registered Trigger value shape. Each Then Intent template contains capability { key, version }, Capability input, conditions, expectedState and authorization; runtime supplies its trigger.
+For an operational request, keep Draft items and components empty and describe its subject only with an Item declaration; never duplicate the same subject as knowledge and a declaration.
 Every declaration has a local reference, dependencies and unresolved source values. Publication resolves local Item references in dependency order.`,
 });
