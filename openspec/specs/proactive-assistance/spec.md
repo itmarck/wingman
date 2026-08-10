@@ -21,11 +21,11 @@ Every proactive proposal SHALL identify its detector or Automation, relevant Sta
 - **THEN** the proposal explains the blocker, elapsed time, affected objective, and suggested action
 
 ### Requirement: Autonomy-controlled assistance
-Proactive behavior SHALL resolve global, Capability, user, and explicit authorization policy and SHALL NOT exceed the Capability safety ceiling.
+Proactive behavior SHALL resolve global, Capability and user autonomy independently from explicit Intent consent and SHALL NOT exceed the Capability safety ceiling.
 
 #### Scenario: Suggestion and execution differ
 - **WHEN** the same risk could produce a notification or a consequential external mutation
-- **THEN** each Intent follows its own Capability policy and the mutation is not executed without required authorization
+- **THEN** each Intent follows its own Capability policy and the mutation is not executed without required consent
 
 ### Requirement: Proposal feedback
 The system SHALL preserve accepted, rejected, modified, postponed, expired, and completed proposal outcomes without interpreting rejection as permission for unrelated behavior.

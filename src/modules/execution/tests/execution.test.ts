@@ -13,8 +13,8 @@ import { createOperatorRegistry } from '../../../core/state/registry.js';
 import { MemoryKnowledgeStore } from '../../knowledge/adapters/memory/store.js';
 import { StateEvaluator } from '../../state/services/evaluator.js';
 import { MemoryExecutionStore } from '../adapters/memory/store.js';
-import { AuthorizeIntentCommand } from '../operations/authorize.js';
 import { CancelIntentCommand } from '../operations/cancel.js';
+import { GrantIntentConsentCommand } from '../operations/consent.js';
 import { ExecuteIntentCommand } from '../operations/execute.js';
 import { ProposeIntentCommand } from '../operations/propose.js';
 
@@ -31,7 +31,7 @@ describe('Intent execution', () => {
       resolveAutonomy({
         global: 'execute',
         capability: 'propose',
-        explicitlyAuthorized: false,
+        explicitlyConsented: false,
         safetyCeiling: 'execute',
       }),
     ).toBe('propose');
@@ -39,20 +39,20 @@ describe('Intent execution', () => {
       resolveAutonomy({
         global: 'execute',
         capability: 'propose',
-        explicitlyAuthorized: true,
+        explicitlyConsented: true,
         safetyCeiling: 'execute',
       }),
     ).toBe('execute');
     expect(
-      resolveAutonomy({ global: 'execute', explicitlyAuthorized: true, safetyCeiling: 'propose' }),
+      resolveAutonomy({ global: 'execute', explicitlyConsented: true, safetyCeiling: 'propose' }),
     ).toBe('propose');
   });
 
-  it('authorizes, retries uncertain effects idempotently and preserves Attempts and Events', async () => {
+  it('records consent, retries uncertain effects idempotently and preserves Attempts and Events', async () => {
     const fixture = await createFixture();
     const intentId = await fixture.propose.execute(input('uncertain', true));
-    await expect(fixture.execute.execute(intentId)).resolves.toBe('authorizationRequired');
-    await fixture.authorize.execute(intentId);
+    await expect(fixture.execute.execute(intentId)).resolves.toBe('consentRequired');
+    await fixture.consent.execute(intentId);
     await expect(fixture.execute.execute(intentId)).resolves.toBe('uncertain');
     await expect(fixture.execute.execute(intentId)).resolves.toBe('succeeded');
     const attempts = await fixture.store.listAttempts(intentId);
@@ -60,7 +60,7 @@ describe('Intent execution', () => {
     expect(new Set(attempts.map((attempt) => attempt.idempotencyKey)).size).toBe(1);
     expect(fixture.capability.effects).toBe(1);
     expect((await fixture.store.listEvents(intentId)).map((event) => event.key)).toEqual([
-      'authorizationRequired',
+      'consentRequired',
       'attemptUncertain',
       'attemptSucceeded',
     ]);
@@ -98,11 +98,16 @@ describe('Intent execution', () => {
     expect(await fixture.execute.execute(cancelledId)).toBe('cancelled');
   });
 
-  it('never exceeds a Capability safety ceiling even after authorization', async () => {
+  it('never elevates autonomy without consent or exceeds a Capability safety ceiling', async () => {
+    const proposed = await createFixture(new FakeCapability('execute', 'propose'));
+    const proposedId = await proposed.propose.execute(input('success', false));
+    expect(await proposed.execute.execute(proposedId)).toBe('autonomyRestricted');
+    expect(await proposed.store.listAttempts(proposedId)).toEqual([]);
+
     const fixture = await createFixture(new FakeCapability('propose'));
     const intentId = await fixture.propose.execute(input('success', true));
-    await fixture.authorize.execute(intentId);
-    expect(await fixture.execute.execute(intentId)).toBe('authorizationRequired');
+    await fixture.consent.execute(intentId);
+    expect(await fixture.execute.execute(intentId)).toBe('autonomyRestricted');
     expect(await fixture.store.listAttempts(intentId)).toEqual([]);
   });
 });
@@ -111,10 +116,12 @@ class FakeCapability implements Capability {
   readonly key = 'fake';
   readonly version = 1;
   readonly description = 'Fake deterministic effect';
-  readonly defaultAutonomy = 'propose' as const;
   readonly #completed = new Set<string>();
   effects = 0;
-  constructor(readonly safetyCeiling: Capability['safetyCeiling'] = 'execute') {}
+  constructor(
+    readonly safetyCeiling: Capability['safetyCeiling'] = 'execute',
+    readonly defaultAutonomy: Capability['defaultAutonomy'] = 'execute',
+  ) {}
   validateInput(input: ComponentValue): void {
     if (!isInput(input) || input.mode === 'invalid') throw new Error('unsupported input');
   }
@@ -162,7 +169,7 @@ async function createFixture(capability = new FakeCapability()) {
     knowledge,
     store,
     propose: new ProposeIntentCommand(store, capabilities, operators, knowledge, ids, clock),
-    authorize: new AuthorizeIntentCommand(store),
+    consent: new GrantIntentConsentCommand(store),
     cancel: new CancelIntentCommand(store, ids, clock),
     execute: new ExecuteIntentCommand(
       store,
@@ -183,7 +190,7 @@ function input(mode: string, explicit: boolean) {
     proposer: { kind: 'user' as const, id: 'marcelo' },
     conditions: [condition(true)],
     expectedState: [condition(true)],
-    authorization: explicit ? ('explicit' as const) : ('none' as const),
+    consent: explicit ? ('explicit' as const) : ('none' as const),
     evidence: [{ entryId: 'entry-execution', sourceLocators: [] }],
   };
 }

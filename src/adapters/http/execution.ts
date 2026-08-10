@@ -18,7 +18,7 @@ const intentBody = Type.Object(
     }),
     conditions: Type.Array(Type.Unknown()),
     expectedState: Type.Array(Type.Unknown()),
-    authorization: Type.Union([Type.Literal('none'), Type.Literal('explicit')]),
+    consent: Type.Union([Type.Literal('none'), Type.Literal('explicit')]),
     trigger: Type.Optional(
       Type.Object({
         kind: Type.Union([Type.Literal('manual'), Type.Literal('time'), Type.Literal('event')]),
@@ -71,11 +71,11 @@ export const executionRoutes: FastifyPluginAsyncTypebox<ExecutionRoutesOptions> 
   );
 
   server.post(
-    '/intents/:id/authorization',
+    '/intents/:id/consent',
     {
       schema: {
         tags: ['Execution'],
-        summary: 'Explicitly authorize an Intent',
+        summary: 'Grant explicit consent to an Intent',
         headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
@@ -95,15 +95,15 @@ export const executionRoutes: FastifyPluginAsyncTypebox<ExecutionRoutesOptions> 
           [
             {
               operation: 'update',
-              target: 'intentAuthorization',
+              target: 'intentConsent',
               value: { id: request.params.id },
             },
           ],
-          () => system.execution.authorizeIntent.execute(request.params.id),
+          () => system.execution.grantIntentConsent.execute(request.params.id),
         );
         return reply.code(202).send({ proposal: createProposalResponse(proposal) });
       }
-      await system.execution.authorizeIntent.execute(request.params.id);
+      await system.execution.grantIntentConsent.execute(request.params.id);
       return reply.code(204).send(null);
     },
   );
@@ -113,7 +113,7 @@ export const executionRoutes: FastifyPluginAsyncTypebox<ExecutionRoutesOptions> 
     {
       schema: {
         tags: ['Execution'],
-        summary: 'Attempt an authorized Intent',
+        summary: 'Attempt an executable Intent',
         headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
@@ -132,7 +132,7 @@ export const executionRoutes: FastifyPluginAsyncTypebox<ExecutionRoutesOptions> 
         const proposal = system.proposals.create(
           [{ operation: 'create', target: 'attempt', value: { intentId: request.params.id } }],
           async () => {
-            await system.execution.authorizeIntent.execute(request.params.id);
+            await system.execution.grantIntentConsent.execute(request.params.id);
             await system.execution.executeIntent.execute(request.params.id);
           },
         );

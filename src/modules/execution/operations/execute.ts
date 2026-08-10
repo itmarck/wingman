@@ -20,7 +20,8 @@ export type ExecutionOutcome =
   | 'stale'
   | 'unsupported'
   | 'cancelled'
-  | 'authorizationRequired';
+  | 'consentRequired'
+  | 'autonomyRestricted';
 
 /** Rechecks authority and State immediately before every distinct Capability Attempt. */
 export class ExecuteIntentCommand {
@@ -48,16 +49,20 @@ export class ExecuteIntentCommand {
       });
       return 'unsupported';
     }
+    if (intent.consent === 'explicit' && intent.status !== 'consented') {
+      await this.event('consentRequired', intent.id, { consent: intent.consent });
+      return 'consentRequired';
+    }
     const authority = resolveAutonomy({
       global: this.policy.global,
       capability: capability.defaultAutonomy,
       user: this.policy.user,
-      explicitlyAuthorized: intent.status === 'authorized' || intent.authorization === 'none',
+      explicitlyConsented: intent.status === 'consented',
       safetyCeiling: capability.safetyCeiling,
     });
     if (authority !== 'execute') {
-      await this.event('authorizationRequired', intent.id, { authority });
-      return 'authorizationRequired';
+      await this.event('autonomyRestricted', intent.id, { authority });
+      return 'autonomyRestricted';
     }
     const snapshot = await this.knowledge.loadKnowledge();
     if (

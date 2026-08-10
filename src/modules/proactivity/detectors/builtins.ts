@@ -259,12 +259,7 @@ function baseFinding(
     urgency,
     expiresInMs,
     capability: { key: 'notification', version: 1 },
-    input: {
-      automationId: '$proposalId',
-      occurrenceId: 'proactive',
-      subjectItemId: subjectItemId ?? 'system',
-      message: rationale,
-    },
+    input: { message: rationale },
     conditions,
   });
 }

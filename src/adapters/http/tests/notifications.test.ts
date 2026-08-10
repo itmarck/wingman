@@ -28,15 +28,10 @@ describe('launcher notification HTTP API', () => {
       thenIntents: [
         {
           capability: { key: 'notification', version: 1 },
-          input: {
-            automationId,
-            occurrenceId: '$trigger.id',
-            subjectItemId,
-            message: 'Paga',
-          },
+          input: { message: 'Paga' },
           conditions: [],
           expectedState: [],
-          authorization: 'none',
+          consent: 'none',
         },
       ],
       evidence,

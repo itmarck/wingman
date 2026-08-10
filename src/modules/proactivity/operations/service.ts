@@ -3,7 +3,7 @@ import { type AutonomyLevel, resolveAutonomy } from '../../../core/execution/pol
 import type { ComponentValue } from '../../../core/item/types.js';
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { AuthorizeIntentCommand } from '../../execution/operations/authorize.js';
+import type { GrantIntentConsentCommand } from '../../execution/operations/consent.js';
 import type { ProposeIntentCommand } from '../../execution/operations/propose.js';
 import type { ItemStore } from '../../knowledge/ports/store.js';
 import type { PlanningQueries } from '../../planning/operations/query.js';
@@ -38,7 +38,7 @@ export class ProactivityService {
     private readonly states: StateViews,
     private readonly capabilities: CapabilityRegistry,
     private readonly proposeIntent: Pick<ProposeIntentCommand, 'execute'>,
-    private readonly authorizeIntent: Pick<AuthorizeIntentCommand, 'execute'>,
+    private readonly grantIntentConsent: Pick<GrantIntentConsentCommand, 'execute'>,
     private readonly policy: ProactivityPolicy,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
@@ -95,8 +95,8 @@ export class ProactivityService {
   async feedback(id: string, input: FeedbackInput): Promise<void> {
     const proposal = await this.read(id);
     validateFeedback(input, this.clock.now());
-    if (input.kind === 'accepted' && proposal.intentId && proposal.autonomy.explicitAuthorization)
-      await this.authorizeIntent.execute(proposal.intentId);
+    if (input.kind === 'accepted' && proposal.intentId && proposal.autonomy.explicitConsent)
+      await this.grantIntentConsent.execute(proposal.intentId);
     const feedback: ProactiveFeedback = Object.freeze({
       ...input,
       at: this.clock.now().toISOString(),
@@ -125,7 +125,7 @@ export class ProactivityService {
           global: this.policy.global,
           capability: this.policy.capabilities?.[capability.key] ?? capability.defaultAutonomy,
           user: this.policy.user,
-          explicitlyAuthorized: false,
+          explicitlyConsented: false,
           safetyCeiling: capability.safetyCeiling,
         })
       : 'blocked';
@@ -137,7 +137,7 @@ export class ProactivityService {
         proposer: { kind: 'system', id: detectorKey },
         conditions: finding.conditions,
         expectedState: [],
-        authorization: resolved === 'execute' ? 'none' : 'explicit',
+        consent: resolved === 'execute' ? 'none' : 'explicit',
         trigger: triggerFor(signal),
         evidence: finding.evidence,
       });
@@ -155,7 +155,7 @@ export class ProactivityService {
       capability: finding.capability,
       autonomy: Object.freeze({
         resolved,
-        explicitAuthorization: resolved !== 'execute',
+        explicitConsent: resolved !== 'execute',
         safetyCeiling: capability?.safetyCeiling,
       }),
       intentId,

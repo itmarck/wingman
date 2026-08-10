@@ -52,7 +52,7 @@ describe('proactive assistance', () => {
         rationale: expect.any(String),
         expectedEffect: expect.any(String),
         evidence: expect.arrayContaining([expect.objectContaining({ entryId })]),
-        autonomy: { resolved: 'propose', explicitAuthorization: true },
+        autonomy: { resolved: 'propose', explicitConsent: true },
         intentId: expect.any(String),
       });
     expect(await system.notification.service.list()).toEqual([]);
@@ -188,7 +188,7 @@ describe('proactive assistance', () => {
     await system.proactivity.service.feedback(supported.id, { kind: 'accepted' });
     expect(
       (await system.execution.store.findIntent(requireDefined(supported.intentId)))?.status,
-    ).toBe('authorized');
+    ).toBe('consented');
     await system.proactivity.service.feedback(supported.id, {
       kind: 'modified',
       modification: { message: 'Ajustada' },

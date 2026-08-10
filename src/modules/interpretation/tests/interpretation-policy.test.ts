@@ -21,7 +21,7 @@ describe('interpretation Policy definition', () => {
     expect(request.policies).toEqual(expect.arrayContaining(Object.values(Policy)));
     expect(request.policies.every((policy) => typeof policy === 'string')).toBe(true);
     expect(request.policies.join(' ')).toContain(
-      'Intent authorization expresses consent, not Capability autonomy.',
+      'Intent consent is a requirement, not Capability autonomy.',
     );
     expect(Object.isFrozen(request.policies)).toBe(true);
   });
@@ -46,7 +46,9 @@ describe('interpretation Policy definition', () => {
 
     expect(schedule.description).toContain('operator: { key: "schedule", version: 1 }');
     expect(schedule.description).toContain('occurrences: ordered unique UTC[]');
-    expect(notification.description).toContain('occurrenceId: "$trigger.id"');
-    expect(notification.description).toContain('subjectItemId: local Item reference');
+    expect(notification.description).toContain('message: string');
+    expect(notification.description).toContain(
+      'Runtime derives Automation, occurrence and subject',
+    );
   });
 });

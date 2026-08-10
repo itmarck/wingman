@@ -5,7 +5,7 @@ import { assertText, assertUtcDateTime } from '../knowledge/guard.js';
 import type { Condition } from '../state/condition.js';
 import { assertConditionShape } from '../state/state.js';
 
-export type IntentStatus = 'proposed' | 'authorized' | 'cancelled' | 'completed';
+export type IntentStatus = 'proposed' | 'consented' | 'cancelled' | 'completed';
 export interface IntentProposer {
   readonly kind: 'user' | 'system' | 'automation';
   readonly id?: string;
@@ -21,7 +21,7 @@ export interface CreateIntentInput {
   readonly proposer: IntentProposer;
   readonly conditions: readonly Condition[];
   readonly expectedState: readonly Condition[];
-  readonly authorization: 'none' | 'explicit';
+  readonly consent: 'none' | 'explicit';
   readonly trigger?: IntentTrigger;
   readonly evidence: readonly Evidence[];
   readonly createdAt: string;
@@ -36,7 +36,7 @@ export class Intent {
   readonly proposer: IntentProposer;
   readonly conditions: readonly Condition[];
   readonly expectedState: readonly Condition[];
-  readonly authorization: 'none' | 'explicit';
+  readonly consent: 'none' | 'explicit';
   readonly trigger?: IntentTrigger;
   readonly evidence: readonly Evidence[];
   readonly createdAt: string;
@@ -48,7 +48,7 @@ export class Intent {
     this.proposer = Object.freeze({ ...input.proposer });
     this.conditions = Object.freeze([...input.conditions]);
     this.expectedState = Object.freeze([...input.expectedState]);
-    this.authorization = input.authorization;
+    this.consent = input.consent;
     this.trigger = input.trigger ? Object.freeze({ ...input.trigger }) : undefined;
     this.evidence = Object.freeze(
       input.evidence.map((value) =>
@@ -69,10 +69,12 @@ export class Intent {
       assertConditionShape(condition);
     return new Intent(input);
   }
-  authorize(): Intent {
+  grantConsent(): Intent {
     if (this.status !== 'proposed')
-      throw new DomainError(`Intent ${this.id} cannot be authorized from ${this.status}`);
-    return new Intent({ ...this, status: 'authorized' });
+      throw new DomainError(`Intent ${this.id} cannot receive consent from ${this.status}`);
+    if (this.consent !== 'explicit')
+      throw new DomainError(`Intent ${this.id} does not require explicit consent`);
+    return new Intent({ ...this, status: 'consented' });
   }
   cancel(): Intent {
     if (['cancelled', 'completed'].includes(this.status))
@@ -80,10 +82,7 @@ export class Intent {
     return new Intent({ ...this, status: 'cancelled' });
   }
   complete(): Intent {
-    if (
-      this.status !== 'authorized' &&
-      !(this.status === 'proposed' && this.authorization === 'none')
-    )
+    if (this.status !== 'consented' && !(this.status === 'proposed' && this.consent === 'none'))
       throw new DomainError(`Intent ${this.id} cannot complete from ${this.status}`);
     return new Intent({ ...this, status: 'completed' });
   }

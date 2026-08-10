@@ -307,15 +307,10 @@ function operationalDeclarations(
         thenIntents: [
           {
             capability: { key: 'notification', version: 1 },
-            input: {
-              automationId: 'notification',
-              occurrenceId: '$trigger.id',
-              subjectItemId: 'task',
-              message: title,
-            },
+            input: { message: title },
             conditions: [],
             expectedState: [],
-            authorization: 'none' as const,
+            consent: 'none' as const,
             trigger: { kind: 'time' as const, value: occurrence },
           },
         ],

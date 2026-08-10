@@ -222,7 +222,7 @@ function template() {
     input: { message: 'hola' },
     conditions: [condition(true)],
     expectedState: [condition(true)],
-    authorization: 'explicit' as const,
+    consent: 'explicit' as const,
   };
 }
 function condition(value: boolean) {

@@ -3,9 +3,6 @@ import type { Capability, CapabilityResult } from '../../core/execution/capabili
 import type { ComponentValue } from '../../core/item/types.js';
 
 export interface NotificationInput {
-  readonly automationId: string;
-  readonly occurrenceId: string;
-  readonly subjectItemId: string;
   readonly message: string;
   readonly priority?: number;
 }
@@ -15,7 +12,7 @@ export class NotificationCapability implements Capability {
   readonly key = 'notification';
   readonly version = 1;
   readonly description =
-    'Make a passive notification available to the launcher. Input: { automationId: local Automation reference, occurrenceId: "$trigger.id", subjectItemId: local Item reference, message: string, priority?: integer }.';
+    'Make a passive notification available to the launcher. Input: { message: string, priority?: integer }. Runtime derives Automation, occurrence and subject identity.';
   readonly defaultAutonomy = 'execute' as const;
   readonly safetyCeiling = 'execute' as const;
 
@@ -23,10 +20,9 @@ export class NotificationCapability implements Capability {
     if (!isNotificationInput(input)) throw new DomainError('notification input is invalid');
   }
 
-  idempotencyKey(input: ComponentValue): string {
+  idempotencyKey(input: ComponentValue, intentId: string): string {
     this.validateInput(input);
-    const notification = input as unknown as NotificationInput;
-    return `notification:${notification.automationId}:${notification.occurrenceId}`;
+    return `notification:${intentId}`;
   }
 
   async execute(input: ComponentValue): Promise<CapabilityResult> {
@@ -42,11 +38,11 @@ export class NotificationCapability implements Capability {
 export function isNotificationInput(value: ComponentValue): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const input = value as Readonly<Record<string, ComponentValue>>;
-  const validStrings = ['automationId', 'occurrenceId', 'subjectItemId', 'message'].every(
-    (key) => typeof input[key] === 'string' && Boolean((input[key] as string).trim()),
-  );
+  const keys = Object.keys(input);
   return (
-    validStrings &&
+    keys.every((key) => ['message', 'priority'].includes(key)) &&
+    typeof input.message === 'string' &&
+    Boolean(input.message.trim()) &&
     (input.priority === undefined ||
       (typeof input.priority === 'number' && Number.isSafeInteger(input.priority)))
   );

@@ -16,9 +16,9 @@ const profile = object({
   key: Type.String({ pattern: keyPattern.source }),
   version: Type.Integer({ minimum: 1 }),
 });
-const authorization = Type.Union([Type.Literal('none'), Type.Literal('explicit')], {
+const consent = Type.Union([Type.Literal('none'), Type.Literal('explicit')], {
   description:
-    'Consent requirement: none or explicit. This is not Capability autonomy; never use propose, approve, or execute.',
+    'Consent requirement: none or explicit. This never increases Capability autonomy; never use blocked, propose, or execute.',
 });
 const automationTrigger = Type.Union([
   object({
@@ -45,7 +45,7 @@ const intentTemplate = object({
   input: Type.Unknown(),
   conditions: Type.Array(Type.Unknown()),
   expectedState: Type.Array(Type.Unknown()),
-  authorization,
+  consent,
 });
 const item = object({
   reference: Type.String(),
@@ -135,7 +135,7 @@ const intentDeclaration = object({
   input: Type.Unknown(),
   conditions: Type.Array(Type.Unknown()),
   expectedState: Type.Array(Type.Unknown()),
-  authorization,
+  consent,
   trigger: Type.Union([Type.Unknown(), Type.Null()]),
 });
 const draft = object({

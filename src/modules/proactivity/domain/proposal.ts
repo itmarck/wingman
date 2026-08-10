@@ -41,7 +41,7 @@ export interface ProactiveProposal {
   readonly capability: { readonly key: string; readonly version: number };
   readonly autonomy: {
     readonly resolved: AutonomyLevel;
-    readonly explicitAuthorization: boolean;
+    readonly explicitConsent: boolean;
     readonly safetyCeiling?: AutonomyLevel;
   };
   readonly intentId?: string;

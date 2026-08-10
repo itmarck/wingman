@@ -40,14 +40,16 @@ export class NotificationService {
         .filter((event) => event.key === 'notificationDelivered' && event.causation.intentId)
         .map((event) => [event.causation.intentId as string, event]),
     );
-    const candidates = await Promise.all(
-      intents.flatMap((intent) => {
-        const delivery = deliveries.get(intent.id);
-        if (!delivery || acknowledged.has(intent.id) || !isNotificationInput(intent.input))
-          return [];
-        return [this.view(intent, delivery.occurredAt)];
-      }),
-    );
+    const candidates = (
+      await Promise.all(
+        intents.flatMap((intent) => {
+          const delivery = deliveries.get(intent.id);
+          if (!delivery || acknowledged.has(intent.id) || !isNotificationInput(intent.input))
+            return [];
+          return [this.view(intent, delivery.occurredAt)];
+        }),
+      )
+    ).filter((candidate): candidate is NotificationView => candidate !== undefined);
     const compact = new Map<string, NotificationView>();
     for (const candidate of candidates) {
       const key = `${candidate.subjectItemId}:${normalize(candidate.message)}`;
@@ -79,17 +81,21 @@ export class NotificationService {
   private async view(
     intent: Awaited<ReturnType<ExecutionStore['listIntents']>>[number],
     deliveredAt: string,
-  ): Promise<NotificationView> {
+  ): Promise<NotificationView | undefined> {
     if (!isNotificationInput(intent.input)) throw new Error('Notification input is invalid');
     const input =
       intent.input as unknown as import('../notification-capability.js').NotificationInput;
-    const runtime = await this.automations.find(input.automationId);
+    const automationId = intent.proposer.kind === 'automation' ? intent.proposer.id : undefined;
+    const occurrenceId = intent.trigger?.value;
+    const runtime = automationId ? await this.automations.find(automationId) : undefined;
+    const subjectItemId = runtime?.automation.subjects[0]?.itemId;
+    if (!automationId || !occurrenceId || !subjectItemId) return undefined;
     const priority = input.priority ?? runtime?.automation.controls.priority ?? 0;
     return Object.freeze({
       id: intent.id,
-      automationId: input.automationId,
-      occurrenceId: input.occurrenceId,
-      subjectItemId: input.subjectItemId,
+      automationId,
+      occurrenceId,
+      subjectItemId,
       message: input.message,
       priority,
       deliveredAt,

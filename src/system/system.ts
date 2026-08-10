@@ -15,8 +15,8 @@ import { GetEntryQuery } from '../modules/capture/operations/get.js';
 import { ListEntriesQuery } from '../modules/capture/operations/list.js';
 import { MemoryExecutionStore } from '../modules/execution/adapters/memory/store.js';
 import type { ExecutionModule } from '../modules/execution/module.js';
-import { AuthorizeIntentCommand } from '../modules/execution/operations/authorize.js';
 import { CancelIntentCommand } from '../modules/execution/operations/cancel.js';
+import { GrantIntentConsentCommand } from '../modules/execution/operations/consent.js';
 import { ExecuteIntentCommand } from '../modules/execution/operations/execute.js';
 import { ProposeIntentCommand } from '../modules/execution/operations/propose.js';
 import { MemoryDeclarationRegistry } from '../modules/interpretation/adapters/memory/declaration.js';
@@ -198,7 +198,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
-  const authorizeIntent = new AuthorizeIntentCommand(executionStore);
+  const grantIntentConsent = new GrantIntentConsentCommand(executionStore);
   const registerAutomation = new RegisterAutomationCommand(
     automationStore,
     triggers,
@@ -273,7 +273,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     capabilities,
     knowledge,
     stateEvaluator,
-    { global: 'propose' },
+    { global: 'execute' },
     ids,
     clock,
   );
@@ -310,7 +310,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     execution: Object.freeze({
       proposeIntent,
-      authorizeIntent,
+      grantIntentConsent,
       cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
       executeIntent,
       capabilities,
@@ -346,7 +346,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         stateViews,
         capabilities,
         proposeIntent,
-        authorizeIntent,
+        grantIntentConsent,
         options.proactivity ?? { global: 'propose' },
         ids,
         clock,

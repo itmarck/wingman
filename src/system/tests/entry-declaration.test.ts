@@ -123,15 +123,10 @@ class DeclarationInterpreter {
               thenIntents: [
                 {
                   capability: { key: 'notification', version: 1 },
-                  input: {
-                    automationId: 'notice',
-                    occurrenceId: '$trigger.id',
-                    subjectItemId: 'task',
-                    message: 'Paga',
-                  },
+                  input: { message: 'Paga' },
                   conditions: [],
                   expectedState: [],
-                  authorization: 'none' as const,
+                  consent: 'none' as const,
                   trigger: { kind: 'time' as const, value: occurrence },
                 },
               ],

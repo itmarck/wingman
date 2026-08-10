@@ -49,7 +49,7 @@ export interface IntentDeclaration extends DeclarationBase {
   readonly input: ComponentValue;
   readonly conditions: readonly Condition[];
   readonly expectedState: readonly Condition[];
-  readonly authorization: CreateIntentInput['authorization'];
+  readonly consent: CreateIntentInput['consent'];
   readonly trigger: CreateIntentInput['trigger'];
 }
 

@@ -22,15 +22,10 @@ describe('launcher notifications', () => {
       thenIntents: [
         {
           capability: { key: 'notification', version: 1 },
-          input: {
-            automationId: 'schedule',
-            occurrenceId: '$trigger.id',
-            subjectItemId,
-            message: 'Termina el informe',
-          },
+          input: { message: 'Termina el informe' },
           conditions: [],
           expectedState: [],
-          authorization: 'none',
+          consent: 'none',
         },
       ],
       controls: { priority: 4, deduplication: 'trigger' },
@@ -76,10 +71,10 @@ describe('launcher notifications', () => {
       thenIntents: [
         {
           capability: { key: 'notification', version: 1 },
-          input: { automationId, occurrenceId: '$trigger.id', subjectItemId, message: 'Paga' },
+          input: { message: 'Paga' },
           conditions: [],
           expectedState: [],
-          authorization: 'none',
+          consent: 'none',
         },
       ],
       evidence,

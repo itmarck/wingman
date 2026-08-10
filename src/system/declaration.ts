@@ -136,7 +136,7 @@ export class EntryDeclarationPublisher implements InterpretationDeclarationPubli
           input: resolveReferences(declaration.input, targets),
           conditions: resolveReferences(declaration.conditions, targets),
           expectedState: resolveReferences(declaration.expectedState, targets),
-          authorization: declaration.authorization,
+          consent: declaration.consent,
           trigger: declaration.trigger,
           proposer: { kind: 'system' },
           evidence,

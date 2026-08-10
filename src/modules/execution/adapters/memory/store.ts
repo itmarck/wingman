@@ -50,7 +50,7 @@ export class MemoryExecutionStore implements ExecutionStore {
 function validTransition(from: Intent['status'], to: Intent['status']): boolean {
   return (
     from === to ||
-    (from === 'proposed' && ['authorized', 'cancelled', 'completed'].includes(to)) ||
-    (from === 'authorized' && ['cancelled', 'completed'].includes(to))
+    (from === 'proposed' && ['consented', 'cancelled', 'completed'].includes(to)) ||
+    (from === 'consented' && ['cancelled', 'completed'].includes(to))
   );
 }

@@ -7,6 +7,7 @@ import { automationRoutes } from './automation.js';
 import { entryRoutes } from './entry.js';
 import { registerErrorHandling } from './error.js';
 import { executionRoutes } from './execution.js';
+import { inspectorRoutes } from './inspector.js';
 import { readMutationMode } from './mutation.js';
 import { notificationRoutes } from './notification.js';
 import { planningRoutes } from './planning.js';
@@ -17,6 +18,7 @@ import { reviewRoutes } from './review.js';
 import { stateRoutes } from './state.js';
 
 export interface HttpServerOptions {
+  readonly environment?: NodeJS.ProcessEnv;
   readonly logger?: FastifyServerOptions['logger'];
   readonly signingSecret: string;
 }
@@ -104,6 +106,10 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       }),
     );
   });
+
+  if ((options.environment ?? process.env).NODE_ENV !== 'production') {
+    void server.register(inspectorRoutes, { system });
+  }
 
   server.register(
     async (protectedServer) => {

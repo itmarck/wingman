@@ -62,12 +62,12 @@ A local production smoke test SHALL authenticate as the launcher and exercise En
 - **WHEN** a developer runs the documented smoke scenario with valid local configuration
 - **THEN** API responses and derived effects demonstrate the complete single-process flow
 
-### Requirement: Real-model authorization contract
-Real-model evaluation SHALL reject autonomy vocabulary in Intent authorization and SHALL verify an explicit notification request produces contract-valid Item and Automation declarations with the configured target.
+### Requirement: Real-model consent contract
+Real-model evaluation SHALL reject autonomy vocabulary in Intent consent and SHALL verify an explicit notification request produces contract-valid Item and Automation declarations with the configured target.
 
-#### Scenario: Model emits execute as authorization
-- **WHEN** model output contains `authorization: execute`
-- **THEN** schema validation fails and evaluation identifies the authorization contract violation
+#### Scenario: Model emits execute as consent
+- **WHEN** model output contains `consent: execute`
+- **THEN** schema validation fails and evaluation identifies the consent contract violation
 
 #### Scenario: Notification declaration succeeds
 - **WHEN** the configured target interprets an explicit scheduled notification request

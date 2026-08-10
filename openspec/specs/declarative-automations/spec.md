@@ -46,7 +46,7 @@ A notification Automation SHALL provide stable Automation and occurrence identit
 - **THEN** its Intent carries stable occurrence context without creating a Notification entity
 
 ### Requirement: Safe notification timing
-Notification compaction or deferral SHALL preserve explicit deadlines, user-selected instants and critical occurrences unless a separately authorized action changes them.
+Notification compaction or deferral SHALL preserve explicit deadlines, user-selected instants and critical occurrences unless a separately consented action changes them.
 
 #### Scenario: Explicit instant is protected
 - **WHEN** an Automation schedules a notification at an explicit user-selected instant
