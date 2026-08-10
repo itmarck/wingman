@@ -1,47 +1,31 @@
 import { assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
-import type { InterpretationPublication } from '../ports/store.js';
+import type { InterpretationPublication } from '../ports.js';
 import { emptyPublication, freezeDraft, freezePublication } from './freeze.js';
 import type { ReferenceDecision, RegisterInterpretationInput } from './input.js';
+import {
+  assertInterpretationIdentity,
+  assertInterpretationState,
+  assertInterpretationValue,
+  assertInterpreterIdentity,
+  type CreateInterpretationInput,
+  type FailedInterpretationContext,
+  type InterpretationId,
+  type InterpretationState,
+  type InterpretationStatus,
+  type InterpreterIdentity,
+  type RehydrateInterpretationInput,
+} from './interpretation-state.js';
 
-export type InterpretationId = string;
-export type InterpretationStatus =
-  | 'completed'
-  | 'exhausted'
-  | 'failed'
-  | 'pending'
-  | 'processing'
-  | 'queued';
-
-export interface InterpreterIdentity {
-  readonly key: string;
-}
-
-export interface InterpretationState {
-  readonly status: InterpretationStatus;
-  readonly attempts: number;
-  readonly updatedAt: string;
-  readonly availableAt?: string;
-  readonly interpreter?: InterpreterIdentity;
-  readonly draft?: RegisterInterpretationInput;
-  readonly publication?: InterpretationPublication;
-  readonly error?: string;
-}
-
-export interface CreateInterpretationInput {
-  readonly id: InterpretationId;
-  readonly entryId: string;
-  readonly createdAt: string;
-}
-
-export interface RehydrateInterpretationInput
-  extends CreateInterpretationInput,
-    InterpretationState {}
-
-export interface FailedInterpretationContext {
-  readonly interpreter: InterpreterIdentity;
-  readonly draft?: RegisterInterpretationInput;
-}
+export type {
+  CreateInterpretationInput,
+  FailedInterpretationContext,
+  InterpretationId,
+  InterpretationState,
+  InterpretationStatus,
+  InterpreterIdentity,
+  RehydrateInterpretationInput,
+} from './interpretation-state.js';
 
 /**
  * Preserves one historical effort and its attempts to derive knowledge from an Entry.
@@ -76,7 +60,7 @@ export class Interpretation {
   }
 
   static create(input: CreateInterpretationInput): Interpretation {
-    assertIdentity(input);
+    assertInterpretationIdentity(input);
 
     return new Interpretation(input, {
       status: 'queued',
@@ -90,8 +74,8 @@ export class Interpretation {
    * Reconstructs an Interpretation exactly as persisted while checking essential invariants.
    */
   static rehydrate(input: RehydrateInterpretationInput): Interpretation {
-    assertIdentity(input);
-    assertState(input);
+    assertInterpretationIdentity(input);
+    assertInterpretationState(input);
 
     return new Interpretation(input, input);
   }
@@ -251,7 +235,7 @@ export class Interpretation {
       throw new ConflictError(`Interpretation ${this.id} cannot fail from ${this.status}`);
     }
 
-    assertValue(error, 'Interpretation error');
+    assertInterpretationValue(error, 'Interpretation error');
     assertUtcDateTime(failedAt, 'Interpretation failedAt');
 
     if (context?.draft && context.draft.entryId !== this.entryId) {
@@ -259,7 +243,7 @@ export class Interpretation {
     }
 
     if (context) {
-      assertInterpreter(context.interpreter);
+      assertInterpreterIdentity(context.interpreter);
     }
   }
 
@@ -278,7 +262,7 @@ export class Interpretation {
       throw new InvalidInputError('Interpretation draft has a different Entry identity');
     }
 
-    assertInterpreter(interpreter);
+    assertInterpreterIdentity(interpreter);
     assertUtcDateTime(updatedAt, 'Interpretation updatedAt');
 
     return this.change({
@@ -300,99 +284,5 @@ export class Interpretation {
       },
       state,
     );
-  }
-}
-
-function assertIdentity(input: CreateInterpretationInput): void {
-  assertValue(input.id, 'Interpretation id');
-  assertValue(input.entryId, 'Interpretation entryId');
-  assertUtcDateTime(input.createdAt, 'Interpretation createdAt');
-}
-
-function assertState(state: RehydrateInterpretationInput): void {
-  const statuses: readonly InterpretationStatus[] = [
-    'queued',
-    'processing',
-    'pending',
-    'completed',
-    'failed',
-    'exhausted',
-  ];
-
-  if (!statuses.includes(state.status)) {
-    throw new InvalidInputError(`Interpretation status ${state.status} is invalid`);
-  }
-
-  if (!Number.isInteger(state.attempts) || state.attempts < 0) {
-    throw new InvalidInputError('Interpretation attempts must be a non-negative integer');
-  }
-
-  assertUtcDateTime(state.updatedAt, 'Interpretation updatedAt');
-
-  if (Date.parse(state.updatedAt) < Date.parse(state.createdAt)) {
-    throw new InvalidInputError('Interpretation updatedAt cannot precede createdAt');
-  }
-
-  if (state.availableAt) {
-    assertUtcDateTime(state.availableAt, 'Interpretation availableAt');
-  }
-
-  if (state.interpreter) {
-    assertInterpreter(state.interpreter);
-  }
-
-  const requiresAttempt = state.status !== 'queued' || state.attempts > 0;
-  const terminalFailure = ['failed', 'exhausted'].includes(state.status);
-
-  if (requiresAttempt && state.attempts === 0) {
-    throw new InvalidInputError(`Interpretation ${state.status} requires at least one attempt`);
-  }
-
-  if (state.status === 'pending' && (!state.draft || !state.interpreter)) {
-    throw new InvalidInputError('Pending Interpretation requires a Draft and Interpreter');
-  }
-
-  if (state.status === 'completed' && (!state.publication || !state.interpreter)) {
-    throw new InvalidInputError('Completed Interpretation requires a publication and Interpreter');
-  }
-
-  if (terminalFailure && !state.error) {
-    throw new InvalidInputError(`${state.status} Interpretation requires an error`);
-  }
-
-  if (state.status === 'queued' && !state.availableAt) {
-    throw new InvalidInputError('Queued Interpretation requires availableAt');
-  }
-
-  if (state.status !== 'queued' && state.availableAt) {
-    throw new InvalidInputError(`Interpretation ${state.status} cannot contain availableAt`);
-  }
-
-  const allowsPublication = state.status === 'completed';
-  const allowsError = state.status === 'queued' || terminalFailure;
-  const allowsDraft = ['completed', 'exhausted', 'failed', 'pending', 'queued'].includes(
-    state.status,
-  );
-
-  if (!allowsPublication && state.publication) {
-    throw new InvalidInputError(`Interpretation ${state.status} cannot contain a publication`);
-  }
-
-  if (!allowsError && state.error) {
-    throw new InvalidInputError(`Interpretation ${state.status} cannot contain an error`);
-  }
-
-  if (!allowsDraft && state.draft) {
-    throw new InvalidInputError(`Interpretation ${state.status} cannot contain a Draft`);
-  }
-}
-
-function assertInterpreter(identity: InterpreterIdentity): void {
-  assertValue(identity.key, 'Interpreter key');
-}
-
-function assertValue(value: string, name: string): void {
-  if (value.trim().length === 0) {
-    throw new InvalidInputError(`${name} cannot be empty`);
   }
 }

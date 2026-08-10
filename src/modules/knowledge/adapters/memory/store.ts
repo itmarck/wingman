@@ -12,12 +12,12 @@ import type { EntryStore } from '../../../capture/ports/store.js';
 import type {
   InterpretationRegistration,
   InterpretationStore,
-} from '../../../interpretation/ports/store.js';
+} from '../../../interpretation/ports.js';
 import type {
   InterpretationContext,
   InterpretationContextSource,
 } from '../../../interpretation/services/context.js';
-import type { ProjectionSource } from '../../../projection/ports/source.js';
+import type { ProjectionSource } from '../../../projection/ports.js';
 import type { ItemRegistration, ItemStore } from '../../ports/store.js';
 
 /** Coherent in-memory persistence for Entries, Items and Component revisions. */

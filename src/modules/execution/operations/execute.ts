@@ -5,7 +5,7 @@ import { type AutonomyLevel, resolveAutonomy } from '../../../core/execution/pol
 import type { ComponentValue } from '../../../core/item/types.js';
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { InterpretationStore } from '../../interpretation/ports/store.js';
+import type { InterpretationStore } from '../../interpretation/ports.js';
 import type { StateEvaluator } from '../../state/services/evaluator.js';
 import type { ExecutionStore } from '../ports/store.js';
 

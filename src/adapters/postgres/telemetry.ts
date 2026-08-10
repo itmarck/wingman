@@ -1,7 +1,4 @@
-import type {
-  InferenceRun,
-  InferenceTelemetry,
-} from '../../modules/interpretation/ports/telemetry.js';
+import type { InferenceRun, InferenceTelemetry } from '../../modules/interpretation/ports.js';
 import type { Database } from './database.js';
 
 /**

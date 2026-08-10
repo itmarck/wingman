@@ -1,6 +1,6 @@
 import { ConflictError, InvalidInputError } from '../../../../system/error.js';
 import type { Projection, ProjectionMetadata } from '../../domain/projection.js';
-import type { ProjectionRegistry } from '../../ports/registry.js';
+import type { ProjectionRegistry } from '../../ports.js';
 
 const projectionKeyPattern = /^[a-z][A-Za-z0-9]*\.[a-z][A-Za-z0-9]*$/;
 const defaultProjectionAreas = ['docs', 'system'] as const;

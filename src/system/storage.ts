@@ -1,12 +1,14 @@
 import type { EntryStore } from '../modules/capture/ports/store.js';
-import type { InterpretationLifecycle } from '../modules/interpretation/ports/lifecycle.js';
-import type { InterpretationQueue } from '../modules/interpretation/ports/queue.js';
-import type { ReviewStore } from '../modules/interpretation/ports/review.js';
-import type { InterpretationStateStore } from '../modules/interpretation/ports/state.js';
-import type { InterpretationStore } from '../modules/interpretation/ports/store.js';
+import type {
+  InterpretationLifecycle,
+  InterpretationQueue,
+  InterpretationStateStore,
+  InterpretationStore,
+  ReviewStore,
+} from '../modules/interpretation/ports.js';
 import type { InterpretationContextSource } from '../modules/interpretation/services/context.js';
 import type { ItemStore } from '../modules/knowledge/ports/store.js';
-import type { ProjectionSource } from '../modules/projection/ports/source.js';
+import type { ProjectionSource } from '../modules/projection/ports.js';
 
 export interface KnowledgeStorage
   extends EntryStore,

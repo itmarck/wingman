@@ -13,8 +13,7 @@ import { createOperatorRegistry } from '../../../core/state/registry.js';
 import { MemoryKnowledgeStore } from '../../knowledge/adapters/memory/store.js';
 import { StateEvaluator } from '../../state/services/evaluator.js';
 import { MemoryExecutionStore } from '../adapters/memory/store.js';
-import { CancelIntentCommand } from '../operations/cancel.js';
-import { GrantIntentConsentCommand } from '../operations/consent.js';
+import { CancelIntentCommand, GrantIntentConsentCommand } from '../operations/control.js';
 import { ExecuteIntentCommand } from '../operations/execute.js';
 import { ProposeIntentCommand } from '../operations/propose.js';
 

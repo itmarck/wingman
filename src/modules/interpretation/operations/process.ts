@@ -3,13 +3,12 @@ import type { Clock } from '../../../system/runtime.js';
 import type { EntryStore } from '../../capture/ports/store.js';
 import type { ProcessingConfig } from '../config.js';
 import type { FailedInterpretationContext, Interpretation } from '../domain/interpretation.js';
-import type { InterpretationDeclarationPublisher } from '../ports/declaration.js';
+import type { InterpretationDeclarationPublisher, InterpretationStateStore } from '../ports.js';
 import {
   type InterpretationClaim,
   InterpretationClaimError,
   type InterpretationQueue,
-} from '../ports/queue.js';
-import type { InterpretationStateStore } from '../ports/state.js';
+} from '../ports.js';
 import type { InterpretationContextSource } from '../services/context.js';
 import {
   type InterpretationResult,

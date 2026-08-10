@@ -3,7 +3,7 @@ import { createPage } from '../../../../adapters/memory/page.js';
 import { ConflictError } from '../../../../system/error.js';
 import type { Page, PageRequest } from '../../../../system/page.js';
 import type { Review, ReviewId } from '../../domain/review.js';
-import type { ReviewResolution, ReviewStore } from '../../ports/review.js';
+import type { ReviewResolution, ReviewStore } from '../../ports.js';
 
 /**
  * In-memory Review persistence used while the durable adapter is not selected.

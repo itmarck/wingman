@@ -5,9 +5,9 @@ import type {
   ClaimInterpretationInput,
   InterpretationClaim,
   InterpretationQueue,
-} from '../../ports/queue.js';
-import { InterpretationClaimError } from '../../ports/queue.js';
-import type { InterpretationStateStore } from '../../ports/state.js';
+  InterpretationStateStore,
+} from '../../ports.js';
+import { InterpretationClaimError } from '../../ports.js';
 
 /**
  * In-memory Interpretation history and queue used before PostgreSQL is introduced.

@@ -4,9 +4,11 @@ import { ConflictError } from '../../../../system/error.js';
 import type { MemoryKnowledgeStore } from '../../../knowledge/adapters/memory/store.js';
 import type { Interpretation } from '../../domain/interpretation.js';
 import type { Review } from '../../domain/review.js';
-import type { InterpretationLifecycle } from '../../ports/lifecycle.js';
-import type { InterpretationClaim } from '../../ports/queue.js';
-import type { InterpretationRegistration } from '../../ports/store.js';
+import type {
+  InterpretationClaim,
+  InterpretationLifecycle,
+  InterpretationRegistration,
+} from '../../ports.js';
 import type { MemoryInterpretations } from './interpretation.js';
 import type { MemoryReviewStore } from './review.js';
 

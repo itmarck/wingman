@@ -1,7 +1,7 @@
 import { Entry, type EntryContent, type EntryOrigin } from '../../../core/knowledge/entry.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import { Interpretation } from '../../interpretation/domain/interpretation.js';
-import type { InterpretationLifecycle } from '../../interpretation/ports/lifecycle.js';
+import type { InterpretationLifecycle } from '../../interpretation/ports.js';
 
 export interface CaptureEntryInput {
   readonly content: EntryContent;

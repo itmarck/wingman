@@ -2,10 +2,7 @@ import { createInferenceAdapter } from '../../src/adapters/inference/adapter.js'
 import { readInferenceConfig } from '../../src/adapters/inference/config.js';
 import type { ComponentRevision } from '../../src/core/item/component.js';
 import type { EntryStatusResult } from '../../src/modules/interpretation/operations/status.js';
-import type {
-  InferenceRun,
-  InferenceTelemetry,
-} from '../../src/modules/interpretation/ports/telemetry.js';
+import type { InferenceRun, InferenceTelemetry } from '../../src/modules/interpretation/ports.js';
 import type { InterpretationAdapter } from '../../src/modules/interpretation/services/interpreter.js';
 import { RetryableInferenceError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { GlossaryResult } from '../../src/modules/projection/domain/glossary.js';

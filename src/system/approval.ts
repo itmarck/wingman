@@ -1,9 +1,11 @@
 import type { Entry } from '../core/knowledge/entry.js';
 import type { Interpretation } from '../modules/interpretation/domain/interpretation.js';
 import type { Review } from '../modules/interpretation/domain/review.js';
-import type { InterpretationLifecycle } from '../modules/interpretation/ports/lifecycle.js';
-import type { InterpretationClaim } from '../modules/interpretation/ports/queue.js';
-import type { InterpretationRegistration } from '../modules/interpretation/ports/store.js';
+import type {
+  InterpretationClaim,
+  InterpretationLifecycle,
+  InterpretationRegistration,
+} from '../modules/interpretation/ports.js';
 import type { MutationMode, ProposalChange, ProposalRegistry } from './proposal.js';
 
 /**

@@ -1,6 +1,5 @@
 import type { CapabilityRegistry } from '../../core/execution/capability.js';
-import type { CancelIntentCommand } from './operations/cancel.js';
-import type { GrantIntentConsentCommand } from './operations/consent.js';
+import type { CancelIntentCommand, GrantIntentConsentCommand } from './operations/control.js';
 import type { ExecuteIntentCommand } from './operations/execute.js';
 import type { ProposeIntentCommand } from './operations/propose.js';
 import type { ExecutionStore } from './ports/store.js';

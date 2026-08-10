@@ -1,6 +1,6 @@
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { ProcessingConfig } from '../config.js';
-import type { InterpretationQueue } from '../ports/queue.js';
+import type { InterpretationQueue } from '../ports.js';
 import type { ProcessInterpretationCommand } from './process.js';
 
 /**

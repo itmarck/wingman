@@ -1,8 +1,11 @@
-import type { InterpretationStatus } from '../domain/interpretation.js';
-import type { DeclarationOutcome, DeclarationOutcomeSource } from '../ports/declaration.js';
-import type { ReviewStore } from '../ports/review.js';
-import type { InterpretationStateStore } from '../ports/state.js';
-import { GetInterpretationQuery } from './get.js';
+import { NotFoundError } from '../../../system/error.js';
+import type { Interpretation, InterpretationStatus } from '../domain/interpretation.js';
+import type {
+  DeclarationOutcome,
+  DeclarationOutcomeSource,
+  InterpretationStateStore,
+  ReviewStore,
+} from '../ports.js';
 
 export interface EntryStatusResult {
   readonly entryId: string;
@@ -21,18 +24,14 @@ export interface EntryStatusResult {
  * Derives the user-facing state from operational processing and pending Reviews.
  */
 export class GetEntryStatusQuery {
-  readonly #getInterpretation: GetInterpretationQuery;
-
   constructor(
-    interpretations: InterpretationStateStore,
+    private readonly interpretations: InterpretationStateStore,
     private readonly reviews: ReviewStore,
     private readonly declarationOutcomes?: DeclarationOutcomeSource,
-  ) {
-    this.#getInterpretation = new GetInterpretationQuery(interpretations);
-  }
+  ) {}
 
   async execute(entryId: string): Promise<EntryStatusResult> {
-    const interpretation = await this.#getInterpretation.execute(entryId);
+    const interpretation = await this.getInterpretation(entryId);
     const reviews = await this.reviews.findPendingReviews(interpretation.id);
     const declarations = (await this.declarationOutcomes?.list(entryId)) ?? [];
 
@@ -48,6 +47,12 @@ export class GetEntryStatusQuery {
       declarations: Object.freeze([...declarations]),
       declarationStatus: summarizeDeclarations(declarations),
     });
+  }
+
+  private async getInterpretation(entryId: string): Promise<Interpretation> {
+    const interpretation = await this.interpretations.findLatestInterpretation(entryId);
+    if (!interpretation) throw new NotFoundError(`Entry ${entryId} has no Interpretation`);
+    return interpretation;
   }
 }
 

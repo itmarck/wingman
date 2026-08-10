@@ -1,8 +1,7 @@
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock } from '../../../system/runtime.js';
 import type { Interpretation } from '../domain/interpretation.js';
-import type { InterpretationLifecycle } from '../ports/lifecycle.js';
-import type { InterpretationStateStore } from '../ports/state.js';
+import type { InterpretationLifecycle, InterpretationStateStore } from '../ports.js';
 
 /**
  * Requeues an Entry whose Interpretation failed or exhausted automatic retries.

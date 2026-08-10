@@ -6,7 +6,7 @@ import { MemoryInterpretationLifecycle } from '../../interpretation/adapters/mem
 import { MemoryReviewStore } from '../../interpretation/adapters/memory/review.js';
 import { MemoryKnowledgeStore } from '../../knowledge/adapters/memory/store.js';
 import { CaptureEntryCommand } from '../operations/capture.js';
-import { ListEntriesQuery } from '../operations/list.js';
+import { ListEntriesQuery } from '../operations/queries.js';
 
 describe('ingest Entry', () => {
   it('validates and stores the original information without changing it', async () => {

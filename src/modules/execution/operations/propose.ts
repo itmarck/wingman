@@ -3,7 +3,7 @@ import { type CreateIntentInput, Intent } from '../../../core/execution/intent.j
 import type { OperatorRegistry } from '../../../core/state/registry.js';
 import { InvalidInputError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { InterpretationStore } from '../../interpretation/ports/store.js';
+import type { InterpretationStore } from '../../interpretation/ports.js';
 import type { ExecutionStore } from '../ports/store.js';
 
 export type ProposeIntentInput = Omit<CreateIntentInput, 'id' | 'createdAt' | 'status'>;

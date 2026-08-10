@@ -1,4 +1,4 @@
-import type { InterpretationPublication } from '../ports/store.js';
+import type { InterpretationPublication } from '../ports.js';
 import type { RegisterInterpretationInput } from './input.js';
 
 export const emptyPublication: InterpretationPublication = Object.freeze({

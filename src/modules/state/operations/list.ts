@@ -1,7 +1,7 @@
 import type { Evaluation } from '../../../core/state/condition.js';
 import type { Modality, State } from '../../../core/state/state.js';
 import type { Clock } from '../../../system/runtime.js';
-import type { InterpretationStore } from '../../interpretation/ports/store.js';
+import type { InterpretationStore } from '../../interpretation/ports.js';
 import type { DerivedStateDefinition } from '../domain/definition.js';
 import type { StateStore } from '../ports/store.js';
 import type { StateEvaluator } from '../services/evaluator.js';

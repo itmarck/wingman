@@ -11,12 +11,13 @@ import { RegisterAutomationCommand } from '../modules/automation/operations/regi
 import { AutomationWorker } from '../modules/automation/operations/worker.js';
 import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
-import { GetEntryQuery } from '../modules/capture/operations/get.js';
-import { ListEntriesQuery } from '../modules/capture/operations/list.js';
+import { GetEntryQuery, ListEntriesQuery } from '../modules/capture/operations/queries.js';
 import { MemoryExecutionStore } from '../modules/execution/adapters/memory/store.js';
 import type { ExecutionModule } from '../modules/execution/module.js';
-import { CancelIntentCommand } from '../modules/execution/operations/cancel.js';
-import { GrantIntentConsentCommand } from '../modules/execution/operations/consent.js';
+import {
+  CancelIntentCommand,
+  GrantIntentConsentCommand,
+} from '../modules/execution/operations/control.js';
 import { ExecuteIntentCommand } from '../modules/execution/operations/execute.js';
 import { ProposeIntentCommand } from '../modules/execution/operations/propose.js';
 import { MemoryDeclarationRegistry } from '../modules/interpretation/adapters/memory/declaration.js';
@@ -29,15 +30,19 @@ import {
   type ProcessingConfig,
 } from '../modules/interpretation/config.js';
 import type { InterpretationModule } from '../modules/interpretation/module.js';
-import { GetReviewQuery } from '../modules/interpretation/operations/get-review.js';
-import { ListReviewsQuery } from '../modules/interpretation/operations/list-reviews.js';
 import { ProcessInterpretationCommand } from '../modules/interpretation/operations/process.js';
 import { ResolveReviewCommand } from '../modules/interpretation/operations/resolve-review.js';
 import { RetryEntryCommand } from '../modules/interpretation/operations/retry.js';
+import {
+  GetReviewQuery,
+  ListReviewsQuery,
+} from '../modules/interpretation/operations/review-queries.js';
 import { GetEntryStatusQuery } from '../modules/interpretation/operations/status.js';
 import { ProcessNextCommand } from '../modules/interpretation/operations/worker.js';
-import type { DeclarationOutcomeSource } from '../modules/interpretation/ports/declaration.js';
-import type { InferenceTelemetry } from '../modules/interpretation/ports/telemetry.js';
+import type {
+  DeclarationOutcomeSource,
+  InferenceTelemetry,
+} from '../modules/interpretation/ports.js';
 import {
   type InferenceConfig,
   type InterpretationAdapter,
@@ -67,8 +72,10 @@ import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/
 import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
 import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
 import type { ProjectionModule } from '../modules/projection/module.js';
-import { ListProjectionsQuery } from '../modules/projection/operations/list.js';
-import { ReadProjectionQuery } from '../modules/projection/operations/read.js';
+import {
+  ListProjectionsQuery,
+  ReadProjectionQuery,
+} from '../modules/projection/operations/queries.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
 import { CreateStateCommand } from '../modules/state/operations/create.js';

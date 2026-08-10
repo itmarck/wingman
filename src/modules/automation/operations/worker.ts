@@ -3,7 +3,7 @@ import type { Event } from '../../../core/execution/event.js';
 import type { ComponentValue } from '../../../core/item/types.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { ProposeIntentCommand } from '../../execution/operations/propose.js';
-import type { InterpretationStore } from '../../interpretation/ports/store.js';
+import type { InterpretationStore } from '../../interpretation/ports.js';
 import type { StateEvaluator } from '../../state/services/evaluator.js';
 import type { AutomationRuntime, AutomationStore, StateChangeSignal } from '../ports/store.js';
 

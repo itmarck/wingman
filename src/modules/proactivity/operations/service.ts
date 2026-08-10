@@ -3,7 +3,7 @@ import { type AutonomyLevel, resolveAutonomy } from '../../../core/execution/pol
 import type { ComponentValue } from '../../../core/item/types.js';
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { GrantIntentConsentCommand } from '../../execution/operations/consent.js';
+import type { GrantIntentConsentCommand } from '../../execution/operations/control.js';
 import type { ProposeIntentCommand } from '../../execution/operations/propose.js';
 import type { ItemStore } from '../../knowledge/ports/store.js';
 import type { PlanningQueries } from '../../planning/operations/query.js';

@@ -7,7 +7,7 @@ import type { RegisterInterpretationInput } from '../modules/interpretation/doma
 import type {
   DeclarationOutcomeStatus,
   InterpretationDeclarationPublisher,
-} from '../modules/interpretation/ports/declaration.js';
+} from '../modules/interpretation/ports.js';
 import type { ComposeItemCommand } from '../modules/knowledge/operations/compose.js';
 import type { PersistStateInput } from '../modules/state/operations/create.js';
 import type { Clock, IdGenerator } from './runtime.js';

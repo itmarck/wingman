@@ -2,7 +2,7 @@ import { NotFoundError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { EntryStore } from '../../capture/ports/store.js';
 import { Interpretation } from '../domain/interpretation.js';
-import type { InterpretationLifecycle } from '../ports/lifecycle.js';
+import type { InterpretationLifecycle } from '../ports.js';
 
 export interface ReinterpretEntryInput {
   readonly entryId: string;

@@ -2,10 +2,12 @@ import { NotFoundError } from '../../../system/error.js';
 import type { Clock } from '../../../system/runtime.js';
 import type { ReferenceDecision } from '../domain/input.js';
 import type { Review } from '../domain/review.js';
-import type { InterpretationDeclarationPublisher } from '../ports/declaration.js';
-import type { InterpretationLifecycle } from '../ports/lifecycle.js';
-import type { ReviewStore } from '../ports/review.js';
-import type { InterpretationStateStore } from '../ports/state.js';
+import type {
+  InterpretationDeclarationPublisher,
+  InterpretationLifecycle,
+  InterpretationStateStore,
+  ReviewStore,
+} from '../ports.js';
 import type { RegisterInterpretationCommand } from '../services/register.js';
 
 export interface ResolveReviewInput {

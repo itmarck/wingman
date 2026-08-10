@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { InferenceRun } from '../../../modules/interpretation/ports/telemetry.js';
+import type { InferenceRun } from '../../../modules/interpretation/ports.js';
 import type { Database, DatabaseResult } from '../database.js';
 import { PostgresInferenceTelemetry } from '../telemetry.js';
 

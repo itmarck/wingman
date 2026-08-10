@@ -1,5 +1,4 @@
-import type { ListProjectionsQuery } from './operations/list.js';
-import type { ReadProjectionQuery } from './operations/read.js';
+import type { ListProjectionsQuery, ReadProjectionQuery } from './operations/queries.js';
 
 export interface ProjectionModule {
   readonly listProjections: ListProjectionsQuery;

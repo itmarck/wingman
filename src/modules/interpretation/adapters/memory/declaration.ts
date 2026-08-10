@@ -1,4 +1,4 @@
-import type { DeclarationOutcome, DeclarationOutcomeSource } from '../../ports/declaration.js';
+import type { DeclarationOutcome, DeclarationOutcomeSource } from '../../ports.js';
 
 export interface DeclarationOutcomeStore extends DeclarationOutcomeSource {
   find(entryId: string, reference: string): Promise<DeclarationOutcome | undefined>;

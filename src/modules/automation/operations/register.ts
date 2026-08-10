@@ -4,7 +4,7 @@ import type { CapabilityRegistry } from '../../../core/execution/capability.js';
 import type { OperatorRegistry } from '../../../core/state/registry.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { InterpretationStore } from '../../interpretation/ports/store.js';
+import type { InterpretationStore } from '../../interpretation/ports.js';
 import type { AutomationStore } from '../ports/store.js';
 
 export type RegisterAutomationInput = Omit<CreateAutomationInput, 'id' | 'createdAt' | 'status'> & {
