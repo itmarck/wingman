@@ -141,7 +141,7 @@ Each operation allows at most three attempts. Transient outages use 1/5 minute d
 
 ## Proactive assistance
 
-Every proactive proposal carries evidence, rationale, urgency, and expiration.
+Every Suggestion carries evidence, rationale, urgency, and expiration.
 
 ```mermaid
 flowchart LR

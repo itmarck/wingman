@@ -1,6 +1,6 @@
 # Wingman
 
-Personal knowledge and automation server. Wingman preserves original Entries, derives composable Items and declarative operations, resolves uncertain Item references through Reviews, and exposes planning, notification views, proactive proposals and Projections through an authenticated API.
+Personal knowledge and automation server. Wingman preserves original Entries, derives composable Items and declarative operations, resolves uncertain Item references through Reviews, and exposes planning, notification views, Suggestions and Projections through an authenticated API.
 
 ## Setup
 

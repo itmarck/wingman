@@ -9,8 +9,8 @@ import type { ItemStore } from '../../knowledge/ports/store.js';
 import type { PlanningQueries } from '../../planning/operations/query.js';
 import type { ListStateViewQuery } from '../../state/operations/list.js';
 import type { DetectorFinding, ProactivitySignal } from '../domain/detector.js';
-import type { FeedbackKind, ProactiveFeedback, ProactiveProposal } from '../domain/proposal.js';
-import type { ProactivityStore } from '../ports/store.js';
+import type { FeedbackKind, Suggestion, SuggestionFeedback } from '../domain/suggestion.js';
+import type { SuggestionStore } from '../ports/store.js';
 import type { DetectorRegistry } from '../registry.js';
 
 export interface ProactivityPolicy {
@@ -28,10 +28,10 @@ interface StateViews {
   execute(view: 'required' | 'forbidden'): ReturnType<ListStateViewQuery['execute']>;
 }
 
-/** Evaluates registered detectors and creates bounded, explainable Intent proposals without executing them. */
+/** Evaluates registered detectors and creates bounded, explainable Suggestions without executing them. */
 export class ProactivityService {
   constructor(
-    private readonly store: ProactivityStore,
+    private readonly store: SuggestionStore,
     readonly detectors: DetectorRegistry,
     private readonly knowledge: ItemStore,
     private readonly planning: PlanningQueries,
@@ -44,7 +44,7 @@ export class ProactivityService {
     private readonly clock: Clock,
   ) {}
 
-  async evaluate(signal: ProactivitySignal): Promise<readonly ProactiveProposal[]> {
+  async evaluate(signal: ProactivitySignal): Promise<readonly Suggestion[]> {
     await this.expire();
     const [snapshot, actionable, blocked, overdue, progress, pending, required, forbidden] =
       await Promise.all([
@@ -64,59 +64,59 @@ export class ProactivityService {
       states: { required, forbidden },
       now: this.clock.now(),
     };
-    const created: ProactiveProposal[] = [];
+    const created: Suggestion[] = [];
     for (const detector of this.detectors.relevant(signal))
       for (const finding of detector.detect(context)) {
         const fingerprint = fingerprintFor(detector.key, finding);
         if (await this.suppressed(fingerprint)) continue;
-        const proposal = await this.createProposal(
+        const suggestion = await this.createSuggestion(
           detector.key,
           detector.version,
           fingerprint,
           finding,
           signal,
         );
-        await this.store.save(proposal);
-        created.push(proposal);
+        await this.store.save(suggestion);
+        created.push(suggestion);
       }
     return Object.freeze(created);
   }
 
-  async list(): Promise<readonly ProactiveProposal[]> {
+  async list(): Promise<readonly Suggestion[]> {
     await this.expire();
     return this.store.list();
   }
-  async read(id: string): Promise<ProactiveProposal> {
+  async read(id: string): Promise<Suggestion> {
     await this.expire();
-    const proposal = await this.store.find(id);
-    if (!proposal) throw new NotFoundError(`Proactive proposal ${id} does not exist`);
-    return proposal;
+    const suggestion = await this.store.find(id);
+    if (!suggestion) throw new NotFoundError(`Suggestion ${id} does not exist`);
+    return suggestion;
   }
   async feedback(id: string, input: FeedbackInput): Promise<void> {
-    const proposal = await this.read(id);
+    const suggestion = await this.read(id);
     validateFeedback(input, this.clock.now());
-    if (input.kind === 'accepted' && proposal.intentId && proposal.autonomy.explicitConsent)
-      await this.grantIntentConsent.execute(proposal.intentId);
-    const feedback: ProactiveFeedback = Object.freeze({
+    if (input.kind === 'accepted' && suggestion.intentId && suggestion.autonomy.explicitConsent)
+      await this.grantIntentConsent.execute(suggestion.intentId);
+    const feedback: SuggestionFeedback = Object.freeze({
       ...input,
       at: this.clock.now().toISOString(),
     });
     await this.store.save(
       Object.freeze({
-        ...proposal,
+        ...suggestion,
         status: input.kind,
-        feedback: Object.freeze([...proposal.feedback, feedback]),
+        feedback: Object.freeze([...suggestion.feedback, feedback]),
       }),
     );
   }
 
-  private async createProposal(
+  private async createSuggestion(
     detectorKey: string,
     detectorVersion: number,
     fingerprint: string,
     finding: DetectorFinding,
     signal: ProactivitySignal,
-  ): Promise<ProactiveProposal> {
+  ): Promise<Suggestion> {
     const now = this.clock.now();
     const id = this.ids.generate();
     const capability = this.capabilities.find(finding.capability.key, finding.capability.version);
@@ -133,7 +133,7 @@ export class ProactivityService {
     if (capability && resolved !== 'blocked' && finding.evidence.length > 0)
       intentId = await this.proposeIntent.execute({
         capability: finding.capability,
-        input: replaceProposalId(finding.input, id),
+        input: replaceSuggestionId(finding.input, id),
         proposer: { kind: 'system', id: detectorKey },
         conditions: finding.conditions,
         expectedState: [],
@@ -179,17 +179,17 @@ export class ProactivityService {
   }
   private async expire(): Promise<void> {
     const now = this.clock.now();
-    for (const proposal of await this.store.list())
+    for (const suggestion of await this.store.list())
       if (
-        ['active', 'postponed', 'modified'].includes(proposal.status) &&
-        Date.parse(proposal.expiresAt) <= now.getTime()
+        ['active', 'postponed', 'modified'].includes(suggestion.status) &&
+        Date.parse(suggestion.expiresAt) <= now.getTime()
       ) {
         const feedback = Object.freeze({ kind: 'expired' as const, at: now.toISOString() });
         await this.store.save(
           Object.freeze({
-            ...proposal,
+            ...suggestion,
             status: 'expired',
-            feedback: Object.freeze([...proposal.feedback, feedback]),
+            feedback: Object.freeze([...suggestion.feedback, feedback]),
           }),
         );
       }
@@ -202,12 +202,12 @@ function fingerprintFor(detector: string, finding: DetectorFinding): string {
   );
   return `${detector}:${finding.subjectItemId ?? 'system'}:${finding.capability.key}:${JSON.stringify(stableState)}`;
 }
-function replaceProposalId(value: ComponentValue, id: string): ComponentValue {
-  if (value === '$proposalId') return id;
-  if (Array.isArray(value)) return value.map((child) => replaceProposalId(child, id));
+function replaceSuggestionId(value: ComponentValue, id: string): ComponentValue {
+  if (value === '$suggestionId') return id;
+  if (Array.isArray(value)) return value.map((child) => replaceSuggestionId(child, id));
   if (value && typeof value === 'object')
     return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [key, replaceProposalId(child, id)]),
+      Object.entries(value).map(([key, child]) => [key, replaceSuggestionId(child, id)]),
     );
   return value;
 }

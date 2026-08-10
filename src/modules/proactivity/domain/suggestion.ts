@@ -1,8 +1,8 @@
 import type { AutonomyLevel } from '../../../core/execution/policy.js';
 import type { ComponentValue, Evidence } from '../../../core/item/types.js';
 
-export type ProactiveUrgency = 'low' | 'medium' | 'high' | 'critical';
-export type ProactiveStatus =
+export type SuggestionUrgency = 'low' | 'medium' | 'high' | 'critical';
+export type SuggestionStatus =
   | 'active'
   | 'accepted'
   | 'rejected'
@@ -19,7 +19,7 @@ export type FeedbackKind =
   | 'expired'
   | 'completed';
 
-export interface ProactiveFeedback {
+export interface SuggestionFeedback {
   readonly kind: FeedbackKind;
   readonly at: string;
   readonly reviewAt?: string;
@@ -27,7 +27,7 @@ export interface ProactiveFeedback {
   readonly note?: string;
 }
 
-export interface ProactiveProposal {
+export interface Suggestion {
   readonly id: string;
   readonly fingerprint: string;
   readonly detector: { readonly key: string; readonly version: number };
@@ -36,7 +36,7 @@ export interface ProactiveProposal {
   readonly evidence: readonly Evidence[];
   readonly rationale: string;
   readonly expectedEffect: string;
-  readonly urgency: ProactiveUrgency;
+  readonly urgency: SuggestionUrgency;
   readonly expiresAt: string;
   readonly capability: { readonly key: string; readonly version: number };
   readonly autonomy: {
@@ -45,7 +45,7 @@ export interface ProactiveProposal {
     readonly safetyCeiling?: AutonomyLevel;
   };
   readonly intentId?: string;
-  readonly status: ProactiveStatus;
+  readonly status: SuggestionStatus;
   readonly createdAt: string;
-  readonly feedback: readonly ProactiveFeedback[];
+  readonly feedback: readonly SuggestionFeedback[];
 }

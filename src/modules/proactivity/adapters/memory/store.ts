@@ -1,22 +1,22 @@
-import type { ProactiveProposal } from '../../domain/proposal.js';
-import type { ProactivityStore } from '../../ports/store.js';
+import type { Suggestion } from '../../domain/suggestion.js';
+import type { SuggestionStore } from '../../ports/store.js';
 
-export class MemoryProactivityStore implements ProactivityStore {
-  readonly #proposals = new Map<string, ProactiveProposal>();
+export class MemorySuggestionStore implements SuggestionStore {
+  readonly #suggestions = new Map<string, Suggestion>();
   readonly #fingerprints = new Map<string, string>();
-  async save(proposal: ProactiveProposal): Promise<void> {
-    const frozen = Object.freeze(structuredClone(proposal));
-    this.#proposals.set(proposal.id, frozen);
-    this.#fingerprints.set(proposal.fingerprint, proposal.id);
+  async save(suggestion: Suggestion): Promise<void> {
+    const frozen = Object.freeze(structuredClone(suggestion));
+    this.#suggestions.set(suggestion.id, frozen);
+    this.#fingerprints.set(suggestion.fingerprint, suggestion.id);
   }
-  async find(id: string): Promise<ProactiveProposal | undefined> {
-    return this.#proposals.get(id);
+  async find(id: string): Promise<Suggestion | undefined> {
+    return this.#suggestions.get(id);
   }
-  async findFingerprint(fingerprint: string): Promise<ProactiveProposal | undefined> {
+  async findFingerprint(fingerprint: string): Promise<Suggestion | undefined> {
     const id = this.#fingerprints.get(fingerprint);
-    return id ? this.#proposals.get(id) : undefined;
+    return id ? this.#suggestions.get(id) : undefined;
   }
-  async list(): Promise<readonly ProactiveProposal[]> {
-    return Object.freeze([...this.#proposals.values()]);
+  async list(): Promise<readonly Suggestion[]> {
+    return Object.freeze([...this.#suggestions.values()]);
   }
 }

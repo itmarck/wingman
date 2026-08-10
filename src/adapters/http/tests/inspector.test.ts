@@ -20,6 +20,12 @@ describe('development inspector', () => {
         title: 'Revisar el inspector',
         evidence: [{ entryId, sourceLocators: [] }],
       });
+      await system.planning.commands.create({
+        profile: 'objective',
+        title: 'Entender Wingman',
+        evidence: [{ entryId, sourceLocators: [] }],
+      });
+      await system.proactivity.service.evaluate({ kind: 'scan' });
       const [page, data] = await Promise.all([
         server.inject({ method: 'GET', url: '/inspect' }),
         server.inject({ method: 'GET', url: '/inspect/data' }),
@@ -37,7 +43,7 @@ describe('development inspector', () => {
       expect(page.body).toContain('--background: #09090b');
       expect(data.statusCode).toBe(200);
       expect(snapshot.nodes.map((node) => node.type)).toEqual(
-        expect.arrayContaining(['entry', 'interpretation', 'item', 'component']),
+        expect.arrayContaining(['entry', 'interpretation', 'item', 'component', 'suggestion']),
       );
       expect(snapshot.edges).toContainEqual({
         from: entry?.id,

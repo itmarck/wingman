@@ -13,12 +13,12 @@ The system SHALL detect configured missing next actions, blockers, approaching d
 - **WHEN** an active objective has no actionable next task
 - **THEN** the applicable detector may propose a planning Intent
 
-### Requirement: Explainable proposals
-Every proactive proposal SHALL identify its detector or Automation, relevant State, evidence, rationale, urgency, expected effect, and expiration.
+### Requirement: Explainable suggestions
+Every proactive Suggestion SHALL identify its detector or Automation, relevant State, evidence, rationale, urgency, expected effect, and expiration.
 
 #### Scenario: Blocked plan suggestion
 - **WHEN** a high-priority plan remains blocked beyond its review window
-- **THEN** the proposal explains the blocker, elapsed time, affected objective, and suggested action
+- **THEN** the Suggestion explains the blocker, elapsed time, affected objective, and suggested action
 
 ### Requirement: Autonomy-controlled assistance
 Proactive behavior SHALL resolve global, Capability and user autonomy independently from explicit Intent consent and SHALL NOT exceed the Capability safety ceiling.
@@ -27,12 +27,23 @@ Proactive behavior SHALL resolve global, Capability and user autonomy independen
 - **WHEN** the same risk could produce a notification or a consequential external mutation
 - **THEN** each Intent follows its own Capability policy and the mutation is not executed without required consent
 
-### Requirement: Proposal feedback
-The system SHALL preserve accepted, rejected, modified, postponed, expired, and completed proposal outcomes without interpreting rejection as permission for unrelated behavior.
+### Requirement: Suggestion feedback
+The system SHALL preserve accepted, rejected, modified, postponed, expired, and completed Suggestion outcomes without interpreting rejection as permission for unrelated behavior.
 
-#### Scenario: Proposal postponed
-- **WHEN** the user postpones a suggestion
-- **THEN** the proposal records the new review time and does not repeatedly interrupt before then
+#### Scenario: Suggestion postponed
+- **WHEN** the user postpones a Suggestion
+- **THEN** the Suggestion records the new review time and does not repeatedly interrupt before then
+
+### Requirement: Suggestion API vocabulary
+The authenticated API SHALL expose proactive assistance resources as Suggestions and SHALL reserve Proposal vocabulary for pending technical mutations.
+
+#### Scenario: Consumer lists proactive assistance
+- **WHEN** a consumer requests `/api/suggestions`
+- **THEN** the system returns explainable Suggestions without exposing a proactive-proposal alias
+
+#### Scenario: Consumer records feedback
+- **WHEN** a consumer posts feedback to `/api/suggestions/:id/feedback`
+- **THEN** the system records Suggestion feedback through the existing mutation boundary
 
 ### Requirement: Proactivity remains bounded
 Inference SHALL NOT invent executable operators or Capabilities and proactive evaluation SHALL NOT directly mutate State or invoke adapters.

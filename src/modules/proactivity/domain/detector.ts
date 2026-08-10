@@ -4,7 +4,7 @@ import type { ComponentValue, Evidence } from '../../../core/item/types.js';
 import type { Condition } from '../../../core/state/condition.js';
 import type { PlanningRecord } from '../../planning/operations/query.js';
 import type { StateViewItem } from '../../state/operations/list.js';
-import type { ProactiveUrgency } from './proposal.js';
+import type { SuggestionUrgency } from './suggestion.js';
 
 export interface DetectorDependencies {
   readonly profiles?: readonly string[];
@@ -28,7 +28,7 @@ export interface DetectorFinding {
   readonly evidence: readonly Evidence[];
   readonly rationale: string;
   readonly expectedEffect: string;
-  readonly urgency: ProactiveUrgency;
+  readonly urgency: SuggestionUrgency;
   readonly expiresInMs: number;
   readonly capability: { readonly key: string; readonly version: number };
   readonly input: ComponentValue;

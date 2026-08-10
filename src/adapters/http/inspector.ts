@@ -271,18 +271,19 @@ export async function createInspectorSnapshot(system: System): Promise<Inspector
     addEdge(nodeId('intent', notification.id), notificationNode, 'deliveredAs');
     addEdge(notificationNode, nodeId('item', notification.subjectItemId), 'about');
   }
-  for (const proposal of proactive) {
-    const proposalNode = addNode(
-      'proactiveProposal',
-      proposal.id,
-      proposal.rationale,
-      proposal,
-      proposal.status,
-      proposal.createdAt,
+  for (const suggestion of proactive) {
+    const suggestionNode = addNode(
+      'suggestion',
+      suggestion.id,
+      suggestion.rationale,
+      suggestion,
+      suggestion.status,
+      suggestion.createdAt,
     );
-    if (proposal.subjectItemId)
-      addEdge(proposalNode, nodeId('item', proposal.subjectItemId), 'about');
-    if (proposal.intentId) addEdge(proposalNode, nodeId('intent', proposal.intentId), 'proposes');
+    if (suggestion.subjectItemId)
+      addEdge(suggestionNode, nodeId('item', suggestion.subjectItemId), 'about');
+    if (suggestion.intentId)
+      addEdge(suggestionNode, nodeId('intent', suggestion.intentId), 'suggests');
   }
   for (const event of executionEvents)
     events.push(

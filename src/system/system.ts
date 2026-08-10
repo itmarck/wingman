@@ -53,7 +53,7 @@ import { NotificationWorker } from '../modules/notification/operations/worker.js
 import type { PlanningModule } from '../modules/planning/module.js';
 import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
 import { PlanningCommandService } from '../modules/planning/operations/write.js';
-import { MemoryProactivityStore } from '../modules/proactivity/adapters/memory/store.js';
+import { MemorySuggestionStore } from '../modules/proactivity/adapters/memory/store.js';
 import {
   createDetectorRegistry,
   type DetectorThresholds,
@@ -131,7 +131,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const executionStore = new MemoryExecutionStore();
   const triggers = createTriggerRegistry();
   const automationStore = new MemoryAutomationStore();
-  const proactivityStore = new MemoryProactivityStore();
+  const suggestionStore = new MemorySuggestionStore();
   const detectors = createDetectorRegistry(options.detectorThresholds);
   const declarationOutcomes = new MemoryDeclarationRegistry();
   const projections = new MemoryProjectionRegistry([
@@ -339,7 +339,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     }),
     proactivity: Object.freeze({
       service: new ProactivityService(
-        proactivityStore,
+        suggestionStore,
         detectors,
         knowledge,
         planningQueries,

@@ -10,22 +10,22 @@ interface Options {
 }
 export const proactivityRoutes: FastifyPluginAsyncTypebox<Options> = async (server, { system }) => {
   server.get(
-    '/proactive-proposals',
+    '/suggestions',
     {
       schema: {
         tags: ['Proactivity'],
-        summary: 'List explainable proactive proposals',
+        summary: 'List explainable Suggestions',
         response: { 200: Type.Array(Type.Unknown()), 401: errorSchema },
       },
     },
     async () => [...(await system.proactivity.service.list())],
   );
   server.get(
-    '/proactive-proposals/:id',
+    '/suggestions/:id',
     {
       schema: {
         tags: ['Proactivity'],
-        summary: 'Read one proactive proposal',
+        summary: 'Read one Suggestion',
         params: Type.Object({ id: Type.String() }),
         response: { 200: Type.Unknown(), 401: errorSchema, 404: errorSchema },
       },
@@ -49,11 +49,11 @@ export const proactivityRoutes: FastifyPluginAsyncTypebox<Options> = async (serv
     },
   );
   server.post(
-    '/proactive-proposals/:id/feedback',
+    '/suggestions/:id/feedback',
     {
       schema: {
         tags: ['Proactivity'],
-        summary: 'Record explicit proposal feedback',
+        summary: 'Record explicit Suggestion feedback',
         headers: mutationHeadersSchema,
         params: Type.Object({ id: Type.String() }),
         body: Type.Object({

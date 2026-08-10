@@ -41,7 +41,7 @@ function missingNextAction(): ProactiveDetector {
           (objective) => objective.status === 'active' && objective.hasActionableNextStep === false,
         )
         .flatMap((objective) =>
-          proposal(
+          suggestion(
             context,
             objective.itemId,
             objective.status,
@@ -66,7 +66,7 @@ function blockerDuration(windowMs: number): ProactiveDetector {
         )?.createdAt;
         const elapsed = created ? context.now.getTime() - Date.parse(created) : 0;
         return elapsed >= windowMs
-          ? proposal(
+          ? suggestion(
               context,
               item.itemId,
               item.status,
@@ -90,7 +90,7 @@ function deadlineRisk(leadMs: number): ProactiveDetector {
         if (!item.dueAt) return [];
         const remaining = Date.parse(item.dueAt) - context.now.getTime();
         if (remaining > leadMs) return [];
-        return proposal(
+        return suggestion(
           context,
           item.itemId,
           item.status,
@@ -118,7 +118,7 @@ function inactivity(windowMs: number): ProactiveDetector {
         const latest = Math.max(...revisions.map((revision) => Date.parse(revision.recordedAt)));
         const elapsed = context.now.getTime() - latest;
         return elapsed >= windowMs
-          ? proposal(
+          ? suggestion(
               context,
               item.itemId,
               item.status,
@@ -188,7 +188,7 @@ function relevantChange(): ProactiveDetector {
       if (context.signal.kind === 'knowledge') {
         const signal = context.signal;
         return signal.itemIds.flatMap((itemId) =>
-          proposal(
+          suggestion(
             context,
             itemId,
             undefined,
@@ -213,7 +213,7 @@ function detector(
 ): ProactiveDetector {
   return { key, version: 1, description, dependencies, detect };
 }
-function proposal(
+function suggestion(
   context: DetectorContext,
   itemId: string,
   status: string | undefined,

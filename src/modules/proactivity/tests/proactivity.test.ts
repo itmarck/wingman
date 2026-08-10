@@ -37,8 +37,8 @@ describe('proactive assistance', () => {
       evidence,
     });
 
-    const proposals = await system.proactivity.service.evaluate({ kind: 'scan' });
-    const keys = new Set(proposals.map((proposal) => proposal.detector.key));
+    const suggestions = await system.proactivity.service.evaluate({ kind: 'scan' });
+    const keys = new Set(suggestions.map((suggestion) => suggestion.detector.key));
     expect([...keys]).toEqual(
       expect.arrayContaining([
         'missingNextAction',
@@ -47,8 +47,8 @@ describe('proactive assistance', () => {
         'inactivity',
       ]),
     );
-    for (const proposal of proposals)
-      expect(proposal).toMatchObject({
+    for (const suggestion of suggestions)
+      expect(suggestion).toMatchObject({
         rationale: expect.any(String),
         expectedEffect: expect.any(String),
         evidence: expect.arrayContaining([expect.objectContaining({ entryId })]),
@@ -119,7 +119,7 @@ describe('proactive assistance', () => {
           itemIds: [taskId],
           componentKeys: ['planning'],
         })
-      ).map((proposal) => proposal.detector.key),
+      ).map((suggestion) => suggestion.detector.key),
     ).toContain('relevantChange');
     const event = Event.create({
       id: 'event-new-knowledge',
@@ -130,7 +130,7 @@ describe('proactive assistance', () => {
     });
     expect(
       (await system.proactivity.service.evaluate({ kind: 'event', event })).map(
-        (proposal) => proposal.detector.key,
+        (suggestion) => suggestion.detector.key,
       ),
     ).toEqual(['relevantChange']);
     await system.close();
@@ -157,16 +157,16 @@ describe('proactive assistance', () => {
       customDetector('unsupportedSuggestion', 'inventedEffect', subjectItemId, evidence),
     );
 
-    const proposals = await system.proactivity.service.evaluate({
+    const suggestions = await system.proactivity.service.evaluate({
       kind: 'knowledge',
       itemIds: [subjectItemId],
       componentKeys: ['customSignal'],
     });
     const supported = requireDefined(
-      proposals.find((proposal) => proposal.detector.key === 'safeSuggestion'),
+      suggestions.find((suggestion) => suggestion.detector.key === 'safeSuggestion'),
     );
     const unsupported = requireDefined(
-      proposals.find((proposal) => proposal.detector.key === 'unsupportedSuggestion'),
+      suggestions.find((suggestion) => suggestion.detector.key === 'unsupportedSuggestion'),
     );
     expect(supported).toMatchObject({
       autonomy: { resolved: 'propose', safetyCeiling: 'propose' },
