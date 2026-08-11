@@ -8,6 +8,7 @@ import { RetryableInferenceError } from '../../src/modules/interpretation/servic
 import type { GlossaryResult } from '../../src/modules/projection/domain/glossary.js';
 import type { CurrentItemsResult } from '../../src/modules/projection/domain/items.js';
 import { createSystem, type System } from '../../src/system/system.js';
+import { createMemoryTestStorage } from '../../src/system/tests/storage.js';
 
 const defaultEvaluationTimeoutMs = 30_000;
 const pollingIntervalMs = 100;
@@ -256,7 +257,7 @@ async function execute(
 ): Promise<IterationReport> {
   const telemetry = new EvaluationTelemetry();
   const adapter = new RecordingAdapter(createInferenceAdapter(config));
-  const system = createSystem('memory', {
+  const system = createSystem(createMemoryTestStorage(), {
     adapter,
     inference: config,
     mode: 'write',

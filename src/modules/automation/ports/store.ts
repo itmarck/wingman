@@ -1,5 +1,6 @@
 import type { Automation } from '../../../core/automation/automation.js';
 import type { Event } from '../../../core/execution/event.js';
+import type { Intent } from '../../../core/execution/intent.js';
 
 export interface AutomationRuntime {
   readonly automation: Automation;
@@ -23,6 +24,12 @@ export interface StateChangeSignal {
   readonly itemIds: readonly string[];
   readonly componentKeys: readonly string[];
 }
+export interface AutomationOccurrence {
+  readonly runtime: AutomationRuntime;
+  readonly result: AutomationEvaluationResult;
+  readonly deduplicationId: string;
+  readonly intents: readonly Intent[];
+}
 export interface AutomationStore {
   save(runtime: AutomationRuntime): Promise<void>;
   find(id: string): Promise<AutomationRuntime | undefined>;
@@ -31,5 +38,6 @@ export interface AutomationStore {
   forEvent(event: Event): Promise<readonly AutomationRuntime[]>;
   forStateChange(signal: StateChangeSignal): Promise<readonly AutomationRuntime[]>;
   appendResult(result: AutomationEvaluationResult): Promise<void>;
+  commitOccurrence(occurrence: AutomationOccurrence): Promise<boolean>;
   listResults(automationId: string): Promise<readonly AutomationEvaluationResult[]>;
 }

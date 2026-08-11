@@ -20,6 +20,7 @@ describe('Runtime lifecycle', () => {
     await runtime.close('duplicate');
 
     expect(events).toEqual([
+      'database:ready',
       'server:start',
       'worker:start',
       'runtime:test',
@@ -46,8 +47,34 @@ describe('Runtime lifecycle', () => {
 
     await expect(runtime.start()).rejects.toThrow('worker failed');
     expect(events).toEqual([
+      'database:ready',
       'server:start',
       'worker:start',
+      'runtime:startupFailure',
+      'server:close',
+      'worker:close',
+      'system:close',
+      'database:close',
+    ]);
+  });
+
+  it('does not start HTTP or workers when database readiness fails', async () => {
+    const events: string[] = [];
+    const database = createDatabase(events);
+    database.assertReady = async () => {
+      events.push('database:ready');
+      throw new Error('database unavailable');
+    };
+    const runtime = new Runtime({
+      server: createServer(events),
+      worker: createWorker(events),
+      system: createClosable<System>('system', events),
+      database,
+    });
+
+    await expect(runtime.start()).rejects.toThrow('database unavailable');
+    expect(events).toEqual([
+      'database:ready',
       'runtime:startupFailure',
       'server:close',
       'worker:close',
@@ -91,6 +118,15 @@ function createDatabase(events: string[]): Database {
   return {
     async query<Row>(): Promise<DatabaseResult<Row>> {
       return { rows: [] };
+    },
+    async transaction<Value>(action: (database: Database) => Promise<Value>): Promise<Value> {
+      return action(this);
+    },
+    async assertReady() {
+      events.push('database:ready');
+    },
+    async isReady() {
+      return true;
     },
     async close() {
       events.push('database:close');

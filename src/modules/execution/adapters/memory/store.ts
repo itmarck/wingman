@@ -22,10 +22,35 @@ export class MemoryExecutionStore implements ExecutionStore {
   async listIntents(): Promise<readonly Intent[]> {
     return Object.freeze([...this.#intents.values()]);
   }
-  async appendAttempt(attempt: Attempt): Promise<void> {
+  async reserveAttempt(attempt: Attempt): Promise<void> {
     if (this.#attempts.has(attempt.id))
       throw new ConflictError(`Attempt ${attempt.id} already exists`);
+    if (attempt.outcome !== 'started') throw new ConflictError('Reserved Attempt must be started');
+    if (
+      [...this.#attempts.values()].some(
+        (value) => value.intentId === attempt.intentId && value.outcome === 'started',
+      )
+    )
+      throw new ConflictError(`Intent ${attempt.intentId} already has an active Attempt`);
     this.#attempts.set(attempt.id, attempt);
+  }
+  async finishAttempt(
+    attempt: Attempt,
+    events: readonly Event[],
+    completedIntent?: Intent,
+  ): Promise<void> {
+    const current = this.#attempts.get(attempt.id);
+    if (current?.outcome !== 'started' || attempt.outcome === 'started')
+      throw new ConflictError(`Attempt ${attempt.id} is not active`);
+    const checkpoint = this.checkpoint();
+    try {
+      this.#attempts.set(attempt.id, attempt);
+      for (const event of events) await this.appendEvent(event);
+      if (completedIntent) await this.saveIntent(completedIntent);
+    } catch (error) {
+      this.restore(checkpoint);
+      throw error;
+    }
   }
   async listAttempts(intentId: string): Promise<readonly Attempt[]> {
     return Object.freeze(

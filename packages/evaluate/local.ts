@@ -5,6 +5,7 @@ import { createHttpServer } from '../../src/adapters/http/server.js';
 import { RetryableInferenceError } from '../../src/modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../src/modules/interpretation/services/request.js';
 import { createSystem } from '../../src/system/system.js';
+import { createMemoryTestStorage } from '../../src/system/tests/storage.js';
 import { check, createQualityReport, type QualityCheck, type QualityReport } from './quality.js';
 
 const signingSecret = 'local-quality-secret-with-at-least-32-characters';
@@ -104,7 +105,7 @@ async function runOperationalScenarios(): Promise<{
   readonly mixedHasKnowledge: boolean;
   readonly automationCount: number;
 }> {
-  const system = createSystem('memory', {
+  const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'operational-fixtures' },
     adapter: new OperationalQualityInterpreter(),
     mode: 'write',
@@ -171,7 +172,7 @@ async function runOperationalScenarios(): Promise<{
 async function observeFailedInterpretation(
   adapter: InvalidQualityInterpreter | UnavailableQualityInterpreter,
 ): Promise<PublicStatus> {
-  const system = createSystem('memory', {
+  const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'failure-fixture' },
     adapter,
     mode: 'write',
@@ -335,7 +336,7 @@ class UnavailableQualityInterpreter {
 }
 
 async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
-  const system = createSystem('memory', {
+  const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'fixtures' },
     adapter: new OperationalQualityInterpreter(),
     mode: 'write',

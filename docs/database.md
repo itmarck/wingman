@@ -1,6 +1,6 @@
 # Database
 
-PostgreSQL defines the durable model expected by the current domain. The runtime still uses the memory adapters for functional data; implementing the PostgreSQL adapters is the next step. Only inference telemetry is connected to PostgreSQL today.
+PostgreSQL 18.4 is the sole complete durable runtime store. One bounded pool is shared by functional adapters and inference telemetry; application startup checks connectivity and the required migration level before HTTP or workers start.
 
 ## Functional schema
 
@@ -16,6 +16,7 @@ erDiagram
     CORE_ITEMS o|--o{ PROACTIVITY_SUGGESTIONS : subject
 
     INTERPRETATION_RUNS ||--o{ INTERPRETATION_REVIEWS : requires
+    INTERPRETATION_RUNS ||--o| INTERPRETATION_CLAIMS : leases
     INTERPRETATION_RUNS ||--o| INTERPRETATION_REVIEW_LOCKS : locks
 
     EXECUTION_INTENTS ||--o{ EXECUTION_ATTEMPTS : executes
@@ -35,7 +36,8 @@ erDiagram
 | `core_items` | Stable identity and optional versioned Profile. |
 | `core_component_revisions` | Immutable, evidence-backed Component values and supersession history. |
 | `core_states` | Persisted observed, believed, desired, required, forbidden or predicted State. |
-| `interpretation_runs` | Interpretation history, retries, queue availability and worker leases. |
+| `interpretation_runs` | Interpretation history, retries and queue availability. |
+| `interpretation_claims` | Independent worker claim identity and renewable lease. |
 | `interpretation_reviews` | Generic `referenceResolution` questions and their decisions. |
 | `interpretation_review_locks` | Durable mutual exclusion while the final Review publishes an Interpretation. |
 | `interpretation_declaration_outcomes` | Idempotent result of each interpreted Item, State, Automation or Intent declaration. |
@@ -87,3 +89,9 @@ no table and cannot be changed through Entries, connectors, or the HTTP API.
 - Later schema changes are append-only starting at `003`.
 
 Legacy `concepts`, `predicates`, `axioms`, `aliases`, `links`, Reminders and request-kind tables are absent. Their current responsibilities belong to generic Items, Components, States, Automations and Intents.
+
+## Verification and readiness
+
+`npm run test:postgres` and `npm run test:http` create temporary loopback-only PostgreSQL 18.4 clusters through `embedded-postgres`. The harness generates its own connection target, never reads the configured application database, applies both repository migrations, closes pools and the child process, and removes only its owned temporary directory.
+
+`/api/health` reports process liveness. `/api/ready` verifies database connectivity and that `001_system` plus `002_telemetry` are present; workers do not start until the same check passes. Railway runs migrations before deployment and uses readiness as its healthcheck path.

@@ -36,7 +36,7 @@ flowchart TD
     DECISION -- Aprobar --> APPLY
     DECISION -- Rechazar --> REJECTED["Sin cambio operacional"]
 
-    KNOWLEDGE --> STORE["Stores en memoria"]
+    KNOWLEDGE --> STORE["PostgreSQL durable"]
     PROFILE --> STORE
     AUTOMATION --> STORE
     INTENT --> STORE

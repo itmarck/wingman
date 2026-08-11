@@ -1,5 +1,6 @@
 import type { Automation } from '../../../core/automation/automation.js';
 import type { Event } from '../../../core/execution/event.js';
+import type { Intent } from '../../../core/execution/intent.js';
 import type { ComponentValue } from '../../../core/item/types.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
 import type { ProposeIntentCommand } from '../../execution/operations/propose.js';
@@ -18,7 +19,7 @@ export class AutomationWorker {
     private readonly store: AutomationStore,
     private readonly knowledge: InterpretationStore,
     private readonly evaluator: StateEvaluator,
-    private readonly intents: Pick<ProposeIntentCommand, 'execute'>,
+    private readonly intents: Pick<ProposeIntentCommand, 'prepare'>,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
   ) {}
@@ -89,10 +90,10 @@ export class AutomationWorker {
       return this.finish(runtime, trigger, 'cooldown', 'Automation is cooling down', []);
     if (automation.given.some((condition) => this.evaluator.evaluate(condition, snapshot) !== true))
       return this.finish(runtime, trigger, 'givenFalse', 'Given condition is not satisfied', []);
-    const intentIds: string[] = [];
+    const intents: Intent[] = [];
     for (const template of automation.thenIntents)
-      intentIds.push(
-        await this.intents.execute({
+      intents.push(
+        await this.intents.prepare({
           ...template,
           input: materialize(template.input, trigger),
           trigger: {
@@ -108,7 +109,7 @@ export class AutomationWorker {
       trigger,
       'produced',
       'Intent templates instantiated',
-      intentIds,
+      intents,
       true,
       deduplicationId,
     );
@@ -118,7 +119,7 @@ export class AutomationWorker {
     trigger: TriggerContext,
     outcome: 'produced' | 'givenFalse' | 'expired' | 'cooldown',
     reason: string,
-    intentIds: readonly string[],
+    intents: readonly Intent[],
     produced = false,
     deduplicationId = occurrenceIdentity(runtime.automation, trigger, runtime.occurrences + 1),
   ): Promise<void> {
@@ -131,15 +132,29 @@ export class AutomationWorker {
         runtime.automation.controls.maxOccurrences !== undefined &&
         occurrences >= runtime.automation.controls.maxOccurrences) ||
       (isFiniteTimeTrigger(runtime.automation) && nextEvaluationAt === undefined);
-    await this.store.save({
+    const nextRuntime = {
       ...runtime,
       automation: shouldStop ? runtime.automation.stop() : runtime.automation,
       occurrences,
       lastProducedAt: produced ? this.clock.now().toISOString() : runtime.lastProducedAt,
       nextEvaluationAt,
       deduplicationIds: seen,
+    };
+    const result = this.result(
+      runtime,
+      trigger,
+      outcome,
+      reason,
+      intents.map(({ id }) => id),
+    );
+    const committed = await this.store.commitOccurrence({
+      runtime: nextRuntime,
+      result,
+      deduplicationId,
+      intents,
     });
-    await this.record(runtime, trigger, outcome, reason, intentIds);
+    if (!committed)
+      await this.record(runtime, trigger, 'duplicate', 'Trigger already processed', []);
   }
   private async stop(
     runtime: AutomationRuntime,
@@ -147,12 +162,24 @@ export class AutomationWorker {
     outcome: 'stopped' | 'expired',
     reason: string,
   ): Promise<void> {
-    await this.store.save({
+    const nextRuntime = {
       ...runtime,
       automation: runtime.automation.stop(),
       nextEvaluationAt: undefined,
+    };
+    const deduplicationId = occurrenceIdentity(
+      runtime.automation,
+      trigger,
+      runtime.occurrences + 1,
+    );
+    const seen = new Set(runtime.deduplicationIds);
+    seen.add(deduplicationId);
+    await this.store.commitOccurrence({
+      runtime: { ...nextRuntime, deduplicationIds: seen },
+      result: this.result(runtime, trigger, outcome, reason, []),
+      deduplicationId,
+      intents: [],
     });
-    await this.record(runtime, trigger, outcome, reason, []);
   }
   private async record(
     runtime: AutomationRuntime,
@@ -161,7 +188,16 @@ export class AutomationWorker {
     reason: string,
     intentIds: readonly string[],
   ): Promise<void> {
-    await this.store.appendResult({
+    await this.store.appendResult(this.result(runtime, trigger, outcome, reason, intentIds));
+  }
+  private result(
+    runtime: AutomationRuntime,
+    trigger: TriggerContext,
+    outcome: 'produced' | 'givenFalse' | 'stopped' | 'expired' | 'cooldown' | 'duplicate',
+    reason: string,
+    intentIds: readonly string[],
+  ) {
+    return Object.freeze({
       id: this.ids.generate(),
       automationId: runtime.automation.id,
       triggerId: trigger.id,

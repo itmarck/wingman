@@ -1,5 +1,6 @@
 import type { InterpretationAdapter } from '../../../modules/interpretation/services/interpreter.js';
 import { createSystem } from '../../../system/system.js';
+import { createMemoryTestStorage } from '../../../system/tests/storage.js';
 import { createAccessToken } from '../auth.js';
 import { createHttpServer } from '../server.js';
 
@@ -12,12 +13,12 @@ export const authorization = Object.freeze({
   'x-mutation-mode': 'write',
 });
 
-export function createTestServer() {
-  return createHttpServer(createTestSystem(), { signingSecret });
+export function createTestServer(readiness?: () => Promise<boolean>) {
+  return createHttpServer(createTestSystem(), { signingSecret, readiness });
 }
 
 export function createTestSystem(mode: 'approval' | 'readonly' | 'write' = 'write') {
-  return createSystem('memory', {
+  return createSystem(createMemoryTestStorage(), {
     inference: {
       target: 'test.default',
       provider: 'test',

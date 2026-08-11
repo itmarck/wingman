@@ -24,7 +24,9 @@ export class ExecutionWorker {
       const authorized =
         (intent.status === 'proposed' && intent.consent === 'none') ||
         intent.status === 'consented';
-      if (!authorized || (await this.store.listAttempts(intent.id)).length > 0) continue;
+      const attempts = await this.store.listAttempts(intent.id);
+      const interrupted = attempts.some(({ outcome }) => outcome === 'started');
+      if (!authorized || (attempts.length > 0 && !interrupted)) continue;
       eligible.push(intent);
     }
     for (const intent of eligible) await this.executeIntent.execute(intent.id);

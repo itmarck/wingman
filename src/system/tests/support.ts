@@ -4,6 +4,7 @@ import type { DetectorThresholds } from '../../modules/suggestion/detectors/buil
 import type { SuggestionPolicy } from '../../modules/suggestion/operations/service.js';
 import type { MutationMode } from '../proposal.js';
 import { createSystem, type System } from '../system.js';
+import { createMemoryTestStorage } from './storage.js';
 
 interface TestSystemOptions {
   readonly adapter: InterpretationAdapter;
@@ -14,7 +15,7 @@ interface TestSystemOptions {
 }
 
 export function createTestSystem(options: TestSystemOptions): System {
-  return createSystem('memory', {
+  return createSystem(createMemoryTestStorage(), {
     inference: {
       target: 'test.default',
       provider: 'test',

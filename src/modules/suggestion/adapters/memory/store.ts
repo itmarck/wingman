@@ -20,4 +20,17 @@ export class MemorySuggestionStore implements SuggestionStore {
   async list(): Promise<readonly Suggestion[]> {
     return Object.freeze([...this.#suggestions.values()]);
   }
+  checkpoint() {
+    return {
+      suggestions: new Map(this.#suggestions),
+      fingerprints: new Map(this.#fingerprints),
+    };
+  }
+  restore(checkpoint: ReturnType<MemorySuggestionStore['checkpoint']>): void {
+    this.#suggestions.clear();
+    this.#fingerprints.clear();
+    for (const [id, suggestion] of checkpoint.suggestions) this.#suggestions.set(id, suggestion);
+    for (const [fingerprint, id] of checkpoint.fingerprints)
+      this.#fingerprints.set(fingerprint, id);
+  }
 }

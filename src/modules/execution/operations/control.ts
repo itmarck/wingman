@@ -8,10 +8,15 @@ export class GrantIntentConsentCommand {
   constructor(private readonly store: ExecutionStore) {}
 
   async execute(intentId: string): Promise<void> {
+    const consented = await this.prepare(intentId);
+    if (consented) await this.store.saveIntent(consented);
+  }
+
+  async prepare(intentId: string) {
     const intent = await this.store.findIntent(intentId);
     if (!intent) throw new NotFoundError(`Intent ${intentId} does not exist`);
-    if (intent.consent === 'none') return;
-    await this.store.saveIntent(intent.grantConsent());
+    if (intent.consent === 'none') return undefined;
+    return intent.grantConsent();
   }
 }
 

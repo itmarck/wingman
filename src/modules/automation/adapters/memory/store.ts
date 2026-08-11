@@ -1,6 +1,8 @@
 import type { Event } from '../../../../core/execution/event.js';
+import type { MemoryExecutionStore } from '../../../execution/adapters/memory/store.js';
 import type {
   AutomationEvaluationResult,
+  AutomationOccurrence,
   AutomationRuntime,
   AutomationStore,
   StateChangeSignal,
@@ -13,6 +15,7 @@ export class MemoryAutomationStore implements AutomationStore {
   readonly #itemIndex = new Map<string, Set<string>>();
   readonly #componentIndex = new Map<string, Set<string>>();
   readonly #results: AutomationEvaluationResult[] = [];
+  constructor(private readonly executions?: MemoryExecutionStore) {}
   async save(runtime: AutomationRuntime): Promise<void> {
     const current = this.#automations.get(runtime.automation.id);
     if (current) this.unindex(current);
@@ -52,6 +55,24 @@ export class MemoryAutomationStore implements AutomationStore {
     this.#results.push(
       Object.freeze({ ...result, intentIds: Object.freeze([...result.intentIds]) }),
     );
+  }
+  async commitOccurrence(occurrence: AutomationOccurrence): Promise<boolean> {
+    const current = this.#automations.get(occurrence.runtime.automation.id);
+    if (current?.deduplicationIds.has(occurrence.deduplicationId)) return false;
+    if (occurrence.intents.length > 0 && !this.executions)
+      throw new Error('Automation occurrence Intent persistence is not configured');
+    const checkpoint = this.checkpoint();
+    const executionCheckpoint = this.executions?.checkpoint();
+    try {
+      for (const intent of occurrence.intents) await this.executions?.saveIntent(intent);
+      await this.save(occurrence.runtime);
+      await this.appendResult(occurrence.result);
+      return true;
+    } catch (error) {
+      this.restore(checkpoint);
+      if (executionCheckpoint) this.executions?.restore(executionCheckpoint);
+      throw error;
+    }
   }
   async listResults(automationId: string): Promise<readonly AutomationEvaluationResult[]> {
     return Object.freeze(this.#results.filter((result) => result.automationId === automationId));

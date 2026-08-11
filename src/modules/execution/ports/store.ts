@@ -6,7 +6,12 @@ export interface ExecutionStore {
   saveIntent(intent: Intent): Promise<void>;
   findIntent(id: string): Promise<Intent | undefined>;
   listIntents(): Promise<readonly Intent[]>;
-  appendAttempt(attempt: Attempt): Promise<void>;
+  reserveAttempt(attempt: Attempt): Promise<void>;
+  finishAttempt(
+    attempt: Attempt,
+    events: readonly Event[],
+    completedIntent?: Intent,
+  ): Promise<void>;
   listAttempts(intentId: string): Promise<readonly Attempt[]>;
   appendEvent(event: Event): Promise<void>;
   listEvents(intentId?: string): Promise<readonly Event[]>;

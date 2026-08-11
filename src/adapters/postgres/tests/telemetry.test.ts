@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InferenceRun } from '../../../modules/interpretation/ports.js';
-import type { Database, DatabaseResult } from '../database.js';
+import type { DatabaseResult, QueryableDatabase } from '../database.js';
 import { PostgresInferenceTelemetry } from '../telemetry.js';
 
 describe('PostgreSQL inference telemetry', () => {
@@ -18,7 +18,7 @@ describe('PostgreSQL inference telemetry', () => {
   });
 });
 
-class RecordingDatabase implements Database {
+class RecordingDatabase implements QueryableDatabase {
   statement?: string;
   parameters?: readonly unknown[];
 

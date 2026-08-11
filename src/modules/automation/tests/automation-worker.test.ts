@@ -179,7 +179,7 @@ async function createFixture() {
     ids,
     clock,
   );
-  const automations = new MemoryAutomationStore();
+  const automations = new MemoryAutomationStore(execution);
   return {
     clock,
     execution,

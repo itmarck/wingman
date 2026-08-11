@@ -19,6 +19,12 @@ export class ProposeIntentCommand {
   ) {}
 
   async execute(input: ProposeIntentInput): Promise<string> {
+    const intent = await this.prepare(input);
+    await this.store.saveIntent(intent);
+    return intent.id;
+  }
+
+  async prepare(input: ProposeIntentInput): Promise<Intent> {
     const capability = this.capabilities.require(input.capability.key, input.capability.version);
     capability.validateInput(input.input);
     for (const condition of [...input.conditions, ...input.expectedState]) {
@@ -35,7 +41,6 @@ export class ProposeIntentCommand {
       id: this.ids.generate(),
       createdAt: this.clock.now().toISOString(),
     });
-    await this.store.saveIntent(intent);
-    return intent.id;
+    return intent;
   }
 }

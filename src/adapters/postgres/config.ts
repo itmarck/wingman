@@ -15,7 +15,7 @@ export function readPostgresConfig(environment = process.env): PostgresConfig {
 
   return Object.freeze({
     connectionString,
-    maxConnections: readPositiveInteger(environment.POSTGRES_POOL_MAX, 10),
+    maxConnections: readPositiveInteger(environment.POSTGRES_POOL_MAX, 5),
   });
 }
 

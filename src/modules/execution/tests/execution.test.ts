@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Attempt } from '../../../core/execution/attempt.js';
 import {
   type Capability,
   CapabilityRegistry,
@@ -121,6 +122,25 @@ describe('Intent execution', () => {
     expect((await fixture.store.findIntent(automatic))?.status).toBe('completed');
     expect((await fixture.store.findIntent(explicit))?.status).toBe('proposed');
     expect(await worker.runPending()).toBe(0);
+  });
+
+  it('settles an interrupted started Attempt as uncertain without invoking the Capability again', async () => {
+    const fixture = await createFixture();
+    const intentId = await fixture.propose.execute(input('success', false));
+    await fixture.store.reserveAttempt(
+      Attempt.create({
+        id: 'interrupted-attempt',
+        intentId,
+        sequence: 1,
+        idempotencyKey: `fake:${intentId}`,
+        startedAt: fixture.clock.now().toISOString(),
+      }),
+    );
+    const worker = new ExecutionWorker(fixture.store, fixture.execute);
+
+    expect(await worker.runPending()).toBe(1);
+    expect((await fixture.store.listAttempts(intentId))[0]?.outcome).toBe('uncertain');
+    expect(fixture.capability.effects).toBe(0);
   });
 });
 

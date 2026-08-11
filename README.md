@@ -26,16 +26,19 @@ npm run --silent token -- browser
 ```bash
 npm run typecheck
 npm test
+npm run test:postgres
+npm run test:http
+npm run test:all
 npm run build
 ```
 
-`npm test` runs deterministic tests without calling an inference provider. `npm run evaluate` runs the semantic cases against the configured real inference target; authentication, quota, availability, or semantic failures make that command exit nonzero.
+`npm test` runs fast deterministic tests without PostgreSQL or an inference provider. `test:postgres` and `test:http` each start a harness-owned native PostgreSQL 18.4 cluster, apply the real migrations, ignore `DATABASE_URL`, and remove their temporary data on completion. `test:all` runs every deterministic gate. `npm run evaluate` remains the explicit semantic evaluation against the configured real inference target.
 
 The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; omitting the header means `readonly`. `MUTATION_MODE=approval` is the initial system policy for development and production; production may move to `write` after validation. The current OpenAPI document is publicly available at `/api/openapi.json`.
 
 The built-in projections are `system.currentItems` and `system.glossary`. Together they expose current Item compositions and their human-readable catalog.
 
-Knowledge storage is currently in memory. PostgreSQL stores migrations and inference telemetry.
+PostgreSQL is required for every complete runtime and stores all durable domain facts plus inference telemetry. There is no selectable memory backend or automatic fallback. Pending Proposal callbacks remain intentionally process-local and are discarded on restart.
 
 ## Concepts
 
@@ -66,7 +69,9 @@ Current product scope is tasks, objectives, plans, habits and notifications. New
 
 Wingman runs as one long-lived Railway service. HTTP, interpretation, scheduling and execution remain in the same process while that stays operationally viable.
 
-`railway.json` builds and starts that process and checks `/api/health`. Configure `DATABASE_URL`, `SERVER_SECRET`, one registered `INFERENCE_TARGET` with its API key, and `MUTATION_MODE` (`approval` initially; `write` when ready). Locally, `npm run build && npm start` exercises the same artifact.
+`railway.json` builds one process, runs `npm run migrate` as a pre-deploy command, starts the application, and gates deployment on `/api/ready`. `/api/health` is liveness-only. Configure a Railway PostgreSQL 18.4 service, `DATABASE_URL`, `POSTGRES_POOL_MAX` (default `5`), `SERVER_SECRET`, one registered `INFERENCE_TARGET` with its API key, and `MUTATION_MODE` (`approval` initially; `write` when ready). Locally, `npm run build && npm start` exercises the same artifact.
+
+The current `001_system.sql` and `002_telemetry.sql` files are a fresh baseline. Before the first deployment of this version, recreate the intentionally empty database so it has neither legacy tables nor a prior `pgmigrations` history; after that reset, migrations are append-only from `003` onward.
 
 ---
 

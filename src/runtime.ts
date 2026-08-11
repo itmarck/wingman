@@ -34,6 +34,7 @@ export class Runtime {
     }
 
     try {
+      await this.#database.assertReady();
       await this.#server.start();
       this.#worker.start();
       this.#started = true;

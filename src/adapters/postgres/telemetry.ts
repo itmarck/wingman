@@ -1,11 +1,11 @@
 import type { InferenceRun, InferenceTelemetry } from '../../modules/interpretation/ports.js';
-import type { Database } from './database.js';
+import type { QueryableDatabase } from './database.js';
 
 /**
  * Persists inference metadata without storing prompts or complete responses.
  */
 export class PostgresInferenceTelemetry implements InferenceTelemetry {
-  constructor(private readonly database: Database) {}
+  constructor(private readonly database: QueryableDatabase) {}
 
   async record(run: InferenceRun): Promise<void> {
     await this.database.query(

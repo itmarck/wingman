@@ -21,6 +21,7 @@ export interface HttpServerOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly logger?: FastifyServerOptions['logger'];
   readonly signingSecret: string;
+  readonly readiness?: () => Promise<boolean>;
 }
 
 /**
@@ -88,6 +89,27 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
     );
 
     publicServer.get(
+      '/api/ready',
+      {
+        schema: {
+          tags: ['System'],
+          summary: 'Check database readiness',
+          security: [],
+          response: {
+            200: Type.Object({ status: Type.Literal('ready') }),
+            503: Type.Object({ status: Type.Literal('unavailable') }),
+          },
+        },
+      },
+      async (_request, reply) => {
+        const ready = await (options.readiness?.() ?? Promise.resolve(true));
+        return ready
+          ? { status: 'ready' as const }
+          : reply.status(503).send({ status: 'unavailable' as const });
+      },
+    );
+
+    publicServer.get(
       '/api/openapi.json',
       {
         schema: {
@@ -137,7 +159,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
 function createOpenApiDocument(server: FastifyInstance) {
   const document = server.swagger();
   const paths = document.paths ?? {};
-  const publicPaths = ['/api/health', '/api/openapi.json'];
+  const publicPaths = ['/api/health', '/api/ready', '/api/openapi.json'];
 
   for (const path of publicPaths) {
     const operation = paths[path]?.get;

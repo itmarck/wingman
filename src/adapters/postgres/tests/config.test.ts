@@ -9,7 +9,7 @@ describe('PostgreSQL configuration', () => {
       }),
     ).toEqual({
       connectionString: 'postgresql://localhost/wingman',
-      maxConnections: 10,
+      maxConnections: 5,
     });
   });
 

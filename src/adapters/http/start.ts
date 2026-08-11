@@ -17,10 +17,15 @@ export interface Server {
 /**
  * Creates a framework-independent HTTP server lifecycle.
  */
-export function createServer(system: System, config: HttpConfig): Server {
+export function createServer(
+  system: System,
+  config: HttpConfig,
+  readiness?: () => Promise<boolean>,
+): Server {
   const http = createHttpServer(system, {
     logger: createLoggerOptions(config.environment),
     signingSecret: config.signingSecret,
+    readiness,
   });
 
   return Object.freeze({

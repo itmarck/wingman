@@ -90,17 +90,13 @@ CREATE TABLE interpretation_runs (
   draft jsonb CHECK (draft IS NULL OR jsonb_typeof(draft) = 'object'),
   publication jsonb CHECK (publication IS NULL OR jsonb_typeof(publication) = 'object'),
   error text CHECK (error IS NULL OR btrim(error) <> ''),
-  claim_id text CHECK (claim_id IS NULL OR btrim(claim_id) <> ''),
-  lease_until timestamptz,
   CHECK ((status = 'queued' AND available_at IS NOT NULL) OR (status <> 'queued' AND available_at IS NULL)),
   CHECK (status = 'queued' OR attempts > 0),
   CHECK (status <> 'pending' OR (draft IS NOT NULL AND interpreter_key IS NOT NULL)),
   CHECK (status <> 'completed' OR (publication IS NOT NULL AND interpreter_key IS NOT NULL)),
   CHECK (status NOT IN ('failed', 'exhausted') OR error IS NOT NULL),
   CHECK (status = 'completed' OR publication IS NULL),
-  CHECK (status IN ('queued', 'failed', 'exhausted') OR error IS NULL),
-  CHECK ((claim_id IS NULL) = (lease_until IS NULL)),
-  CHECK (claim_id IS NULL OR status = 'processing')
+  CHECK (status IN ('queued', 'failed', 'exhausted') OR error IS NULL)
 );
 
 CREATE INDEX interpretation_runs_entry_history
@@ -108,9 +104,16 @@ CREATE INDEX interpretation_runs_entry_history
 CREATE INDEX interpretation_runs_available
   ON interpretation_runs (available_at, created_at, id)
   WHERE status = 'queued';
-CREATE INDEX interpretation_runs_expired_lease
-  ON interpretation_runs (lease_until, created_at, id)
-  WHERE status = 'processing';
+
+CREATE TABLE interpretation_claims (
+  interpretation_id text PRIMARY KEY REFERENCES interpretation_runs (id) ON DELETE CASCADE,
+  claim_id text NOT NULL UNIQUE CHECK (btrim(claim_id) <> ''),
+  claimed_at timestamptz NOT NULL,
+  lease_until timestamptz NOT NULL CHECK (lease_until > claimed_at)
+);
+
+CREATE INDEX interpretation_claims_available
+  ON interpretation_claims (lease_until, interpretation_id);
 
 CREATE TABLE interpretation_reviews (
   id text PRIMARY KEY,

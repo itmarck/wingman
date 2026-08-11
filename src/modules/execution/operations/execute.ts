@@ -72,10 +72,36 @@ export class ExecuteIntentCommand {
       return 'stale';
     }
     const attempts = await this.store.listAttempts(intent.id);
+    const active = attempts.find(({ outcome }) => outcome === 'started');
+    if (active) {
+      const recovered = active.finish(
+        'uncertain',
+        this.clock.now().toISOString(),
+        undefined,
+        'Capability outcome is unknown after interrupted execution',
+      );
+      await this.store.finishAttempt(recovered, [
+        this.createEvent(
+          'attemptUncertain',
+          intent.id,
+          { attemptId: active.id, message: recovered.message ?? null },
+          active.id,
+        ),
+      ]);
+      return 'uncertain';
+    }
     const sequence = attempts.length + 1;
     const attemptId = this.ids.generate();
     const startedAt = this.clock.now().toISOString();
     const idempotencyKey = capability.idempotencyKey(intent.input, intent.id);
+    const started = Attempt.create({
+      id: attemptId,
+      intentId: intent.id,
+      sequence,
+      idempotencyKey,
+      startedAt,
+    });
+    await this.store.reserveAttempt(started);
     let result: CapabilityResult;
     try {
       result = await capability.execute(intent.input, {
@@ -90,30 +116,48 @@ export class ExecuteIntentCommand {
       };
     }
     if (result.kind === 'unsupported') {
-      await this.event('capabilityUnsupported', intent.id, {
-        message: result.message ?? 'Unsupported input',
-      });
+      const finished = started.finish(
+        'failed',
+        this.clock.now().toISOString(),
+        undefined,
+        result.message ?? 'Unsupported input',
+      );
+      await this.store.finishAttempt(finished, [
+        this.createEvent(
+          'capabilityUnsupported',
+          intent.id,
+          {
+            message: result.message ?? 'Unsupported input',
+          },
+          attemptId,
+        ),
+      ]);
       return 'unsupported';
     }
     const outcome =
       result.kind === 'success' ? 'succeeded' : result.kind === 'failure' ? 'failed' : 'uncertain';
-    const attempt = Attempt.create({
-      id: attemptId,
-      intentId: intent.id,
-      sequence,
-      idempotencyKey,
-      startedAt,
-    }).finish(outcome, this.clock.now().toISOString(), result.output, result.message);
-    await this.store.appendAttempt(attempt);
-    await this.event(
-      `attempt${capitalize(outcome)}`,
-      intent.id,
-      { attemptId, output: result.output ?? null, message: result.message ?? null },
-      attempt.id,
+    const attempt = started.finish(
+      outcome,
+      this.clock.now().toISOString(),
+      result.output,
+      result.message,
     );
-    for (const occurrence of result.events ?? [])
-      await this.event(occurrence.key, intent.id, occurrence.data, attempt.id);
-    if (outcome === 'succeeded') await this.store.saveIntent(intent.complete());
+    const events = [
+      this.createEvent(
+        `attempt${capitalize(outcome)}`,
+        intent.id,
+        { attemptId, output: result.output ?? null, message: result.message ?? null },
+        attempt.id,
+      ),
+      ...(result.events ?? []).map((occurrence) =>
+        this.createEvent(occurrence.key, intent.id, occurrence.data, attempt.id),
+      ),
+    ];
+    await this.store.finishAttempt(
+      attempt,
+      events,
+      outcome === 'succeeded' ? intent.complete() : undefined,
+    );
     return outcome;
   }
   private async event(
@@ -122,15 +166,21 @@ export class ExecuteIntentCommand {
     data: ComponentValue,
     attemptId?: string,
   ): Promise<void> {
-    await this.store.appendEvent(
-      Event.create({
-        id: this.ids.generate(),
-        key,
-        occurredAt: this.clock.now().toISOString(),
-        causation: { intentId, attemptId },
-        data,
-      }),
-    );
+    await this.store.appendEvent(this.createEvent(key, intentId, data, attemptId));
+  }
+  private createEvent(
+    key: string,
+    intentId: string,
+    data: ComponentValue,
+    attemptId?: string,
+  ): Event {
+    return Event.create({
+      id: this.ids.generate(),
+      key,
+      occurredAt: this.clock.now().toISOString(),
+      causation: { intentId, attemptId },
+      data,
+    });
   }
 }
 function capitalize(value: string): string {

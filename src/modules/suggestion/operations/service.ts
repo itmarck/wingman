@@ -1,4 +1,5 @@
 import type { CapabilityRegistry } from '../../../core/execution/capability.js';
+import type { Intent } from '../../../core/execution/intent.js';
 import { type AutonomyLevel, resolveAutonomy } from '../../../core/execution/policy.js';
 import type { ComponentValue } from '../../../core/item/types.js';
 import { NotFoundError } from '../../../system/error.js';
@@ -10,7 +11,7 @@ import type { PlanningQueries } from '../../planning/operations/query.js';
 import type { ListStateViewQuery } from '../../state/operations/list.js';
 import type { DetectorFinding, SuggestionSignal } from '../domain/detector.js';
 import type { FeedbackKind, Suggestion, SuggestionFeedback } from '../domain/suggestion.js';
-import type { SuggestionStore } from '../ports/store.js';
+import type { SuggestionLifecycle, SuggestionStore } from '../ports/store.js';
 import type { DetectorRegistry } from '../registry.js';
 
 export interface SuggestionPolicy {
@@ -32,13 +33,14 @@ interface StateViews {
 export class SuggestionService {
   constructor(
     private readonly store: SuggestionStore,
+    private readonly lifecycle: SuggestionLifecycle,
     readonly detectors: DetectorRegistry,
     private readonly knowledge: ItemStore,
     private readonly planning: PlanningQueries,
     private readonly states: StateViews,
     private readonly capabilities: CapabilityRegistry,
-    private readonly proposeIntent: Pick<ProposeIntentCommand, 'execute'>,
-    private readonly grantIntentConsent: Pick<GrantIntentConsentCommand, 'execute'>,
+    private readonly proposeIntent: Pick<ProposeIntentCommand, 'prepare'>,
+    private readonly grantIntentConsent: Pick<GrantIntentConsentCommand, 'prepare'>,
     private readonly policy: SuggestionPolicy,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
@@ -69,15 +71,15 @@ export class SuggestionService {
       for (const finding of detector.detect(context)) {
         const fingerprint = fingerprintFor(detector.key, finding);
         if (await this.suppressed(fingerprint)) continue;
-        const suggestion = await this.createSuggestion(
+        const prepared = await this.createSuggestion(
           detector.key,
           detector.version,
           fingerprint,
           finding,
           signal,
         );
-        await this.store.save(suggestion);
-        created.push(suggestion);
+        await this.lifecycle.create(prepared.suggestion, prepared.intent);
+        created.push(prepared.suggestion);
       }
     return Object.freeze(created);
   }
@@ -95,18 +97,21 @@ export class SuggestionService {
   async feedback(id: string, input: FeedbackInput): Promise<void> {
     const suggestion = await this.read(id);
     validateFeedback(input, this.clock.now());
-    if (input.kind === 'accepted' && suggestion.intentId && suggestion.autonomy.explicitConsent)
-      await this.grantIntentConsent.execute(suggestion.intentId);
+    const consentedIntent =
+      input.kind === 'accepted' && suggestion.intentId && suggestion.autonomy.explicitConsent
+        ? await this.grantIntentConsent.prepare(suggestion.intentId)
+        : undefined;
     const feedback: SuggestionFeedback = Object.freeze({
       ...input,
       at: this.clock.now().toISOString(),
     });
-    await this.store.save(
+    await this.lifecycle.accept(
       Object.freeze({
         ...suggestion,
         status: input.kind,
         feedback: Object.freeze([...suggestion.feedback, feedback]),
       }),
+      consentedIntent,
     );
   }
 
@@ -116,7 +121,7 @@ export class SuggestionService {
     fingerprint: string,
     finding: DetectorFinding,
     signal: SuggestionSignal,
-  ): Promise<Suggestion> {
+  ): Promise<{ readonly suggestion: Suggestion; readonly intent?: Intent }> {
     const now = this.clock.now();
     const id = this.ids.generate();
     const capability = this.capabilities.find(finding.capability.key, finding.capability.version);
@@ -129,9 +134,9 @@ export class SuggestionService {
           safetyCeiling: capability.safetyCeiling,
         })
       : 'blocked';
-    let intentId: string | undefined;
+    let intent: Intent | undefined;
     if (capability && resolved !== 'blocked' && finding.evidence.length > 0)
-      intentId = await this.proposeIntent.execute({
+      intent = await this.proposeIntent.prepare({
         capability: finding.capability,
         input: replaceSuggestionId(finding.input, id),
         proposer: { kind: 'system', id: detectorKey },
@@ -141,7 +146,7 @@ export class SuggestionService {
         trigger: triggerFor(signal),
         evidence: finding.evidence,
       });
-    return Object.freeze({
+    const suggestion = Object.freeze({
       id,
       fingerprint,
       detector: { key: detectorKey, version: detectorVersion },
@@ -158,11 +163,12 @@ export class SuggestionService {
         explicitConsent: resolved !== 'execute',
         safetyCeiling: capability?.safetyCeiling,
       }),
-      intentId,
+      intentId: intent?.id,
       status: capability ? 'active' : 'unsupported',
       createdAt: now.toISOString(),
       feedback: Object.freeze([]),
     });
+    return Object.freeze({ suggestion, intent });
   }
   private async suppressed(fingerprint: string): Promise<boolean> {
     const previous = await this.store.findFingerprint(fingerprint);
