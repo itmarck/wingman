@@ -1,14 +1,29 @@
 ## ADDED Requirements
 
-### Requirement: Storage adapter contract parity
-Deterministic contract tests SHALL exercise shared durable-port behavior against memory and PostgreSQL without inference credentials or model calls.
+### Requirement: Boundary-focused verification
+Verification SHALL separate pure domain behavior, PostgreSQL persistence behavior, deterministic Interpretation/inference behavior, and complete HTTP integration so each behavior is tested at the narrowest boundary that provides confidence without duplicating it across storage implementations.
+
+#### Scenario: Domain rule is verified
+- **WHEN** validation, an invariant, or a deterministic lifecycle decision does not require persistence or a live model
+- **THEN** a fast test verifies it without starting PostgreSQL or calling inference infrastructure
+
+#### Scenario: Interpretation integration is verified
+- **WHEN** Interpretation request construction, structured output validation, retry classification, or orchestration is tested
+- **THEN** deterministic model fixtures provide reproducible results without consuming model tokens
+
+#### Scenario: Model quality is evaluated
+- **WHEN** the semantic quality of a configured model must be measured
+- **THEN** an explicit evaluation runs separately from deterministic domain, persistence, and HTTP gates
+
+### Requirement: Focused PostgreSQL adapter contracts
+PostgreSQL contract tests SHALL verify the observable behavior of every durable port against native PostgreSQL 18.4 and SHALL avoid repeating domain scenarios that do not depend on persistence semantics.
 
 #### Scenario: Adapter behavior diverges
-- **WHEN** a storage implementation changes validation, ordering, pagination, conflict, or immutable-history behavior
-- **THEN** the shared contract suite identifies the divergence
+- **WHEN** a PostgreSQL adapter changes hydration, ordering, pagination, atomicity, conflict, or immutable-history behavior
+- **THEN** a focused adapter contract identifies the divergence through the domain port
 
 ### Requirement: PostgreSQL durability verification
-PostgreSQL integration tests SHALL verify migrations, transaction rollback, restart recovery, lease recovery, concurrent claims, lifecycle conflicts, Automation deduplication, and Intent idempotency against a dedicated test database.
+PostgreSQL integration tests SHALL verify migrations, transaction rollback, restart recovery, lease recovery, concurrent claims, lifecycle conflicts, Automation deduplication, and Intent idempotency against a harness-owned ephemeral PostgreSQL 18.4 process.
 
 #### Scenario: Compound write fails
 - **WHEN** an injected failure interrupts a transactional publication
@@ -18,20 +33,40 @@ PostgreSQL integration tests SHALL verify migrations, transaction rollback, rest
 - **WHEN** one system instance writes a principal workflow and a new instance opens the same database
 - **THEN** the second instance observes the committed workflow and can continue pending work
 
-### Requirement: Isolated PostgreSQL test target
-PostgreSQL verification SHALL require an explicit test database target, SHALL reject an unsafe production target, and SHALL keep the normal deterministic test command usable without PostgreSQL.
+### Requirement: Self-contained PostgreSQL test target
+PostgreSQL verification SHALL start and stop native PostgreSQL 18.4 through `embedded-postgres`, SHALL use harness-generated temporary storage and loopback connectivity, SHALL NOT consume the configured application `DATABASE_URL`, and SHALL keep the fast deterministic test command usable without PostgreSQL.
 
 #### Scenario: Test database is not configured
-- **WHEN** a developer runs the normal deterministic test command
-- **THEN** memory tests run without attempting to connect to PostgreSQL
+- **WHEN** a developer runs the fast deterministic test command
+- **THEN** pure domain and deterministic Interpretation/inference tests run without attempting to connect to PostgreSQL or a live model
 
-#### Scenario: PostgreSQL suite receives an unsafe target
-- **WHEN** the configured integration target is not explicitly identified as a test database
-- **THEN** the suite stops before migrations or cleanup can change it
+#### Scenario: PostgreSQL suite starts
+- **WHEN** a developer runs the dedicated PostgreSQL test command
+- **THEN** the harness starts PostgreSQL 18.4 on a generated local target, applies repository migrations, isolates test data, and removes its temporary cluster after completion
 
-### Requirement: Durable production smoke flow
-The production smoke flow SHALL run after migrations against PostgreSQL and SHALL verify authenticated Entry processing, pending Review visibility, derived notification acknowledgement, restart persistence, and health readiness.
+#### Scenario: Application database is configured
+- **WHEN** `DATABASE_URL` points to a development, staging, or production database while PostgreSQL tests run
+- **THEN** the harness ignores it and only migrates, queries, and cleans the cluster it created
 
-#### Scenario: Complete durable smoke succeeds
-- **WHEN** the PostgreSQL-backed production process completes the documented smoke flow and restarts
-- **THEN** API responses and persisted effects demonstrate the complete recoverable single-process workflow
+### Requirement: Minimal complete HTTP integration
+A small PostgreSQL-backed HTTP suite SHALL run after migrations against the harness-owned PostgreSQL 18.4 process with deterministic inference and SHALL verify the critical cross-boundary workflows without duplicating exhaustive domain or adapter coverage.
+
+#### Scenario: Captured Entry survives restart
+- **WHEN** an authenticated client captures an Entry, deterministic Interpretation commits its publication, and the application is recreated against the same harness database
+- **THEN** the API exposes the original Entry, terminal Interpretation state, and published durable knowledge without reprocessing the completed work
+
+#### Scenario: Review completes publication
+- **WHEN** deterministic Interpretation produces a pending Review and an authenticated client resolves it
+- **THEN** the API exposes one completed resolution and its atomic durable publication after restart
+
+#### Scenario: Durable execution is acknowledged
+- **WHEN** an Automation produces a consented notification Intent and the worker executes it
+- **THEN** the API exposes one durable Attempt and Event, allows acknowledgement through the launcher view, and does not duplicate the capability effect after restart
+
+#### Scenario: Suggestion transition remains consistent
+- **WHEN** an authenticated client accepts a Suggestion associated with an Intent
+- **THEN** the API exposes consistent Suggestion feedback and Intent consent after restart without either side committing alone
+
+#### Scenario: HTTP suite changes storage bootstrap
+- **WHEN** PostgreSQL composition becomes available during the migration
+- **THEN** the same storage-independent HTTP test bodies switch from the transitional characterization fixture to harness-owned PostgreSQL and the memory bootstrap is removed

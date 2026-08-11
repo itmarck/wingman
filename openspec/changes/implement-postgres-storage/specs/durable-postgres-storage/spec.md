@@ -15,19 +15,19 @@ PostgreSQL storage SHALL preserve Entries, Items, Component revisions, Interpret
 - **WHEN** the process restarts with an unapplied approval callback
 - **THEN** that callback is discarded without creating or changing durable domain data
 
-### Requirement: Storage-independent behavior
-Memory and PostgreSQL storage SHALL implement the same domain ports and preserve equivalent observable behavior, validation, ordering, pagination, and immutable value semantics.
+### Requirement: PostgreSQL port behavior
+PostgreSQL storage SHALL implement every durable domain port and preserve its required validation, ordering, pagination, conflict, hydration, and immutable value semantics without requiring a second complete storage implementation.
 
-#### Scenario: Principal workflow uses either adapter
-- **WHEN** the same valid Entry workflow runs against memory and PostgreSQL
-- **THEN** both produce equivalent statuses, knowledge, Reviews, Automations, Intents, derived launcher inbox views, Suggestions, and projections
+#### Scenario: Durable port contract runs
+- **WHEN** a PostgreSQL adapter is exercised through its domain port
+- **THEN** it produces the contract's observable results without exposing database-specific behavior to the operation
 
 #### Scenario: Stored value is loaded
 - **WHEN** PostgreSQL reconstructs a domain value
 - **THEN** it validates current closed contracts and does not expose mutable database or driver values to the domain
 
 ### Requirement: Atomic compound transitions
-Capture, Interpretation publication, Review publication and resolution, and other multi-record domain transitions SHALL commit completely or leave no partial durable effects.
+Capture, Interpretation publication, Review publication and resolution, Suggestion creation with its optional Intent, Suggestion acceptance with its optional Intent consent, and other multi-record domain transitions SHALL commit completely or leave no partial durable effects.
 
 #### Scenario: Publication fails after writing begins
 - **WHEN** any Item, Component, State, Automation, Intent, outcome, or status write in one publication fails
@@ -37,12 +37,24 @@ Capture, Interpretation publication, Review publication and resolution, and othe
 - **WHEN** a new Entry and its initial Interpretation are accepted
 - **THEN** both become durable in one transaction or neither does
 
+#### Scenario: Suggestion creates an Intent
+- **WHEN** one detector finding produces a Suggestion and an associated Intent
+- **THEN** both become durable in one transaction or neither becomes visible
+
+#### Scenario: Suggestion acceptance grants consent
+- **WHEN** accepting a Suggestion also grants explicit consent to its Intent
+- **THEN** the feedback, Suggestion status, and Intent consent transition commit together or remain unchanged
+
 ### Requirement: Immutable facts and guarded lifecycle changes
 Immutable facts SHALL be inserted without in-place replacement, while mutable lifecycle records SHALL allow only valid expected-state transitions and report conflicts when concurrent state has changed.
 
 #### Scenario: Concurrent lifecycle update
 - **WHEN** two operations attempt incompatible transitions from the same stored state
 - **THEN** at most one commits and the other receives a conflict without overwriting the winner
+
+#### Scenario: Attempt finishes
+- **WHEN** a reserved Attempt transitions from `started` to `succeeded`, `failed`, or `uncertain`
+- **THEN** storage updates that lifecycle record once through an expected-state guard and preserves its identity, sequence, and idempotency key
 
 #### Scenario: Existing immutable identity is reused incompatibly
 - **WHEN** a write supplies an existing identity with different immutable content
@@ -54,6 +66,10 @@ Interpretation, Automation, and Intent work SHALL use durable claims, leases, un
 #### Scenario: Workers claim Interpretation work concurrently
 - **WHEN** multiple workers request available Interpretation work
 - **THEN** each run is claimed by at most one active lease without blocking unrelated available work
+
+#### Scenario: Claimed work has not started
+- **WHEN** a worker leases a queued Interpretation before starting its processing transition
+- **THEN** the durable claim remains independently representable without falsifying the Interpretation lifecycle state
 
 #### Scenario: Worker disappears
 - **WHEN** a worker stops after claiming work and its lease expires
@@ -71,7 +87,7 @@ Interpretation, Automation, and Intent work SHALL use durable claims, leases, un
 The final schema SHALL represent current generic domain contracts and SHALL NOT retain Notification or Reminder entities, request-kind unions, Proactivity resources, or obsolete authorization lifecycle vocabulary.
 
 #### Scenario: Current migrations finish
-- **WHEN** all repository migrations run on a supported PostgreSQL database
+- **WHEN** all repository migrations run on PostgreSQL 18.4
 - **THEN** the resulting constraints and indexes accept current Profile, Component, consent, declaration, Automation, notification Capability, and Suggestion contracts
 
 #### Scenario: New use case is persisted
