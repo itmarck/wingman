@@ -112,6 +112,17 @@ export class MemoryReviewStore implements ReviewStore {
     await this.finishCompletion(interpretationId);
   }
 
+  checkpoint() {
+    return { reviews: new Map(this.#reviews), completions: new Set(this.#completions) };
+  }
+
+  restore(checkpoint: ReturnType<MemoryReviewStore['checkpoint']>): void {
+    this.#reviews.clear();
+    this.#completions.clear();
+    for (const [id, review] of checkpoint.reviews) this.#reviews.set(id, review);
+    for (const id of checkpoint.completions) this.#completions.add(id);
+  }
+
   private assertCanSave(review: Review): void {
     const existing = this.#reviews.get(review.id);
 

@@ -24,9 +24,10 @@ describe('system composition', () => {
       items: [],
       nextCursor: null,
     });
-    expect(system.projection.listProjections.execute().map((projection) => projection.key)).toEqual(
-      ['system.currentItems', 'system.glossary'],
-    );
+    expect(system.projection.list().map((projection) => projection.key)).toEqual([
+      'system.currentItems',
+      'system.glossary',
+    ]);
     expect(Object.keys(system)).toEqual([
       'capture',
       'interpretation',
@@ -35,8 +36,7 @@ describe('system composition', () => {
       'state',
       'automation',
       'planning',
-      'notification',
-      'proactivity',
+      'suggestion',
       'declarations',
       'proposals',
       'close',
@@ -56,8 +56,7 @@ class EmptyInterpreter {
       kind: 'knowledge',
       draft: {
         entryId: request.entry.id,
-        items: [],
-        components: [],
+        declarations: [],
       },
     };
   }

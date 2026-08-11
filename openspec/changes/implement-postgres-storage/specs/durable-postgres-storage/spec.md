@@ -11,7 +11,7 @@ PostgreSQL storage SHALL preserve Entries, Items, Component revisions, Interpret
 - **WHEN** the process restarts after committed domain work
 - **THEN** every durable fact and recoverable operational state remains available through the same system operations
 
-#### Scenario: Development approval is pending
+#### Scenario: Proposal approval is pending
 - **WHEN** the process restarts with an unapplied approval callback
 - **THEN** that callback is discarded without creating or changing durable domain data
 
@@ -20,7 +20,7 @@ Memory and PostgreSQL storage SHALL implement the same domain ports and preserve
 
 #### Scenario: Principal workflow uses either adapter
 - **WHEN** the same valid Entry workflow runs against memory and PostgreSQL
-- **THEN** both produce equivalent statuses, knowledge, Reviews, Automations, Intents, notifications, and projections
+- **THEN** both produce equivalent statuses, knowledge, Reviews, Automations, Intents, derived launcher inbox views, Suggestions, and projections
 
 #### Scenario: Stored value is loaded
 - **WHEN** PostgreSQL reconstructs a domain value
@@ -68,11 +68,11 @@ Interpretation, Automation, and Intent work SHALL use durable claims, leases, un
 - **THEN** one Attempt reserves the executable transition and duplicate capability invocation is prevented by the stable idempotency contract
 
 ### Requirement: Current generic relational schema
-The final schema SHALL represent current generic domain contracts and SHALL NOT retain active Reminder entities, request-kind unions, or obsolete authorization lifecycle vocabulary.
+The final schema SHALL represent current generic domain contracts and SHALL NOT retain Notification or Reminder entities, request-kind unions, Proactivity resources, or obsolete authorization lifecycle vocabulary.
 
 #### Scenario: Current migrations finish
 - **WHEN** all repository migrations run on a supported PostgreSQL database
-- **THEN** the resulting constraints and indexes accept current Profile, Component, consent, declaration, Automation, and notification contracts
+- **THEN** the resulting constraints and indexes accept current Profile, Component, consent, declaration, Automation, notification Capability, and Suggestion contracts
 
 #### Scenario: New use case is persisted
 - **WHEN** an Item or Automation represents planning, shopping, travel, or another supported domain

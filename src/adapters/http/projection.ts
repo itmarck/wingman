@@ -28,7 +28,7 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
         },
       },
     },
-    () => [...system.projection.listProjections.execute()],
+    () => [...system.projection.list()],
   );
 
   server.get(
@@ -48,6 +48,6 @@ export const projectionRoutes: FastifyPluginAsyncTypebox<ProjectionRoutesOptions
         },
       },
     },
-    (request) => system.projection.readProjection.execute(request.params.key),
+    (request) => system.projection.read(request.params.key),
   );
 };

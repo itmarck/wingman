@@ -11,11 +11,11 @@ import { inspectorRoutes } from './inspector.js';
 import { readMutationMode } from './mutation.js';
 import { notificationRoutes } from './notification.js';
 import { planningRoutes } from './planning.js';
-import { proactivityRoutes } from './proactivity.js';
 import { projectionRoutes } from './projection.js';
 import { proposalRoutes } from './proposal.js';
 import { reviewRoutes } from './review.js';
 import { stateRoutes } from './state.js';
+import { suggestionRoutes } from './suggestion.js';
 
 export interface HttpServerOptions {
   readonly environment?: NodeJS.ProcessEnv;
@@ -64,7 +64,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Automations' },
         { name: 'Planning' },
         { name: 'Notifications' },
-        { name: 'Proactivity' },
+        { name: 'Suggestions' },
       ],
     },
   });
@@ -126,7 +126,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       await protectedServer.register(automationRoutes, { system });
       await protectedServer.register(planningRoutes, { system });
       await protectedServer.register(notificationRoutes, { system });
-      await protectedServer.register(proactivityRoutes, { system });
+      await protectedServer.register(suggestionRoutes, { system });
     },
     { prefix: '/api' },
   );

@@ -25,7 +25,7 @@ describe('development inspector', () => {
         title: 'Entender Wingman',
         evidence: [{ entryId, sourceLocators: [] }],
       });
-      await system.proactivity.service.evaluate({ kind: 'scan' });
+      await system.suggestion.service.evaluate({ kind: 'scan' });
       const [page, data] = await Promise.all([
         server.inject({ method: 'GET', url: '/inspect' }),
         server.inject({ method: 'GET', url: '/inspect/data' }),

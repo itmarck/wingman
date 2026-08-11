@@ -1,6 +1,7 @@
 import { assertText, assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
-import type { InterpretationItem, ReferenceDecision } from './input.js';
+import type { ItemDeclaration } from './declaration.js';
+import type { ResolutionDecision } from './input.js';
 import type { InterpretationId } from './interpretation.js';
 
 export type ReviewId = string;
@@ -15,7 +16,7 @@ export interface ReferenceCandidate {
 export interface ReferenceResolution {
   readonly reference: string;
   readonly question: string;
-  readonly proposed: InterpretationItem;
+  readonly proposed: ItemDeclaration;
   readonly candidates: readonly ReferenceCandidate[];
 }
 
@@ -29,7 +30,7 @@ export interface CreateInterpretationReviewInput {
 
 export interface ReviewState {
   readonly status: ReviewStatus;
-  readonly decision?: ReferenceDecision;
+  readonly decision?: ResolutionDecision;
   readonly resolvedAt?: string;
 }
 
@@ -48,7 +49,7 @@ export class Review {
   readonly entryId: string;
   readonly resolution: ReferenceResolution;
   readonly createdAt: string;
-  readonly decision?: ReferenceDecision;
+  readonly decision?: ResolutionDecision;
   readonly resolvedAt?: string;
 
   private constructor(input: CreateInterpretationReviewInput, state: ReviewState) {
@@ -130,7 +131,7 @@ export class Review {
     );
   }
 
-  resolve(decision: ReferenceDecision, resolvedAt: string): Review {
+  resolve(decision: ResolutionDecision, resolvedAt: string): Review {
     if (this.status !== 'pending') {
       throw new ConflictError(`Review ${this.id} is already resolved`);
     }
@@ -169,7 +170,7 @@ function assertIdentity(input: CreateInterpretationReviewInput): void {
   }
 }
 
-function assertDecision(resolution: ReferenceResolution, decision: ReferenceDecision): void {
+function assertDecision(resolution: ReferenceResolution, decision: ResolutionDecision): void {
   if (decision.reference !== resolution.reference) {
     throw new InvalidInputError('Review decision must resolve its reference');
   }

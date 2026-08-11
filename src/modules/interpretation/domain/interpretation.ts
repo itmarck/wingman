@@ -2,7 +2,7 @@ import { assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { InterpretationPublication } from '../ports.js';
 import { emptyPublication, freezeDraft, freezePublication } from './freeze.js';
-import type { ReferenceDecision, RegisterInterpretationInput } from './input.js';
+import type { InterpretationDraft, ResolutionDecision } from './input.js';
 import {
   assertInterpretationIdentity,
   assertInterpretationState,
@@ -39,7 +39,7 @@ export class Interpretation {
   readonly updatedAt: string;
   readonly availableAt?: string;
   readonly interpreter?: InterpreterIdentity;
-  readonly draft?: RegisterInterpretationInput;
+  readonly draft?: InterpretationDraft;
   readonly publication?: InterpretationPublication;
   readonly error?: string;
 
@@ -109,7 +109,7 @@ export class Interpretation {
   }
 
   requestReview(
-    draft: RegisterInterpretationInput,
+    draft: InterpretationDraft,
     interpreter: InterpreterIdentity,
     requestedAt: string,
   ): Interpretation {
@@ -117,7 +117,7 @@ export class Interpretation {
   }
 
   completeKnowledge(
-    draft: RegisterInterpretationInput,
+    draft: InterpretationDraft,
     interpreter: InterpreterIdentity,
     publication: InterpretationPublication,
     completedAt: string,
@@ -136,7 +136,7 @@ export class Interpretation {
   }
 
   completeReview(
-    decisions: readonly ReferenceDecision[],
+    decisions: readonly ResolutionDecision[],
     publication: InterpretationPublication,
     completedAt: string,
   ): Interpretation {
@@ -152,7 +152,7 @@ export class Interpretation {
       updatedAt: completedAt,
       draft: {
         ...this.draft,
-        referenceDecisions: decisions,
+        decisions,
       },
       interpreter: this.interpreter,
       publication,
@@ -251,7 +251,7 @@ export class Interpretation {
     status: Extract<InterpretationStatus, 'completed' | 'pending'>,
     interpreter: InterpreterIdentity,
     updatedAt: string,
-    draft?: RegisterInterpretationInput,
+    draft?: InterpretationDraft,
     publication?: InterpretationPublication,
   ): Interpretation {
     if (this.status !== 'processing') {

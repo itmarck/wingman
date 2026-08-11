@@ -36,7 +36,8 @@ describe('launcher notification HTTP API', () => {
       ],
       evidence,
     });
-    await system.notification.worker.runDue();
+    await system.automation.worker.runDue();
+    await system.execution.worker.runPending();
 
     const listed = await server.inject({
       method: 'GET',

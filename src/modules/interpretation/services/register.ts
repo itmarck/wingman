@@ -2,18 +2,18 @@ import type { SchemaRegistry } from '../../../core/item/registry.js';
 import type { KnowledgeSnapshot } from '../../../core/item/snapshot.js';
 import { ConflictError, InvalidInputError } from '../../../system/error.js';
 import type { Clock, IdGenerator } from '../../../system/runtime.js';
-import type { ReferenceDecision, RegisterInterpretationInput } from '../domain/input.js';
+import type { InterpretationDraft, ResolutionDecision } from '../domain/input.js';
 import type { Interpretation, InterpreterIdentity } from '../domain/interpretation.js';
 import { Review, type ReviewId } from '../domain/review.js';
 import type {
   InterpretationClaim,
   InterpretationLifecycle,
-  InterpretationRegistration,
+  InterpretationPublicationPlan,
   InterpretationStore,
 } from '../ports.js';
+import type { InterpretationCompiler } from './compiler.js';
 import {
   completeMissingResolutions,
-  createRegistration,
   declarationCount,
   findPendingResolutions,
 } from './registration.js';
@@ -26,7 +26,7 @@ export interface RegisterInterpretationResult {
 
 export interface PreparedReviewCompletion {
   readonly interpretation: Interpretation;
-  readonly registration: InterpretationRegistration;
+  readonly plan: InterpretationPublicationPlan;
 }
 
 /** Registers Items and Component revisions extracted from an immutable Entry. */
@@ -35,20 +35,21 @@ export class RegisterInterpretationCommand {
     private readonly store: InterpretationStore,
     private readonly lifecycle: InterpretationLifecycle,
     private readonly registry: SchemaRegistry,
+    private readonly compiler: InterpretationCompiler,
     private readonly ids: IdGenerator,
     private readonly clock: Clock,
   ) {}
 
   async execute(
     interpretation: Interpretation,
-    input: RegisterInterpretationInput,
+    input: InterpretationDraft,
     interpreter: InterpreterIdentity,
     claim?: InterpretationClaim,
   ): Promise<RegisterInterpretationResult> {
     const snapshot = await this.store.loadKnowledge();
     const completedInput = completeMissingResolutions(input, snapshot);
     validateInterpretationDraft(completedInput, snapshot, this.registry);
-    if ((completedInput.referenceDecisions ?? []).length > 0)
+    if ((completedInput.decisions ?? []).length > 0)
       throw new InvalidInputError('Interpreter cannot make reference decisions');
     const resolutions = findPendingResolutions(completedInput, snapshot, new Map());
     if (resolutions.length > 0) {
@@ -81,7 +82,7 @@ export class RegisterInterpretationCommand {
     claim?: InterpretationClaim,
   ): Promise<Interpretation> {
     const completed = interpretation.completeEmpty(interpreter, this.clock.now().toISOString());
-    await this.lifecycle.publish(completed, { items: [], revisions: [] }, claim);
+    await this.lifecycle.publish(completed, emptyPlan, claim);
     return completed;
   }
 
@@ -99,66 +100,72 @@ export class RegisterInterpretationCommand {
       throw new ConflictError(
         `Interpretation ${interpretation.id} still has unresolved references`,
       );
-    const prepared = this.prepareRegistration(input, snapshot, decisions);
+    const prepared = this.prepareRegistration(interpretation.id, input, snapshot, decisions);
     return Object.freeze({
       interpretation: interpretation.completeReview(
         [...decisions.values()],
         prepared.publication,
         this.clock.now().toISOString(),
       ),
-      registration: prepared.registration,
+      plan: prepared.plan,
     });
   }
 
   private async publish(
     interpretation: Interpretation,
-    input: RegisterInterpretationInput,
+    input: InterpretationDraft,
     interpreter: InterpreterIdentity,
     snapshot: KnowledgeSnapshot,
-    decisions: ReadonlyMap<string, ReferenceDecision>,
+    decisions: ReadonlyMap<string, ResolutionDecision>,
     claim?: InterpretationClaim,
   ): Promise<RegisterInterpretationResult> {
-    const prepared = this.prepareRegistration(input, snapshot, decisions);
+    const prepared = this.prepareRegistration(interpretation.id, input, snapshot, decisions);
     const completed = interpretation.completeKnowledge(
       input,
       interpreter,
       prepared.publication,
       this.clock.now().toISOString(),
     );
-    await this.lifecycle.publish(completed, prepared.registration, claim);
+    await this.lifecycle.publish(completed, prepared.plan, claim);
     return Object.freeze({ interpretation: completed, reviewIds: Object.freeze([]) });
   }
 
   private prepareRegistration(
-    input: RegisterInterpretationInput,
+    interpretationId: string,
+    input: InterpretationDraft,
     snapshot: KnowledgeSnapshot,
-    decisions: ReadonlyMap<string, ReferenceDecision>,
+    decisions: ReadonlyMap<string, ResolutionDecision>,
   ) {
-    const prepared = createRegistration(
-      input,
+    const draft = Object.freeze({ ...input, decisions: Object.freeze([...decisions.values()]) });
+    const plan = this.compiler.compile(
+      interpretationId,
+      draft,
       snapshot,
-      decisions,
-      this.registry,
-      this.ids,
       this.clock.now().toISOString(),
     );
-    if (
-      prepared.registration.items.length === 0 &&
-      prepared.registration.revisions.length === 0 &&
-      declarationCount(input) === 0
-    )
+    if (plan.items.length === 0 && plan.revisions.length === 0 && declarationCount(input) === 0)
       throw new InvalidInputError('Interpretation Draft does not produce new knowledge');
-    return prepared;
+    return { plan, publication: plan.publication };
   }
 }
 
-function requireDraft(interpretation: Interpretation): RegisterInterpretationInput {
+const emptyPlan: InterpretationPublicationPlan = Object.freeze({
+  items: Object.freeze([]),
+  revisions: Object.freeze([]),
+  states: Object.freeze([]),
+  automations: Object.freeze([]),
+  intents: Object.freeze([]),
+  outcomes: Object.freeze([]),
+  publication: Object.freeze({ itemIds: Object.freeze([]), revisionIds: Object.freeze([]) }),
+});
+
+function requireDraft(interpretation: Interpretation): InterpretationDraft {
   if (!interpretation.draft)
     throw new ConflictError(`Interpretation ${interpretation.id} has no Draft`);
   return interpretation.draft;
 }
 
-function requireDecision(review: Review): ReferenceDecision {
+function requireDecision(review: Review): ResolutionDecision {
   if (!review.decision) throw new ConflictError(`Review ${review.id} is unresolved`);
   return review.decision;
 }

@@ -3,6 +3,7 @@ import { ConflictError, InvalidInputError } from '../../../../system/error.js';
 import type { Interpretation, InterpretationId } from '../../domain/interpretation.js';
 import type {
   ClaimInterpretationInput,
+  DeclarationOutcome,
   InterpretationClaim,
   InterpretationQueue,
   InterpretationStateStore,
@@ -15,6 +16,7 @@ import { InterpretationClaimError } from '../../ports.js';
 export class MemoryInterpretations implements InterpretationStateStore, InterpretationQueue {
   readonly #interpretations = new Map<InterpretationId, Interpretation>();
   readonly #claims = new Map<InterpretationId, ActiveClaim>();
+  readonly #outcomes = new Map<string, DeclarationOutcome>();
 
   constructor(private readonly lock = new MemoryLock()) {}
 
@@ -44,6 +46,40 @@ export class MemoryInterpretations implements InterpretationStateStore, Interpre
         (interpretation) => interpretation.entryId === entryId,
       ),
     );
+  }
+
+  async saveDeclarationOutcomes(outcomes: readonly DeclarationOutcome[]): Promise<void> {
+    for (const outcome of outcomes)
+      this.#outcomes.set(
+        `${outcome.entryId}:${outcome.reference}`,
+        Object.freeze({
+          ...outcome,
+          details: outcome.details === undefined ? undefined : structuredClone(outcome.details),
+        }),
+      );
+  }
+
+  async listDeclarationOutcomes(entryId?: string): Promise<readonly DeclarationOutcome[]> {
+    return Object.freeze(
+      [...this.#outcomes.values()].filter((outcome) => !entryId || outcome.entryId === entryId),
+    );
+  }
+
+  checkpoint() {
+    return {
+      interpretations: new Map(this.#interpretations),
+      claims: new Map(this.#claims),
+      outcomes: new Map(this.#outcomes),
+    };
+  }
+
+  restore(checkpoint: ReturnType<MemoryInterpretations['checkpoint']>): void {
+    this.#interpretations.clear();
+    this.#claims.clear();
+    this.#outcomes.clear();
+    for (const [id, value] of checkpoint.interpretations) this.#interpretations.set(id, value);
+    for (const [id, value] of checkpoint.claims) this.#claims.set(id, value);
+    for (const [id, value] of checkpoint.outcomes) this.#outcomes.set(id, value);
   }
 
   async enqueue(interpretationId: InterpretationId): Promise<void> {

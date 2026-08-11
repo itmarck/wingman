@@ -1,9 +1,9 @@
-import type { RegisterInterpretationInput } from '../domain/input.js';
+import type { InterpretationDraft } from '../domain/input.js';
 
 export type InterpretationAdapterOutput =
   | { readonly kind: 'empty' }
   | { readonly kind: 'invalid'; readonly reason: string }
-  | { readonly kind: 'knowledge'; readonly draft: RegisterInterpretationInput };
+  | { readonly kind: 'knowledge'; readonly draft: InterpretationDraft };
 
 /** Validates and normalizes one provider-independent Interpretation output. */
 export function parseInterpretationOutput(
@@ -24,8 +24,7 @@ export function parseInterpretationOutput(
     return invalidOutput('Knowledge Interpreter output references a different Entry');
 
   const draft = normalizeDraft(value.draft);
-  const hasKnowledge =
-    draft.items.length > 0 || draft.components.length > 0 || declarationCount(draft) > 0;
+  const hasKnowledge = draft.declarations.length > 0;
   return hasKnowledge
     ? Object.freeze({ kind: 'knowledge', draft })
     : invalidOutput('Knowledge Interpreter output is empty; return empty explicitly');
@@ -35,34 +34,23 @@ function invalidOutput(reason: string): InterpretationAdapterOutput {
   return Object.freeze({ kind: 'invalid', reason });
 }
 
-function isDraft(value: unknown): value is RegisterInterpretationInput {
+function isDraft(value: unknown): value is InterpretationDraft {
   if (!isRecord(value)) return false;
   return (
     typeof value.entryId === 'string' &&
-    Array.isArray(value.items) &&
-    Array.isArray(value.components) &&
-    (value.declarations === undefined || isDeclarations(value.declarations))
+    Array.isArray(value.declarations) &&
+    value.declarations.every(isDeclaration) &&
+    (value.resolutions === undefined || Array.isArray(value.resolutions)) &&
+    value.decisions === undefined
   );
 }
 
-function normalizeDraft(draft: RegisterInterpretationInput): RegisterInterpretationInput {
+function normalizeDraft(draft: InterpretationDraft): InterpretationDraft {
   return Object.freeze({
     ...draft,
-    declarations: draft.declarations
-      ? Object.freeze(structuredClone(draft.declarations))
-      : undefined,
+    declarations: Object.freeze(structuredClone(draft.declarations)),
+    resolutions: draft.resolutions ? Object.freeze(structuredClone(draft.resolutions)) : undefined,
   });
-}
-
-function isDeclarations(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return (['items', 'states', 'automations', 'intents'] as const).every(
-    (key) =>
-      Array.isArray(value[key]) &&
-      (value[key] as unknown[]).every(
-        (declaration) => isDeclaration(declaration) && declaration.kind === singular(key),
-      ),
-  );
 }
 
 function isDeclaration(value: unknown): value is Record<string, unknown> {
@@ -74,20 +62,6 @@ function isDeclaration(value: unknown): value is Record<string, unknown> {
     (value.dependsOn === undefined || Array.isArray(value.dependsOn)) &&
     (value.unresolved === undefined || Array.isArray(value.unresolved))
   );
-}
-
-function declarationCount(draft: RegisterInterpretationInput): number {
-  const declarations = draft.declarations;
-  return declarations
-    ? declarations.items.length +
-        declarations.states.length +
-        declarations.automations.length +
-        declarations.intents.length
-    : 0;
-}
-
-function singular(key: 'items' | 'states' | 'automations' | 'intents'): string {
-  return key.slice(0, -1);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

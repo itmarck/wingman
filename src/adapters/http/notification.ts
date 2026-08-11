@@ -33,7 +33,7 @@ export const notificationRoutes: FastifyPluginAsyncTypebox<Options> = async (
         response: { 200: Type.Array(notificationSchema), 401: errorSchema },
       },
     },
-    async () => (await system.notification.service.list()).map(serialize),
+    async () => (await system.execution.notifications.list()).map(serialize),
   );
   server.get(
     '/notifications/:id',
@@ -45,7 +45,7 @@ export const notificationRoutes: FastifyPluginAsyncTypebox<Options> = async (
         response: { 200: notificationSchema, 401: errorSchema, 404: errorSchema },
       },
     },
-    async (request) => serialize(await system.notification.service.read(request.params.id)),
+    async (request) => serialize(await system.execution.notifications.read(request.params.id)),
   );
   server.post(
     '/notifications/:id/acknowledgement',
@@ -75,17 +75,19 @@ export const notificationRoutes: FastifyPluginAsyncTypebox<Options> = async (
               value: { id: request.params.id },
             },
           ],
-          () => system.notification.service.acknowledge(request.params.id),
+          () => system.execution.notifications.acknowledge(request.params.id),
         );
         return reply.code(202).send({ proposal: createProposalResponse(proposal) });
       }
-      await system.notification.service.acknowledge(request.params.id);
+      await system.execution.notifications.acknowledge(request.params.id);
       return reply.code(204).send(null);
     },
   );
 };
 
-function serialize(notification: Awaited<ReturnType<System['notification']['service']['read']>>) {
+function serialize(
+  notification: Awaited<ReturnType<System['execution']['notifications']['read']>>,
+) {
   return {
     ...notification,
     evidence: [...notification.evidence],

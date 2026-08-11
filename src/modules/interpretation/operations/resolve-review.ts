@@ -1,18 +1,13 @@
 import { NotFoundError } from '../../../system/error.js';
 import type { Clock } from '../../../system/runtime.js';
-import type { ReferenceDecision } from '../domain/input.js';
+import type { ResolutionDecision } from '../domain/input.js';
 import type { Review } from '../domain/review.js';
-import type {
-  InterpretationDeclarationPublisher,
-  InterpretationLifecycle,
-  InterpretationStateStore,
-  ReviewStore,
-} from '../ports.js';
+import type { InterpretationLifecycle, InterpretationStateStore, ReviewStore } from '../ports.js';
 import type { RegisterInterpretationCommand } from '../services/register.js';
 
 export interface ResolveReviewInput {
   readonly reviewId: string;
-  readonly decision: ReferenceDecision;
+  readonly decision: ResolutionDecision;
 }
 
 /**
@@ -24,7 +19,6 @@ export class ResolveReviewCommand {
     private readonly interpretations: InterpretationStateStore,
     private readonly registerInterpretation: RegisterInterpretationCommand,
     private readonly lifecycle: InterpretationLifecycle,
-    private readonly declarations: InterpretationDeclarationPublisher,
     private readonly clock: Clock,
   ) {}
 
@@ -66,8 +60,6 @@ export class ResolveReviewCommand {
       reviews,
     );
 
-    await this.lifecycle.publishReview(prepared.interpretation, prepared.registration, resolved);
-    if (prepared.interpretation.draft)
-      await this.declarations.execute(prepared.interpretation.draft);
+    await this.lifecycle.publishReview(prepared.interpretation, prepared.plan, resolved);
   }
 }

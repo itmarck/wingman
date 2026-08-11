@@ -8,13 +8,11 @@ import type {
 } from '../modules/interpretation/ports.js';
 import type { InterpretationContextSource } from '../modules/interpretation/services/context.js';
 import type { ItemStore } from '../modules/knowledge/ports/store.js';
-import type { ProjectionSource } from '../modules/projection/ports.js';
 
 export interface KnowledgeStorage
   extends EntryStore,
     ItemStore,
     InterpretationStore,
-    ProjectionSource,
     InterpretationContextSource {}
 
 export interface InterpretationStorage extends InterpretationStateStore, InterpretationQueue {}

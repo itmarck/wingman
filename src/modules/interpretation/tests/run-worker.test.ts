@@ -31,7 +31,7 @@ describe('run Interpretation worker', () => {
 });
 
 describe('system work command', () => {
-  it('advances interpretations and due notifications in the same cycle', async () => {
+  it('advances interpretations, Automations, and Intents in the same cycle', async () => {
     let interpretations = 1;
     let notifications = 1;
     const command = new SystemWorkCommand(
@@ -49,6 +49,11 @@ describe('system work command', () => {
           return due;
         },
       },
+      {
+        async runPending() {
+          return 0;
+        },
+      },
     );
 
     expect(await command.execute()).toBe(true);
@@ -56,7 +61,7 @@ describe('system work command', () => {
     expect({ interpretations, notifications }).toEqual({ interpretations: 0, notifications: 0 });
   });
 
-  it('does not let failed interpretation work starve notifications', async () => {
+  it('does not let failed interpretation work starve Automations or Intents', async () => {
     let notifications = 0;
     const command = new SystemWorkCommand(
       {
@@ -67,6 +72,11 @@ describe('system work command', () => {
       {
         async runDue() {
           notifications += 1;
+          return 0;
+        },
+      },
+      {
+        async runPending() {
           return 0;
         },
       },

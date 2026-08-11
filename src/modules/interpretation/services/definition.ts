@@ -121,7 +121,7 @@ export const entryInterpretation = defineInterpretation({
   reasoning: 'low',
   policies: Object.values(Policy),
   outputContract: `Return exactly one result whose kind is exactly knowledge, empty or invalid; never use interpreted:
-- knowledge: a Draft containing entryId, items, components, referenceResolutions and declarations. Knowledge or declarations may be empty, but not both.
+- knowledge: a Draft containing entryId, one declarations array and resolutions. Item declarations contain their Components. Decisions are system-owned and must never be returned.
 - empty: an explicit valid decision that the Entry contains no durable knowledge.
 - invalid: a reason explaining why the contract could not be satisfied.
 Declarations are stable semantic primitives:

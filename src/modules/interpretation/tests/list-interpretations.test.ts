@@ -30,8 +30,7 @@ function createInterpretation(id: string, timestamp: string): Interpretation {
   return interpretation.completeKnowledge(
     {
       entryId: interpretation.entryId,
-      items: [],
-      components: [],
+      declarations: [],
     },
     {
       key: 'remote-powerful',

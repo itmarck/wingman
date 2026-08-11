@@ -1,6 +1,6 @@
 import type { Entry } from '../../../core/knowledge/entry.js';
 import type { InferenceRetryClass } from '../config.js';
-import type { RegisterInterpretationInput } from '../domain/input.js';
+import type { InterpretationDraft } from '../domain/input.js';
 import type { InterpreterIdentity } from '../domain/interpretation.js';
 import type { InferenceResult, InferenceRun, InferenceTelemetry } from '../ports.js';
 import type { InterpretationContext } from './context.js';
@@ -50,12 +50,12 @@ export type InterpretationResult =
       readonly kind: 'invalid';
       readonly interpreter: InterpreterIdentity;
       readonly reason: string;
-      readonly draft?: RegisterInterpretationInput;
+      readonly draft?: InterpretationDraft;
     }
   | {
       readonly kind: 'knowledge';
       readonly interpreter: InterpreterIdentity;
-      readonly draft: RegisterInterpretationInput;
+      readonly draft: InterpretationDraft;
     };
 
 /**

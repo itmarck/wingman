@@ -56,10 +56,7 @@ describe('Interpretation queue', () => {
     await expect(
       lifecycle.publish(
         completeInterpretation(processing, '2026-07-20T12:06:00Z'),
-        {
-          items: [],
-          revisions: [],
-        },
+        emptyPlan,
         first,
       ),
     ).rejects.toMatchObject({
@@ -71,10 +68,7 @@ describe('Interpretation queue', () => {
     await queue.start(recovered, recoveredProcessing);
     await lifecycle.publish(
       completeInterpretation(recoveredProcessing, '2026-07-20T12:07:00Z'),
-      {
-        items: [],
-        revisions: [],
-      },
+      emptyPlan,
       recovered,
     );
     await queue.complete(recovered);
@@ -129,8 +123,7 @@ function completeInterpretation(
   return interpretation.completeKnowledge(
     {
       entryId: interpretation.entryId,
-      items: [],
-      components: [],
+      declarations: [],
     },
     {
       key: 'test',
@@ -142,6 +135,16 @@ function completeInterpretation(
     completedAt,
   );
 }
+
+const emptyPlan = {
+  items: [],
+  revisions: [],
+  states: [],
+  automations: [],
+  intents: [],
+  outcomes: [],
+  publication: { itemIds: [], revisionIds: [] },
+} as const;
 
 function requireValue<Value>(value: Value | undefined): Value {
   if (value === undefined) {

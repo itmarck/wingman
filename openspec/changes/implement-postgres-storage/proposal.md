@@ -5,9 +5,9 @@ Wingman already exposes its principal knowledge and automation workflow, but dom
 ## What Changes
 
 - Add PostgreSQL adapters for every durable domain fact: Entries, Items and Component revisions, Interpretation runs and Reviews, persisted State, Automations and evaluations, Intents, Attempts and Events, declaration outcomes, and Suggestions.
-- Keep code-owned registries, derived projections, detector definitions, and pending development approval callbacks in process memory.
+- Keep code-owned registries, derived projections, detector definitions, and pending Proposal callbacks in process memory.
 - Expand the system storage composition so memory and PostgreSQL provide the same ports instead of constructing operational memory stores unconditionally.
-- Add atomic transaction support for compound publication and Review transitions.
+- Persist each complete `InterpretationPublicationPlan` and Review transition atomically.
 - Enforce durable queue claiming, leases, idempotency, deduplication, optimistic state transitions, and immutable history under concurrent workers.
 - Reset the unused migration history to `001_system.sql` and `002_telemetry.sql`, both defined from current contracts; after this baseline, migrations return to append-only evolution.
 - Select PostgreSQL for the production process while preserving memory storage for deterministic tests and isolated evaluation.
@@ -27,6 +27,6 @@ Wingman already exposes its principal knowledge and automation workflow, but dom
 ## Impact
 
 - Affects `src/system/storage.ts`, system composition, runtime startup, PostgreSQL infrastructure, every durable module store adapter, migrations, tests, scripts, and Railway deployment configuration.
-- Keeps the authenticated HTTP API, inference provider contract, generic Item/Component model, and single-process deployment unchanged.
+- Keeps the authenticated HTTP API, private inference package contract, generic Item/Component model, and single-process deployment unchanged.
 - Uses the existing `pg` and `node-pg-migrate` dependencies; no additional service is introduced.
 - Requires recreating the empty real database before applying the new baseline; no legacy schema or migration-history compatibility is retained.

@@ -56,6 +56,20 @@ export class MemoryAutomationStore implements AutomationStore {
   async listResults(automationId: string): Promise<readonly AutomationEvaluationResult[]> {
     return Object.freeze(this.#results.filter((result) => result.automationId === automationId));
   }
+  checkpoint() {
+    return { runtimes: [...this.#automations.values()], results: [...this.#results] };
+  }
+  restore(checkpoint: ReturnType<MemoryAutomationStore['checkpoint']>): void {
+    this.#automations.clear();
+    this.#eventIndex.clear();
+    this.#itemIndex.clear();
+    this.#componentIndex.clear();
+    this.#results.splice(0, this.#results.length, ...checkpoint.results);
+    for (const runtime of checkpoint.runtimes) {
+      this.#automations.set(runtime.automation.id, runtime);
+      this.index(runtime);
+    }
+  }
   private resolve(ids?: ReadonlySet<string>): readonly AutomationRuntime[] {
     return Object.freeze(
       [...(ids ?? [])]

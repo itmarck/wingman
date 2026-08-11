@@ -13,14 +13,16 @@ import type { CaptureModule } from '../modules/capture/module.js';
 import { CaptureEntryCommand } from '../modules/capture/operations/capture.js';
 import { GetEntryQuery, ListEntriesQuery } from '../modules/capture/operations/queries.js';
 import { MemoryExecutionStore } from '../modules/execution/adapters/memory/store.js';
+import { NotificationCapability } from '../modules/execution/capabilities/notification.js';
 import type { ExecutionModule } from '../modules/execution/module.js';
 import {
   CancelIntentCommand,
   GrantIntentConsentCommand,
 } from '../modules/execution/operations/control.js';
 import { ExecuteIntentCommand } from '../modules/execution/operations/execute.js';
+import { NotificationService } from '../modules/execution/operations/notifications.js';
 import { ProposeIntentCommand } from '../modules/execution/operations/propose.js';
-import { MemoryDeclarationRegistry } from '../modules/interpretation/adapters/memory/declaration.js';
+import { ExecutionWorker } from '../modules/execution/operations/worker.js';
 import { MemoryInterpretations } from '../modules/interpretation/adapters/memory/interpretation.js';
 import { MemoryInterpretationLifecycle } from '../modules/interpretation/adapters/memory/lifecycle.js';
 import { MemoryReviewStore } from '../modules/interpretation/adapters/memory/review.js';
@@ -43,6 +45,7 @@ import type {
   DeclarationOutcomeSource,
   InferenceTelemetry,
 } from '../modules/interpretation/ports.js';
+import { InterpretationCompiler } from '../modules/interpretation/services/compiler.js';
 import {
   type InferenceConfig,
   type InterpretationAdapter,
@@ -50,40 +53,29 @@ import {
 } from '../modules/interpretation/services/interpreter.js';
 import { RegisterInterpretationCommand } from '../modules/interpretation/services/register.js';
 import { MemoryKnowledgeStore } from '../modules/knowledge/adapters/memory/store.js';
-import { ComposeItemCommand } from '../modules/knowledge/operations/compose.js';
-import type { NotificationModule } from '../modules/notification/module.js';
-import { NotificationCapability } from '../modules/notification/notification-capability.js';
-import { NotificationService } from '../modules/notification/operations/service.js';
-import { NotificationWorker } from '../modules/notification/operations/worker.js';
 import type { PlanningModule } from '../modules/planning/module.js';
 import { PlanningQueryService, planningViews } from '../modules/planning/operations/query.js';
 import { PlanningCommandService } from '../modules/planning/operations/write.js';
-import { MemorySuggestionStore } from '../modules/proactivity/adapters/memory/store.js';
-import {
-  createDetectorRegistry,
-  type DetectorThresholds,
-} from '../modules/proactivity/detectors/builtins.js';
-import type { ProactivityModule } from '../modules/proactivity/module.js';
-import {
-  type ProactivityPolicy,
-  ProactivityService,
-} from '../modules/proactivity/operations/service.js';
-import { MemoryProjectionRegistry } from '../modules/projection/adapters/memory/registry.js';
+import { ProjectionCatalog } from '../modules/projection/catalog.js';
 import { GlossaryProjection } from '../modules/projection/domain/glossary.js';
 import { CurrentItemsProjection } from '../modules/projection/domain/items.js';
-import type { ProjectionModule } from '../modules/projection/module.js';
-import {
-  ListProjectionsQuery,
-  ReadProjectionQuery,
-} from '../modules/projection/operations/queries.js';
 import { MemoryStateStore } from '../modules/state/adapters/memory/store.js';
 import type { StateModule } from '../modules/state/module.js';
 import { CreateStateCommand } from '../modules/state/operations/create.js';
 import { DerivedStateRegistry } from '../modules/state/operations/define.js';
 import { ListStateViewQuery } from '../modules/state/operations/list.js';
 import { StateEvaluator } from '../modules/state/services/evaluator.js';
+import { MemorySuggestionStore } from '../modules/suggestion/adapters/memory/store.js';
+import {
+  createDetectorRegistry,
+  type DetectorThresholds,
+} from '../modules/suggestion/detectors/builtins.js';
+import type { SuggestionModule } from '../modules/suggestion/module.js';
+import {
+  type SuggestionPolicy,
+  SuggestionService,
+} from '../modules/suggestion/operations/service.js';
 import { ApprovalInterpretationLifecycle } from './approval.js';
-import { EntryDeclarationPublisher } from './declaration.js';
 import { type MutationMode, ProposalRegistry } from './proposal.js';
 import type { SystemStorage } from './storage.js';
 
@@ -97,7 +89,7 @@ export interface SystemOptions {
   readonly telemetry?: InferenceTelemetry;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
-  readonly proactivity?: ProactivityPolicy;
+  readonly suggestion?: SuggestionPolicy;
   readonly detectorThresholds?: DetectorThresholds;
 }
 
@@ -107,13 +99,12 @@ export interface SystemOptions {
 export interface System {
   readonly capture: CaptureModule;
   readonly interpretation: InterpretationModule;
-  readonly projection: ProjectionModule;
+  readonly projection: ProjectionCatalog;
   readonly execution: ExecutionModule;
   readonly state: StateModule;
   readonly automation: AutomationModule;
   readonly planning: PlanningModule;
-  readonly notification: NotificationModule;
-  readonly proactivity: ProactivityModule;
+  readonly suggestion: SuggestionModule;
   readonly declarations: DeclarationOutcomeSource;
   readonly proposals: ProposalRegistry;
   close(): Promise<void>;
@@ -140,11 +131,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   const automationStore = new MemoryAutomationStore();
   const suggestionStore = new MemorySuggestionStore();
   const detectors = createDetectorRegistry(options.detectorThresholds);
-  const declarationOutcomes = new MemoryDeclarationRegistry();
-  const projections = new MemoryProjectionRegistry([
-    new CurrentItemsProjection(),
-    new GlossaryProjection(),
-  ]);
+  const projectionDefinitions = [new CurrentItemsProjection(), new GlossaryProjection()];
   const processing = options.processing ?? defaultProcessingConfig;
   let storage: SystemStorage;
   let closeStorage: () => Promise<void>;
@@ -162,7 +149,15 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         knowledge,
         interpretations,
         reviews,
-        lifecycle: new MemoryInterpretationLifecycle(knowledge, interpretations, reviews, lock),
+        lifecycle: new MemoryInterpretationLifecycle(
+          knowledge,
+          interpretations,
+          reviews,
+          lock,
+          stateStore,
+          automationStore,
+          executionStore,
+        ),
       });
       closeStorage = async () => undefined;
       break;
@@ -173,23 +168,25 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
   }
 
   const { knowledge, interpretations, reviews } = storage;
+  const projections = new ProjectionCatalog(knowledge, projectionDefinitions);
   const lifecycle = new ApprovalInterpretationLifecycle(
     storage.lifecycle,
     proposals,
     options.mode ?? 'approval',
   );
   const interpreter = new Interpreter(options.adapter, options.inference, options.telemetry);
+  const compiler = new InterpretationCompiler(registry, operators, triggers, capabilities);
   const registerInterpretation = new RegisterInterpretationCommand(
     knowledge,
     lifecycle,
     registry,
+    compiler,
     ids,
     clock,
   );
   const createState = new CreateStateCommand(stateStore, knowledge, operators, ids, clock);
   const planningCommands = new PlanningCommandService(knowledge, createState, ids, clock, registry);
   const planningQueries = new PlanningQueryService(knowledge, () => clock.now());
-  const composeItem = new ComposeItemCommand(knowledge, createState, registry, ids, clock);
   const stateViews = new ListStateViewQuery(
     stateStore,
     derivedStates,
@@ -255,15 +252,9 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       });
     },
   };
-  const declarationPublisher = new EntryDeclarationPublisher(
-    declarationOutcomes,
-    composeItem,
-    createState,
-    registerAutomation,
-    proposeIntent,
-    ids,
-    clock,
-  );
+  const declarationOutcomes: DeclarationOutcomeSource = {
+    list: (entryId) => interpretations.listDeclarationOutcomes(entryId),
+  };
   const processInterpretation = new ProcessInterpretationCommand(
     knowledge,
     interpretations,
@@ -271,7 +262,6 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     interpretationContexts,
     interpreter,
     registerInterpretation,
-    declarationPublisher,
     clock,
     processing,
   );
@@ -284,6 +274,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
     ids,
     clock,
   );
+  const executionWorker = new ExecutionWorker(executionStore, executeIntent);
   return Object.freeze({
     capture: Object.freeze({
       captureEntry: new CaptureEntryCommand(lifecycle, ids, clock),
@@ -303,7 +294,6 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         interpretations,
         registerInterpretation,
         storage.lifecycle,
-        declarationPublisher,
         clock,
       ),
       retryEntry: new RetryEntryCommand(interpretations, lifecycle, clock),
@@ -311,15 +301,14 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       getReview: new GetReviewQuery(reviews),
       listReviews: new ListReviewsQuery(reviews),
     }),
-    projection: Object.freeze({
-      listProjections: new ListProjectionsQuery(projections),
-      readProjection: new ReadProjectionQuery(knowledge, projections),
-    }),
+    projection: projections,
     execution: Object.freeze({
       proposeIntent,
       grantIntentConsent,
       cancelIntent: new CancelIntentCommand(executionStore, ids, clock),
       executeIntent,
+      worker: executionWorker,
+      notifications: new NotificationService(executionStore, automationStore, ids, clock),
       capabilities,
       store: executionStore,
     }),
@@ -340,12 +329,8 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
       queries: planningQueries,
       views: planningViews,
     }),
-    notification: Object.freeze({
-      service: new NotificationService(executionStore, automationStore, ids, clock),
-      worker: new NotificationWorker(automationWorker, executionStore, executeIntent),
-    }),
-    proactivity: Object.freeze({
-      service: new ProactivityService(
+    suggestion: Object.freeze({
+      service: new SuggestionService(
         suggestionStore,
         detectors,
         knowledge,
@@ -354,7 +339,7 @@ export function createSystem(storageType: StorageType, options: SystemOptions): 
         capabilities,
         proposeIntent,
         grantIntentConsent,
-        options.proactivity ?? { global: 'propose' },
+        options.suggestion ?? { global: 'propose' },
         ids,
         clock,
       ),

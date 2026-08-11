@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for motivation. PostgreSQL currently owns inference telemetry, while `createSystem` selects memory knowledge and Interpretation stores and constructs State, Automation, Execution, declaration, and Suggestion stores directly. `SystemStorage` therefore does not yet describe the real durable boundary. The database abstraction exposes queries but not transactions, and the existing migration sequence describes superseded domain generations.
+See `proposal.md` for motivation. PostgreSQL currently owns inference telemetry, while `createSystem` selects memory Knowledge and Interpretation stores and constructs State, Automation, Execution, and Suggestion stores directly. Interpretation now compiles one complete plan and its memory lifecycle atomically persists knowledge, State, Automations, Intents, outcomes, and terminal status. `SystemStorage` does not yet describe that full durable boundary, and the database abstraction exposes queries but not transactions.
 
 The production target remains one Railway process and one PostgreSQL database. The real database contains no required data and will be recreated by the user before the baseline is applied, so neither schema nor migration-history compatibility is required.
 
@@ -24,7 +24,7 @@ The production target remains one Railway process and one PostgreSQL database. T
 
 ### 1. Inject one complete storage bundle
 
-`SystemStorage` will include Knowledge, Interpretation state and queue, Reviews, lifecycle transactions, State, Automation, Execution, declaration outcomes, and Suggestions. Memory and PostgreSQL factories will each build the complete bundle. `createSystem` will receive a storage factory or completed port bundle and will stop importing concrete operational stores.
+`SystemStorage` will include Knowledge, Interpretation state, outcomes and queue, Reviews, lifecycle transactions, State, Automation, Execution, and Suggestions. Memory and PostgreSQL factories will each build the complete bundle. `createSystem` will receive a storage factory or completed port bundle and will stop importing concrete operational stores. `ProjectionCatalog`, detectors, Capabilities, registries, and Proposal callbacks remain composition-owned volatile code or state.
 
 The storage factory receives the code-owned registries needed to hydrate and validate closed contracts. This keeps adapter selection in the composition root while ensuring loaded data is checked against the same Profile, Component, operator, trigger, and Capability versions used for writes.
 
@@ -54,11 +54,11 @@ Storing every object as one JSON document was rejected because claims, ordering,
 The PostgreSQL Interpretation lifecycle owns these transactions:
 
 - Entry plus initial Interpretation capture.
-- Interpretation publication, including Items, revisions, persisted State, Automations, Intents, declaration outcomes, and terminal run status.
+- One complete `InterpretationPublicationPlan`, including Items, revisions, persisted State, Automations, Intents, declaration outcomes, and terminal run status.
 - Review request publication.
 - Review resolution publication and completion lock release.
 
-Ports used by publication will accept an internal transaction context or provide transaction-bound variants without exposing PostgreSQL types. The memory lifecycle continues to serialize the same boundaries with its lock, so both adapters retain common behavioral contracts.
+The lifecycle receives already validated domain objects and persists the plan through transaction-bound adapters without re-running application commands or exposing PostgreSQL types. The memory lifecycle checkpoints the same stores under its lock and restores all of them on failure, so both adapters retain the same atomic contract.
 
 ### 5. Coordinate recoverable work in PostgreSQL
 
@@ -66,7 +66,7 @@ Interpretation claim uses a short transaction with `FOR UPDATE SKIP LOCKED`, a c
 
 Automation processing will reserve an occurrence/deduplication identity atomically and commit produced Intents, runtime counters, and one evaluation outcome together. A unique `(automation_id, deduplication_id)` constraint is the final duplicate guard. This requires evolving the Automation store from separate read/save calls to an atomic evaluation boundary.
 
-Intent execution will atomically reserve an eligible Intent and started Attempt before invoking a Capability. Concurrent execution receives a conflict or the existing outcome. Capability invocation remains outside a database transaction; the stable idempotency key and durable Attempt distinguish success, failure, and uncertain outcomes. Completion appends the result/Event and transitions the Intent with an expected-state guard.
+The generic Execution worker will atomically reserve an eligible Intent and started Attempt before invoking any Capability. Concurrent execution receives a conflict or the existing outcome. Capability invocation remains outside a database transaction; the stable idempotency key and durable Attempt distinguish success, failure, and uncertain outcomes. Completion appends the result/Event and transitions the Intent with an expected-state guard. Notification delivery uses this same worker, while the launcher inbox remains derived from Automation, Intent, and Event facts.
 
 Review completion uses its existing unique completion-lock identity. All mutable transitions include their expected status in the update predicate and treat zero updated rows as a conflict.
 
@@ -74,7 +74,7 @@ Review completion uses its existing unique completion-lock identity. All mutable
 
 The superseded `001` through `007` files are replaced by two migrations: `001_system.sql` creates every functional table, constraint and index from current domain contracts; `002_telemetry.sql` creates only inference telemetry. The real database and its `pgmigrations` history must be recreated before running this baseline.
 
-The system baseline uses `consent`/`consented`, current Review resolution, generic declaration outcomes, Automation definitions, and Suggestions without Reminder tables or planning/shopping/travel request discriminators. Foreign keys default to restrictive deletion because immutable evidence chains must not cascade away accidentally. Telemetry remains separate so its lifecycle and adapter stay independent from domain transactions.
+The system baseline uses `consent`/`consented`, current Review resolution, generic declaration outcomes, Automation definitions, and `suggestions` without Notification, Reminder, Proactivity, or planning/shopping/travel request tables. Foreign keys default to restrictive deletion because immutable evidence chains must not cascade away accidentally. Telemetry remains separate so its lifecycle and adapter stay independent from domain transactions.
 
 Adding an `008` replacement was rejected because a fresh installation would still execute obsolete schemas only to destroy them. After this reset, every later schema change is append-only beginning at `003`.
 

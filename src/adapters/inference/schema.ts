@@ -1,6 +1,6 @@
 import { Type } from 'typebox';
 import { Compile } from 'typebox/compile';
-import type { RegisterInterpretationInput } from '../../modules/interpretation/domain/input.js';
+import type { InterpretationDraft } from '../../modules/interpretation/domain/input.js';
 import type { InterpretationAdapterOutput } from '../../modules/interpretation/services/interpreter.js';
 
 const keyPattern = /^[a-z][A-Za-z0-9]*$/;
@@ -47,14 +47,8 @@ const intentTemplate = object({
   expectedState: Type.Array(Type.Unknown()),
   consent,
 });
-const item = object({
+const componentDeclaration = object({
   reference: Type.String(),
-  profile: Type.Union([profile, Type.Null()]),
-  referenceStatus: Type.Union([Type.Literal('identified'), Type.Literal('uncertain')]),
-});
-const component = object({
-  reference: Type.String(),
-  itemReference: Type.String(),
   key: Type.String({ pattern: keyPattern.source }),
   schemaVersion: Type.Integer({ minimum: 1 }),
   value: Type.Unknown(),
@@ -89,14 +83,9 @@ const declarationBase = {
 const itemDeclaration = object({
   ...declarationBase,
   kind: Type.Literal('item'),
-  profile,
-  components: Type.Array(
-    object({
-      key: Type.String({ pattern: keyPattern.source }),
-      version: Type.Integer({ minimum: 1 }),
-      value: Type.Unknown(),
-    }),
-  ),
+  profile: Type.Union([profile, Type.Null()]),
+  referenceStatus: Type.Union([Type.Literal('identified'), Type.Literal('uncertain')]),
+  components: Type.Array(componentDeclaration),
 });
 const stateDeclaration = object({
   ...declarationBase,
@@ -140,15 +129,10 @@ const intentDeclaration = object({
 });
 const draft = object({
   entryId: Type.String(),
-  items: Type.Array(item),
-  components: Type.Array(component),
-  referenceResolutions: Type.Array(resolution),
-  declarations: object({
-    items: Type.Array(itemDeclaration),
-    states: Type.Array(stateDeclaration),
-    automations: Type.Array(automationDeclaration),
-    intents: Type.Array(intentDeclaration),
-  }),
+  declarations: Type.Array(
+    Type.Union([itemDeclaration, stateDeclaration, automationDeclaration, intentDeclaration]),
+  ),
+  resolutions: Type.Array(resolution),
 });
 
 export const interpretationOutputSchema = {
@@ -183,86 +167,82 @@ export function parseInterpretationOutput(value: unknown): InterpretationAdapter
     : undefined;
 }
 
-type StrictDraft = RegisterInterpretationInput & {
-  readonly items: readonly (RegisterInterpretationInput['items'][number] & {
-    readonly profile: RegisterInterpretationInput['items'][number]['profile'] | null;
-  })[];
-  readonly components: readonly (RegisterInterpretationInput['components'][number] & {
-    readonly validTime: RegisterInterpretationInput['components'][number]['validTime'] | null;
-    readonly supersedesReference: string | null;
-  })[];
-  readonly declarations: NonNullable<RegisterInterpretationInput['declarations']>;
+type StrictDraft = InterpretationDraft & {
+  readonly declarations: readonly StrictDeclaration[];
 };
 
-function normalizeDraft(draft: StrictDraft): RegisterInterpretationInput {
-  const components = draft.components.filter(componentHasContent);
-  const referencedItems = new Set([
-    ...components.map((component) => component.itemReference),
-    ...(draft.referenceResolutions ?? []).map((resolution) => resolution.reference),
-  ]);
+type StrictDeclaration = InterpretationDraft['declarations'][number] & {
+  readonly profile?: { readonly key: string; readonly version: number } | null;
+  readonly validTime?: { readonly from: string | null; readonly to: string | null } | null;
+  readonly confidence?: number | null;
+  readonly controls?: unknown | null;
+  readonly trigger?: unknown | null;
+};
+
+function normalizeDraft(draft: StrictDraft): InterpretationDraft {
+  const declarations = draft.declarations.map(normalizeDeclaration);
+  const resolutionReferences = new Set((draft.resolutions ?? []).map(({ reference }) => reference));
   return Object.freeze({
     entryId: draft.entryId,
-    items: Object.freeze(
-      draft.items
-        .filter((item) => referencedItems.has(item.reference))
-        .map(({ profile, ...item }) => Object.freeze({ ...item, profile: profile ?? undefined })),
-    ),
-    components: Object.freeze(
-      components.map(({ validTime, supersedesReference, ...component }) =>
-        Object.freeze({
-          ...component,
-          validTime: validTime
-            ? { from: validTime.from ?? undefined, to: validTime.to ?? undefined }
-            : undefined,
-          supersedesReference: supersedesReference ?? undefined,
-        }),
+    declarations: Object.freeze(
+      declarations.filter(
+        (declaration) =>
+          declaration.kind !== 'item' ||
+          Boolean(declaration.profile) ||
+          declaration.components.length > 0 ||
+          resolutionReferences.has(declaration.reference),
       ),
     ),
-    referenceResolutions: Object.freeze(
-      (draft.referenceResolutions ?? []).map((request) =>
+    resolutions: Object.freeze(
+      (draft.resolutions ?? []).map((request) =>
         Object.freeze({
           ...request,
           candidateItemIds: Object.freeze([...request.candidateItemIds]),
         }),
       ),
     ),
-    declarations: normalizeDeclarations(draft.declarations),
   });
 }
 
-function normalizeDeclarations(
-  declarations: NonNullable<RegisterInterpretationInput['declarations']>,
-): NonNullable<RegisterInterpretationInput['declarations']> {
-  return Object.freeze({
-    items: Object.freeze(structuredClone(declarations.items)),
-    states: Object.freeze(
-      declarations.states.map((state) => {
-        const strict = state as typeof state & {
-          validTime?: typeof state.validTime | null;
-          confidence?: number | null;
-        };
-        return Object.freeze({
-          ...state,
-          validTime: strict.validTime ?? undefined,
-          confidence: strict.confidence ?? undefined,
-        });
-      }),
-    ),
-    automations: Object.freeze(
-      declarations.automations.map((automation) => {
-        const strict = automation as typeof automation & {
-          controls?: typeof automation.controls | null;
-        };
-        return Object.freeze({ ...automation, controls: strict.controls ?? undefined });
-      }),
-    ),
-    intents: Object.freeze(
-      declarations.intents.map((intent) => {
-        const strict = intent as typeof intent & { trigger?: typeof intent.trigger | null };
-        return Object.freeze({ ...intent, trigger: strict.trigger ?? undefined });
-      }),
-    ),
-  });
+function normalizeDeclaration(
+  declaration: StrictDeclaration,
+): InterpretationDraft['declarations'][number] {
+  if (declaration.kind === 'item') {
+    const { profile: selected, components, ...item } = declaration;
+    return Object.freeze({
+      ...item,
+      profile: selected ?? undefined,
+      components: Object.freeze(
+        components.filter(componentHasContent).map((component) => {
+          const strict = component as typeof component & {
+            validTime?: { readonly from: string | null; readonly to: string | null } | null;
+            supersedesReference?: string | null;
+          };
+          return Object.freeze({
+            ...component,
+            validTime: strict.validTime
+              ? { from: strict.validTime.from ?? undefined, to: strict.validTime.to ?? undefined }
+              : undefined,
+            supersedesReference: strict.supersedesReference ?? undefined,
+          });
+        }),
+      ),
+    });
+  }
+  if (declaration.kind === 'state')
+    return Object.freeze({
+      ...declaration,
+      validTime: declaration.validTime
+        ? {
+            from: declaration.validTime.from ?? undefined,
+            to: declaration.validTime.to ?? undefined,
+          }
+        : undefined,
+      confidence: declaration.confidence ?? undefined,
+    });
+  if (declaration.kind === 'automation')
+    return Object.freeze({ ...declaration, controls: declaration.controls ?? undefined });
+  return Object.freeze({ ...declaration, trigger: declaration.trigger ?? undefined });
 }
 
 function meaningful(value: unknown): boolean {

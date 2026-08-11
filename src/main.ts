@@ -22,7 +22,11 @@ const system = createSystem('memory', {
 });
 const server = createServer(system, config.http);
 const worker = new PollingWorker(
-  new SystemWorkCommand(system.interpretation.processNext, system.notification.worker),
+  new SystemWorkCommand(
+    system.interpretation.processNext,
+    system.automation.worker,
+    system.execution.worker,
+  ),
   {
     onError: (error) => server.logger.error({ error }, 'System work failed'),
   },

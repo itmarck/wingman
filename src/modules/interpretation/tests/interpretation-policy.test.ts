@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTriggerRegistry } from '../../../core/automation/registry.js';
 import { createKnowledgeRegistry } from '../../../core/item/system.js';
-import { NotificationCapability } from '../../notification/notification-capability.js';
+import { NotificationCapability } from '../../execution/capabilities/notification.js';
 import { Policy } from '../services/definition.js';
 import { createInterpretationRequest } from '../services/request.js';
 

@@ -3,7 +3,7 @@ import type { Clock } from '../../../system/runtime.js';
 import type { EntryStore } from '../../capture/ports/store.js';
 import type { ProcessingConfig } from '../config.js';
 import type { FailedInterpretationContext, Interpretation } from '../domain/interpretation.js';
-import type { InterpretationDeclarationPublisher, InterpretationStateStore } from '../ports.js';
+import type { InterpretationStateStore } from '../ports.js';
 import {
   type InterpretationClaim,
   InterpretationClaimError,
@@ -29,7 +29,6 @@ export class ProcessInterpretationCommand {
     private readonly contexts: InterpretationContextSource,
     private readonly interpreter: Interpreter,
     private readonly registerInterpretation: RegisterInterpretationCommand,
-    private readonly declarations: InterpretationDeclarationPublisher,
     private readonly clock: Clock,
     private readonly config: ProcessingConfig,
   ) {}
@@ -74,14 +73,7 @@ export class ProcessInterpretationCommand {
     claim: InterpretationClaim,
   ): Promise<void> {
     if (result.kind === 'knowledge') {
-      const registered = await this.registerInterpretation.execute(
-        started,
-        result.draft,
-        result.interpreter,
-        claim,
-      );
-      if (registered.interpretation.status === 'completed')
-        await this.declarations.execute(result.draft);
+      await this.registerInterpretation.execute(started, result.draft, result.interpreter, claim);
       return;
     }
 

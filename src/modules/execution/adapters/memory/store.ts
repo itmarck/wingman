@@ -45,6 +45,21 @@ export class MemoryExecutionStore implements ExecutionStore {
       ),
     );
   }
+  checkpoint() {
+    return {
+      intents: new Map(this.#intents),
+      attempts: new Map(this.#attempts),
+      events: new Map(this.#events),
+    };
+  }
+  restore(checkpoint: ReturnType<MemoryExecutionStore['checkpoint']>): void {
+    this.#intents.clear();
+    this.#attempts.clear();
+    this.#events.clear();
+    for (const [id, intent] of checkpoint.intents) this.#intents.set(id, intent);
+    for (const [id, attempt] of checkpoint.attempts) this.#attempts.set(id, attempt);
+    for (const [id, event] of checkpoint.events) this.#events.set(id, event);
+  }
 }
 
 function validTransition(from: Intent['status'], to: Intent['status']): boolean {

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ComponentValue } from '../../core/item/types.js';
-import { MemoryDeclarationRegistry } from '../../modules/interpretation/adapters/memory/declaration.js';
 import type { ItemDeclaration } from '../../modules/interpretation/domain/declaration.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
-import { EntryDeclarationPublisher } from '../declaration.js';
 import { createTestSystem } from './support.js';
 
 describe('interpreted Entry declarations', () => {
@@ -37,58 +34,37 @@ describe('interpreted Entry declarations', () => {
     const status = await system.interpretation.getEntryStatus.execute(entryId);
     expect(status.declarations.map(({ status: value }) => value)).toEqual(['applied', 'applied']);
     expect(await system.planning.queries.list('pending')).toHaveLength(1);
-    expect(await system.notification.service.list()).toEqual([]);
+    expect(await system.execution.notifications.list()).toEqual([]);
     expect(await system.automation.store.list()).toHaveLength(1);
     expect(await system.execution.store.listIntents()).toEqual([]);
     await system.close();
   });
 
-  it('deduplicates declarations and records unavailable contracts as unsupported', async () => {
-    const outcomes = new MemoryDeclarationRegistry();
-    let itemCalls = 0;
-    const router = new EntryDeclarationPublisher(
-      outcomes,
-      { execute: async () => `item-${++itemCalls}` },
-      { execute: async () => 'state' },
-      {
-        execute: async () => {
-          throw new Error('Trigger event@1 is not registered');
-        },
-      },
-      { execute: async () => 'intent' },
-      { generate: () => 'automation-id' },
-      { now: () => new Date('2026-08-02T12:00:00.000Z') },
-    );
-    const draft = {
-      entryId: 'entry-idempotent',
-      items: [],
-      components: [],
-      declarations: {
-        items: [itemDeclaration('subject', [])],
-        states: [],
-        intents: [],
-        automations: [
-          {
-            kind: 'automation' as const,
-            version: 1 as const,
-            reference: 'notice',
-            dependsOn: ['subject'],
-            unresolved: [],
-            subjects: ['subject'],
-            given: [],
-            when: {
-              operator: { key: 'event' as const, version: 1 as const },
-              eventKey: 'emailReceived',
-            },
-            thenIntents: [],
-          },
-        ],
-      },
-    };
-    await router.execute(draft);
-    await router.execute(draft);
-    expect(itemCalls).toBe(1);
-    expect((await outcomes.list()).map(({ status }) => status)).toEqual(['applied', 'unsupported']);
+  it('publishes an uncertain Item after its Review is resolved', async () => {
+    const system = createTestSystem({ adapter: new ReviewInterpreter() });
+    const entryId = await system.capture.captureEntry.execute({
+      content: { kind: 'text', text: 'Alex es importante' },
+      origin: { source: 'test' },
+    });
+
+    expect(await system.interpretation.processNext.execute()).toBe(true);
+    expect((await system.interpretation.getEntryStatus.execute(entryId)).status).toBe('pending');
+    const review = (await system.interpretation.listReviews.execute()).items[0];
+    expect(review?.resolution.proposed.reference).toBe('alex');
+    if (!review) throw new Error('Expected a pending Review');
+
+    await system.interpretation.resolveReview.execute({
+      reviewId: review.id,
+      decision: { reference: 'alex' },
+    });
+
+    const status = await system.interpretation.getEntryStatus.execute(entryId);
+    expect(status.status).toBe('completed');
+    expect(status.declarations.map(({ status: value }) => value)).toEqual(['applied']);
+    expect((await system.projection.read('system.currentItems')).data).toMatchObject({
+      items: [expect.objectContaining({ profile: { key: 'task', version: 1 } })],
+    });
+    await system.close();
   });
 });
 
@@ -101,39 +77,61 @@ class DeclarationInterpreter {
       kind: 'knowledge' as const,
       draft: {
         entryId: request.entry.id,
-        items: [],
-        components: [],
-        declarations: {
-          items: [itemDeclaration('task', this.unresolved ? ['{bankName}'] : [], occurrence)],
-          states: [],
-          intents: [],
-          automations: [
-            {
-              kind: 'automation' as const,
-              version: 1 as const,
-              reference: 'notice',
-              dependsOn: ['task'],
-              unresolved: [],
-              subjects: ['task'],
-              given: [],
-              when: {
-                operator: { key: 'schedule' as const, version: 1 as const },
-                occurrences: [occurrence],
-              },
-              thenIntents: [
-                {
-                  capability: { key: 'notification', version: 1 },
-                  input: { message: 'Paga' },
-                  conditions: [],
-                  expectedState: [],
-                  consent: 'none' as const,
-                  trigger: { kind: 'time' as const, value: occurrence },
-                },
-              ],
-              controls: { maxOccurrences: 1, deduplication: 'trigger' as const },
+        declarations: [
+          itemDeclaration('task', this.unresolved ? ['{bankName}'] : [], occurrence),
+          {
+            kind: 'automation' as const,
+            version: 1 as const,
+            reference: 'notice',
+            dependsOn: ['task'],
+            unresolved: [],
+            subjects: ['task'],
+            given: [],
+            when: {
+              operator: { key: 'schedule' as const, version: 1 as const },
+              occurrences: [occurrence],
             },
-          ],
-        },
+            thenIntents: [
+              {
+                capability: { key: 'notification', version: 1 },
+                input: { message: 'Paga' },
+                conditions: [],
+                expectedState: [],
+                consent: 'none' as const,
+                trigger: { kind: 'time' as const, value: occurrence },
+              },
+            ],
+            controls: { maxOccurrences: 1, deduplication: 'trigger' as const },
+          },
+        ],
+      },
+    };
+  }
+}
+
+class ReviewInterpreter {
+  readonly identity = Object.freeze({ key: 'review' });
+
+  async interpret(request: InterpretationRequest) {
+    return {
+      kind: 'knowledge' as const,
+      draft: {
+        entryId: request.entry.id,
+        declarations: [
+          {
+            ...itemDeclaration('alex', []),
+            referenceStatus: 'uncertain' as const,
+            profile: { key: 'task' as const, version: 1 as const },
+            components: [
+              {
+                reference: 'alex.descriptive',
+                key: 'descriptive',
+                schemaVersion: 1,
+                value: { title: 'Alex es importante' },
+              },
+            ],
+          },
+        ],
       },
     };
   }
@@ -144,10 +142,21 @@ function itemDeclaration(
   unresolved: readonly string[],
   dueAt?: string,
 ): ItemDeclaration {
-  const components: { key: string; version: number; value: ComponentValue }[] = [
-    { key: 'descriptive', version: 1, value: { title: 'Pagar' } },
+  const components: ItemDeclaration['components'][number][] = [
+    {
+      reference: `${reference}.descriptive`,
+      key: 'descriptive',
+      schemaVersion: 1,
+      value: { title: 'Pagar' },
+    },
   ];
-  if (dueAt) components.push({ key: 'temporal', version: 1, value: { dueAt } });
+  if (dueAt)
+    components.push({
+      reference: `${reference}.temporal`,
+      key: 'temporal',
+      schemaVersion: 1,
+      value: { dueAt },
+    });
   return {
     kind: 'item' as const,
     version: 1 as const,

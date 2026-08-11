@@ -349,8 +349,8 @@ async function observe(
   current: EntryStatusResult,
 ): Promise<EvaluationResult> {
   const [itemProjection, glossaryProjection, reviewPage, automations, intents] = await Promise.all([
-    system.projection.readProjection.execute('system.currentItems'),
-    system.projection.readProjection.execute('system.glossary'),
+    system.projection.read('system.currentItems'),
+    system.projection.read('system.glossary'),
     system.interpretation.listReviews.execute(),
     system.automation.store.list(),
     system.execution.store.listIntents(),

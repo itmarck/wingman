@@ -5,11 +5,12 @@ import type {
 } from '../../../core/automation/automation.js';
 import type { CreateIntentInput } from '../../../core/execution/intent.js';
 import type {
-  ComponentRequirement,
+  CandidateStatus,
   ComponentValue,
   ProfileReference,
   ValidTime,
 } from '../../../core/item/types.js';
+import type { SourceLocator } from '../../../core/knowledge/source.js';
 import type { Condition } from '../../../core/state/condition.js';
 import type { Modality } from '../../../core/state/state.js';
 
@@ -20,10 +21,22 @@ export interface DeclarationBase {
   readonly unresolved?: readonly string[];
 }
 
+export interface ComponentDeclaration {
+  readonly reference: string;
+  readonly key: string;
+  readonly schemaVersion: number;
+  readonly value: ComponentValue;
+  readonly sourceLocators?: readonly SourceLocator[];
+  readonly validTime?: ValidTime;
+  readonly status?: CandidateStatus;
+  readonly supersedesReference?: string;
+}
+
 export interface ItemDeclaration extends DeclarationBase {
   readonly kind: 'item';
-  readonly profile: ProfileReference;
-  readonly components: readonly (ComponentRequirement & { readonly value: ComponentValue })[];
+  readonly profile?: ProfileReference;
+  readonly referenceStatus?: 'identified' | 'uncertain';
+  readonly components: readonly ComponentDeclaration[];
 }
 
 export interface StateDeclaration extends DeclarationBase {
@@ -51,13 +64,6 @@ export interface IntentDeclaration extends DeclarationBase {
   readonly expectedState: readonly Condition[];
   readonly consent: CreateIntentInput['consent'];
   readonly trigger: CreateIntentInput['trigger'];
-}
-
-export interface InterpretationDeclarations {
-  readonly items: readonly ItemDeclaration[];
-  readonly states: readonly StateDeclaration[];
-  readonly automations: readonly AutomationDeclaration[];
-  readonly intents: readonly IntentDeclaration[];
 }
 
 export type InterpretationDeclaration =

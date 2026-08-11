@@ -81,7 +81,7 @@ export async function createInspectorSnapshot(system: System): Promise<Inspector
     await Promise.all([
       collectPages((cursor) => system.capture.listEntries.execute(cursor)),
       collectPages((cursor) => system.interpretation.listReviews.execute(cursor)),
-      system.projection.readProjection.execute('system.currentItems'),
+      system.projection.read('system.currentItems'),
       system.declarations.list(),
       system.execution.store.listIntents(),
       system.execution.store.listEvents(),
@@ -89,8 +89,8 @@ export async function createInspectorSnapshot(system: System): Promise<Inspector
     ]);
   const [statuses, notifications, proactive, states] = await Promise.all([
     Promise.all(entries.map((entry) => system.interpretation.getEntryStatus.execute(entry.id))),
-    system.notification.service.list(),
-    system.proactivity.service.list(),
+    system.execution.notifications.list(),
+    system.suggestion.service.list(),
     collectStates(system),
   ]);
   const attempts = (

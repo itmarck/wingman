@@ -6,7 +6,7 @@
     "allowJs": false,
     "noEmit": false,
     "outDir": "dist",
-    "rootDir": "src",
+    "rootDir": ".",
     "sourceMap": true,
     "strict": true,
     "noImplicitAny": false,
@@ -18,6 +18,6 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "packages/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }

@@ -55,11 +55,11 @@ Planning does not have separate task, objective, plan or habit tables. Each plan
 
 Automations only produce Intents. Attempts and Events remain separate so an uncertain external result can be represented without claiming that an action succeeded.
 
-### Proactivity
+### Suggestions
 
 | Table | Purpose |
 | --- | --- |
-| `proactivity_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
+| `suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
 
 There is no notification table. Scheduling uses `automation_definitions`; launcher reads derive delivered, unacknowledged notices from Intents and Events.
 

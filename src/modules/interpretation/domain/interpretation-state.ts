@@ -1,7 +1,7 @@
 import { assertUtcDateTime } from '../../../core/knowledge/guard.js';
 import { InvalidInputError } from '../../../system/error.js';
 import type { InterpretationPublication } from '../ports.js';
-import type { RegisterInterpretationInput } from './input.js';
+import type { InterpretationDraft } from './input.js';
 
 export type InterpretationId = string;
 export type InterpretationStatus =
@@ -22,7 +22,7 @@ export interface InterpretationState {
   readonly updatedAt: string;
   readonly availableAt?: string;
   readonly interpreter?: InterpreterIdentity;
-  readonly draft?: RegisterInterpretationInput;
+  readonly draft?: InterpretationDraft;
   readonly publication?: InterpretationPublication;
   readonly error?: string;
 }
@@ -39,7 +39,7 @@ export interface RehydrateInterpretationInput
 
 export interface FailedInterpretationContext {
   readonly interpreter: InterpreterIdentity;
-  readonly draft?: RegisterInterpretationInput;
+  readonly draft?: InterpretationDraft;
 }
 
 export function assertInterpretationIdentity(input: CreateInterpretationInput): void {

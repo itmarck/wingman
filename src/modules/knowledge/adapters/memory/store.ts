@@ -9,25 +9,16 @@ import { normalizeText } from '../../../../core/knowledge/guard.js';
 import { ConflictError, NotFoundError } from '../../../../system/error.js';
 import type { Page, PageRequest } from '../../../../system/page.js';
 import type { EntryStore } from '../../../capture/ports/store.js';
-import type {
-  InterpretationRegistration,
-  InterpretationStore,
-} from '../../../interpretation/ports.js';
+import type { InterpretationStore } from '../../../interpretation/ports.js';
 import type {
   InterpretationContext,
   InterpretationContextSource,
 } from '../../../interpretation/services/context.js';
-import type { ProjectionSource } from '../../../projection/ports.js';
 import type { ItemRegistration, ItemStore } from '../../ports/store.js';
 
 /** Coherent in-memory persistence for Entries, Items and Component revisions. */
 export class MemoryKnowledgeStore
-  implements
-    EntryStore,
-    ItemStore,
-    InterpretationStore,
-    ProjectionSource,
-    InterpretationContextSource
+  implements EntryStore, ItemStore, InterpretationStore, InterpretationContextSource
 {
   #entries = new Map<EntryId, Entry>();
   #items = new Map<ItemId, Item>();
@@ -67,10 +58,6 @@ export class MemoryKnowledgeStore
   async saveItems(registration: ItemRegistration): Promise<void> {
     this.commit(this.prepare(registration));
   }
-  async saveInterpretation(registration: InterpretationRegistration): Promise<void> {
-    this.commit(this.prepare(registration));
-  }
-
   async findItems(name: string): Promise<readonly Item[]> {
     const normalized = normalizeText(name);
     const current = selectCurrentRevisions([...this.#revisions.values()]);
@@ -119,6 +106,20 @@ export class MemoryKnowledgeStore
     });
   }
 
+  checkpoint() {
+    return {
+      entries: new Map(this.#entries),
+      items: new Map(this.#items),
+      revisions: new Map(this.#revisions),
+    };
+  }
+
+  restore(checkpoint: ReturnType<MemoryKnowledgeStore['checkpoint']>): void {
+    this.#entries = checkpoint.entries;
+    this.#items = checkpoint.items;
+    this.#revisions = checkpoint.revisions;
+  }
+
   private prepare(registration: ItemRegistration): {
     items: Map<ItemId, Item>;
     revisions: Map<ComponentRevisionId, ComponentRevision>;
@@ -154,7 +155,7 @@ function addEntity<Value extends { readonly id: string }>(
   name: string,
 ): void {
   const existing = entities.get(entity.id);
-  if (existing && existing !== entity)
+  if (existing && existing !== entity && JSON.stringify(existing) !== JSON.stringify(entity))
     throw new ConflictError(`${name} id ${entity.id} already exists`);
   entities.set(entity.id, entity);
 }

@@ -16,7 +16,7 @@ describe('Suggestion HTTP API', () => {
         title: 'Completar objetivo',
         evidence: [{ entryId, sourceLocators: [] }],
       });
-      const [suggestion] = await system.proactivity.service.evaluate({ kind: 'scan' });
+      const [suggestion] = await system.suggestion.service.evaluate({ kind: 'scan' });
 
       const listed = await server.inject({
         method: 'GET',
@@ -47,7 +47,7 @@ describe('Suggestion HTTP API', () => {
       expect(read.statusCode).toBe(200);
       expect(read.json()).toMatchObject({ id: suggestion?.id });
       expect(feedback.statusCode).toBe(204);
-      expect(await system.proactivity.service.read(suggestion?.id ?? '')).toMatchObject({
+      expect(await system.suggestion.service.read(suggestion?.id ?? '')).toMatchObject({
         status: 'rejected',
         feedback: [expect.objectContaining({ kind: 'rejected' })],
       });

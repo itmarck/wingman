@@ -1,7 +1,7 @@
 import type { ProcessingConfig } from '../../modules/interpretation/config.js';
 import type { InterpretationAdapter } from '../../modules/interpretation/services/interpreter.js';
-import type { DetectorThresholds } from '../../modules/proactivity/detectors/builtins.js';
-import type { ProactivityPolicy } from '../../modules/proactivity/operations/service.js';
+import type { DetectorThresholds } from '../../modules/suggestion/detectors/builtins.js';
+import type { SuggestionPolicy } from '../../modules/suggestion/operations/service.js';
 import type { MutationMode } from '../proposal.js';
 import { createSystem, type System } from '../system.js';
 
@@ -9,7 +9,7 @@ interface TestSystemOptions {
   readonly adapter: InterpretationAdapter;
   readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
-  readonly proactivity?: ProactivityPolicy;
+  readonly suggestion?: SuggestionPolicy;
   readonly detectorThresholds?: DetectorThresholds;
 }
 
@@ -23,7 +23,7 @@ export function createTestSystem(options: TestSystemOptions): System {
     adapter: options.adapter,
     mode: options.mode ?? 'write',
     processing: options.processing,
-    proactivity: options.proactivity,
+    suggestion: options.suggestion,
     detectorThresholds: options.detectorThresholds,
   });
 }

@@ -1,20 +1,16 @@
+import type { Intent } from '../../core/execution/intent.js';
 import type { ComponentRevision } from '../../core/item/component.js';
 import type { Item } from '../../core/item/item.js';
 import type { KnowledgeSnapshot } from '../../core/item/snapshot.js';
 import type { ComponentValue } from '../../core/item/types.js';
 import type { Entry } from '../../core/knowledge/entry.js';
+import type { State } from '../../core/state/state.js';
 import { ConflictError } from '../../system/error.js';
 import type { Page, PageRequest } from '../../system/page.js';
 import type { InterpretationDeclaration } from './domain/declaration.js';
-import type { RegisterInterpretationInput } from './domain/input.js';
 import type { Interpretation, InterpretationId } from './domain/interpretation.js';
 import type { Review, ReviewId } from './domain/review.js';
 import type { ReasoningLevel } from './services/request.js';
-
-export interface InterpretationRegistration {
-  readonly items: readonly Item[];
-  readonly revisions: readonly ComponentRevision[];
-}
 
 export interface InterpretationPublication {
   readonly itemIds: readonly string[];
@@ -23,7 +19,6 @@ export interface InterpretationPublication {
 
 export interface InterpretationStore {
   loadKnowledge(): Promise<KnowledgeSnapshot>;
-  saveInterpretation(registration: InterpretationRegistration): Promise<void>;
 }
 
 export interface InterpretationStateStore {
@@ -31,6 +26,7 @@ export interface InterpretationStateStore {
   findInterpretation(id: InterpretationId): Promise<Interpretation | undefined>;
   findLatestInterpretation(entryId: string): Promise<Interpretation | undefined>;
   listInterpretations(entryId: string): Promise<readonly Interpretation[]>;
+  listDeclarationOutcomes(entryId?: string): Promise<readonly DeclarationOutcome[]>;
 }
 
 export interface ClaimInterpretationInput {
@@ -93,12 +89,12 @@ export interface InterpretationLifecycle {
   ): Promise<void>;
   publish(
     interpretation: Interpretation,
-    registration: InterpretationRegistration,
+    plan: InterpretationPublicationPlan,
     claim?: InterpretationClaim,
   ): Promise<void>;
   publishReview(
     interpretation: Interpretation,
-    registration: InterpretationRegistration,
+    plan: InterpretationPublicationPlan,
     review: Review,
   ): Promise<void>;
   retry(interpretation: Interpretation): Promise<void>;
@@ -121,8 +117,14 @@ export interface DeclarationOutcomeSource {
   list(entryId?: string): Promise<readonly DeclarationOutcome[]>;
 }
 
-export interface InterpretationDeclarationPublisher {
-  execute(input: RegisterInterpretationInput): Promise<void>;
+export interface InterpretationPublicationPlan {
+  readonly items: readonly Item[];
+  readonly revisions: readonly ComponentRevision[];
+  readonly states: readonly State[];
+  readonly automations: readonly import('../automation/ports/store.js').AutomationRuntime[];
+  readonly intents: readonly Intent[];
+  readonly outcomes: readonly DeclarationOutcome[];
+  readonly publication: InterpretationPublication;
 }
 
 export type InferenceResult = 'empty' | 'error' | 'invalid' | 'knowledge';

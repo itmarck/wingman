@@ -272,7 +272,7 @@ CREATE TABLE interpretation_declaration_outcomes (
 CREATE INDEX interpretation_declaration_outcomes_recorded
   ON interpretation_declaration_outcomes (recorded_at DESC, entry_id);
 
-CREATE TABLE proactivity_suggestions (
+CREATE TABLE suggestions (
   id text PRIMARY KEY,
   fingerprint text NOT NULL UNIQUE CHECK (btrim(fingerprint) <> ''),
   detector_key text NOT NULL CHECK (detector_key ~ '^[a-z][A-Za-z0-9]*$'),
@@ -298,5 +298,5 @@ CREATE TABLE proactivity_suggestions (
   feedback jsonb NOT NULL CHECK (jsonb_typeof(feedback) = 'array')
 );
 
-CREATE INDEX proactivity_suggestions_status
-  ON proactivity_suggestions (status, expires_at, created_at, id);
+CREATE INDEX suggestions_status
+  ON suggestions (status, expires_at, created_at, id);

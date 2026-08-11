@@ -113,7 +113,7 @@ flowchart LR
     Profile --> State[Persisted State templates]
     Compose --> State
     State --> Views[Next actions, blockers, unscheduled work, progress]
-    Views --> Automations[Automations and proactive detectors]
+    Views --> Automations[Automations and Suggestion detectors]
     Automations --> Intents[Suggested or authorized Intents]
 ```
 

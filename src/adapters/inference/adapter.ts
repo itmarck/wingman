@@ -1,114 +1,79 @@
+import {
+  createInferenceClient,
+  ProviderError,
+  RetryableProviderError,
+} from '../../../packages/inference/index.js';
 import type { InterpreterIdentity } from '../../modules/interpretation/domain/interpretation.js';
 import {
+  InferenceAdapterError,
   type InferenceExecution,
   type InterpretationAdapter,
   RetryableInferenceError,
 } from '../../modules/interpretation/services/interpreter.js';
 import type { InterpretationRequest } from '../../modules/interpretation/services/request.js';
 import type { InferenceAdapterConfig } from './config.js';
-import { readChatCompletionResponse, readInferenceResponse } from './response.js';
-import { interpretationOutputSchema } from './schema.js';
+import { interpretationOutputSchema, parseInterpretationOutput } from './schema.js';
 
 type Fetch = typeof globalThis.fetch;
 
-const inferenceTimeoutMs = 60_000;
-
-/**
- * Creates the configured remote Interpreter without exposing provider details to the system.
- */
+/** Translates Wingman's Interpretation request into the generic provider client. */
 export function createInferenceAdapter(
   config: InferenceAdapterConfig,
   fetcher: Fetch = globalThis.fetch,
 ): InterpretationAdapter {
-  return new HttpInferenceAdapter(config, fetcher);
-}
-
-class HttpInferenceAdapter implements InterpretationAdapter {
-  readonly identity: InterpreterIdentity;
-
-  constructor(
-    private readonly config: InferenceAdapterConfig,
-    private readonly fetcher: Fetch,
-  ) {
-    this.identity = Object.freeze({
-      key: config.target,
-    });
-  }
-
-  async interpret(request: InterpretationRequest): Promise<InferenceExecution> {
-    let response: Response;
-
-    try {
-      response = await this.fetcher(this.config.endpoint, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${this.config.apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(createRequestBody(this.config, request)),
-        signal: AbortSignal.timeout(inferenceTimeoutMs),
-      });
-    } catch (error) {
-      throw unavailable(error);
-    }
-
-    return this.config.provider === 'gemini'
-      ? readChatCompletionResponse(response)
-      : readInferenceResponse(response);
-  }
-}
-
-function createRequestBody(config: InferenceAdapterConfig, request: InterpretationRequest) {
-  const policyGuidance = [
-    ...request.policies,
-    request.outputContract,
-    'Return only the structured result described by the supplied JSON schema.',
-  ].join('\n');
-  const input = JSON.stringify({
-    operation: request.operation,
-    entry: request.entry,
-    context: request.context,
-  });
-
-  if (config.provider === 'gemini') {
-    return {
+  const client = createInferenceClient(
+    {
+      apiKey: config.apiKey,
+      endpoint: config.endpoint,
       model: config.model,
-      messages: [
-        { role: 'system', content: policyGuidance },
-        { role: 'user', content: input },
-      ],
-      reasoning_effort: request.reasoning,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'wingman_interpretation',
-          strict: true,
-          schema: interpretationOutputSchema,
-        },
-      },
-    };
-  }
-
-  return {
-    model: config.model,
-    instructions: policyGuidance,
-    input,
-    reasoning: {
-      effort: request.reasoning,
+      protocol: config.provider === 'gemini' ? 'chatCompletions' : 'responses',
     },
-    text: {
-      format: {
-        type: 'json_schema',
-        name: 'wingman_interpretation',
-        strict: true,
-        schema: interpretationOutputSchema,
-      },
+    fetcher,
+  );
+  const identity: InterpreterIdentity = Object.freeze({ key: config.target });
+  return {
+    identity,
+    async interpret(request: InterpretationRequest): Promise<InferenceExecution> {
+      try {
+        const result = await client.execute({
+          instructions: instructions(request),
+          input: JSON.stringify({
+            operation: request.operation,
+            entry: request.entry,
+            context: request.context,
+          }),
+          reasoning: request.reasoning,
+          schema: interpretationOutputSchema,
+          schemaName: 'wingman_interpretation',
+        });
+        const output = parseInterpretationOutput(result.output);
+        if (!output)
+          throw new RetryableInferenceError(
+            'invalidResponse',
+            'Inference provider output does not match the Interpretation schema',
+          );
+        return Object.freeze({
+          kind: 'inferenceExecution',
+          output,
+          usedModel: result.usedModel,
+          usage: result.usage,
+        });
+      } catch (error) {
+        if (error instanceof RetryableInferenceError) throw error;
+        if (error instanceof RetryableProviderError)
+          throw new RetryableInferenceError(error.retryClass, error.message, error.retryAfterMs);
+        if (error instanceof ProviderError)
+          throw new InferenceAdapterError(error.category, error.message);
+        throw error;
+      }
     },
   };
 }
 
-function unavailable(error: unknown): RetryableInferenceError {
-  const detail = error instanceof Error && error.message ? `: ${error.message}` : '';
-
-  return new RetryableInferenceError('transient', `Inference provider is unavailable${detail}`);
+function instructions(request: InterpretationRequest): string {
+  return [
+    ...request.policies,
+    request.outputContract,
+    'Return only the structured result described by the supplied JSON schema.',
+  ].join('\n');
 }

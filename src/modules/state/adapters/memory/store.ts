@@ -9,7 +9,8 @@ export class MemoryStateStore implements StateStore {
 
   async saveState(state: State): Promise<void> {
     const existing = this.#states.get(state.id);
-    if (existing && existing !== state) throw new ConflictError(`State id ${state.id} already exists`);
+    if (existing && existing !== state && JSON.stringify(existing) !== JSON.stringify(state))
+      throw new ConflictError(`State id ${state.id} already exists`);
     this.#states.set(state.id, state);
     const ids = this.#byModality.get(state.modality) ?? new Set<string>();
     ids.add(state.id);
@@ -19,5 +20,20 @@ export class MemoryStateStore implements StateStore {
   async listStates(modality?: Modality): Promise<readonly State[]> {
     if (!modality) return Object.freeze([...this.#states.values()]);
     return Object.freeze([...(this.#byModality.get(modality) ?? [])].map((id) => this.#states.get(id)).filter((state): state is State => Boolean(state)));
+  }
+
+  checkpoint(): readonly State[] {
+    return [...this.#states.values()];
+  }
+
+  restore(states: readonly State[]): void {
+    this.#states.clear();
+    this.#byModality.clear();
+    for (const state of states) {
+      this.#states.set(state.id, state);
+      const ids = this.#byModality.get(state.modality) ?? new Set<string>();
+      ids.add(state.id);
+      this.#byModality.set(state.modality, ids);
+    }
   }
 }

@@ -4,7 +4,7 @@ import type { Review } from '../modules/interpretation/domain/review.js';
 import type {
   InterpretationClaim,
   InterpretationLifecycle,
-  InterpretationRegistration,
+  InterpretationPublicationPlan,
 } from '../modules/interpretation/ports.js';
 import type { MutationMode, ProposalChange, ProposalRegistry } from './proposal.js';
 
@@ -42,36 +42,40 @@ export class ApprovalInterpretationLifecycle implements InterpretationLifecycle 
 
   publish(
     interpretation: Interpretation,
-    registration: InterpretationRegistration,
+    plan: InterpretationPublicationPlan,
     claim?: InterpretationClaim,
   ): Promise<void> {
     return this.apply(
       [
-        ...registration.items.map((item) => change('upsert', 'item', item)),
-        ...registration.revisions.map((revision) =>
-          change('create', 'componentRevision', revision),
-        ),
+        ...plan.items.map((item) => change('upsert', 'item', item)),
+        ...plan.revisions.map((revision) => change('create', 'componentRevision', revision)),
+        ...plan.states.map((state) => change('create', 'state', state)),
+        ...plan.automations.map((runtime) => change('create', 'automation', runtime.automation)),
+        ...plan.intents.map((intent) => change('create', 'intent', intent)),
+        ...plan.outcomes.map((outcome) => change('create', 'declarationOutcome', outcome)),
         change('update', 'interpretation', interpretation),
       ],
-      () => this.lifecycle.publish(interpretation, registration, claim),
+      () => this.lifecycle.publish(interpretation, plan, claim),
     );
   }
 
   publishReview(
     interpretation: Interpretation,
-    registration: InterpretationRegistration,
+    plan: InterpretationPublicationPlan,
     review: Review,
   ): Promise<void> {
     return this.apply(
       [
-        ...registration.items.map((item) => change('upsert', 'item', item)),
-        ...registration.revisions.map((revision) =>
-          change('create', 'componentRevision', revision),
-        ),
+        ...plan.items.map((item) => change('upsert', 'item', item)),
+        ...plan.revisions.map((revision) => change('create', 'componentRevision', revision)),
+        ...plan.states.map((state) => change('create', 'state', state)),
+        ...plan.automations.map((runtime) => change('create', 'automation', runtime.automation)),
+        ...plan.intents.map((intent) => change('create', 'intent', intent)),
+        ...plan.outcomes.map((outcome) => change('create', 'declarationOutcome', outcome)),
         change('update', 'review', review),
         change('update', 'interpretation', interpretation),
       ],
-      () => this.lifecycle.publishReview(interpretation, registration, review),
+      () => this.lifecycle.publishReview(interpretation, plan, review),
     );
   }
 

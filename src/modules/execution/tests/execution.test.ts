@@ -16,6 +16,7 @@ import { MemoryExecutionStore } from '../adapters/memory/store.js';
 import { CancelIntentCommand, GrantIntentConsentCommand } from '../operations/control.js';
 import { ExecuteIntentCommand } from '../operations/execute.js';
 import { ProposeIntentCommand } from '../operations/propose.js';
+import { ExecutionWorker } from '../operations/worker.js';
 
 describe('Intent execution', () => {
   it('keeps Capability registration immutable and resolves hierarchical autonomy safely', () => {
@@ -108,6 +109,18 @@ describe('Intent execution', () => {
     await fixture.consent.execute(intentId);
     expect(await fixture.execute.execute(intentId)).toBe('autonomyRestricted');
     expect(await fixture.store.listAttempts(intentId)).toEqual([]);
+  });
+
+  it('executes eligible Intents generically and leaves explicit consent pending', async () => {
+    const fixture = await createFixture();
+    const automatic = await fixture.propose.execute(input('success', false));
+    const explicit = await fixture.propose.execute(input('success', true));
+    const worker = new ExecutionWorker(fixture.store, fixture.execute);
+
+    expect(await worker.runPending()).toBe(1);
+    expect((await fixture.store.findIntent(automatic))?.status).toBe('completed');
+    expect((await fixture.store.findIntent(explicit))?.status).toBe('proposed');
+    expect(await worker.runPending()).toBe(0);
   });
 });
 
