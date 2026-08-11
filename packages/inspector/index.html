@@ -90,7 +90,25 @@
       .detail { padding: 16px; }
       .detail h4 { margin: 0 0 5px; font-size: 14px; }
       .detail-id { margin-bottom: 14px; color: #71717a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; overflow-wrap: anywhere; }
-      pre { max-height: 420px; margin: 0; padding: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: #050506; color: #d4d4d8; font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+      .json-detail { max-height: 480px; padding: 12px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: #050506; }
+      json-viewer {
+        display: block;
+        --background-color: #050506;
+        --color: #d4d4d8;
+        --font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        --font-size: 10px;
+        --line-height: 1.55;
+        --indent-size: 0.9em;
+        --indentguide-color: #27272a;
+        --indentguide-color-active: #52525b;
+        --property-color: #93c5fd;
+        --string-color: #86efac;
+        --number-color: #fdba74;
+        --boolean-color: #c4b5fd;
+        --null-color: #f0abfc;
+        --preview-color: #a1a1aa;
+        --highlight-color: #854d0e;
+      }
       .timeline-card { margin-top: 12px; }
       .timeline { max-height: 330px; overflow: auto; }
       .event { display: grid; grid-template-columns: 9px 1fr auto; gap: 11px; padding: 12px 16px; border-bottom: 1px solid #1f1f23; }
@@ -151,6 +169,12 @@
         </section>
       </main>
     </div>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.1.2/dist/json-viewer.bundle.js"
+      integrity="sha384-WXI6N5Prus47Xp40Trnkq6kVftC+HZ0t+cb69l3oh0DReb5XnzMHU6caMho+S/LI"
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
     <script>
       const state = { snapshot: null, query: "", active: new Set(), selected: null };
       const columns = {
@@ -256,7 +280,8 @@
       function renderDetail() {
         const node = state.snapshot?.nodes.find((candidate) => candidate.id === state.selected);
         if (!node) { $("aside").innerHTML = `<div class="panel-header"><h3>Detalle</h3><span>JSON</span></div><div class="detail-empty">Selecciona un nodo para inspeccionar sus datos.</div>`; return; }
-        $("aside").innerHTML = `<div class="panel-header"><h3>Detalle</h3><span>${escapeHtml(node.type)}</span></div><div class="detail"><h4>${escapeHtml(node.label)}</h4><div class="detail-id">${escapeHtml(node.id)}</div><pre>${escapeHtml(JSON.stringify(node.data, null, 2))}</pre></div>`;
+        $("aside").innerHTML = `<div class="panel-header"><h3>Detalle</h3><span>${escapeHtml(node.type)}</span></div><div class="detail"><h4>${escapeHtml(node.label)}</h4><div class="detail-id">${escapeHtml(node.id)}</div><div class="json-detail"><json-viewer id="detail-json"></json-viewer></div></div>`;
+        $("detail-json").data = node.data;
       }
 
       $("refresh").addEventListener("click", load);

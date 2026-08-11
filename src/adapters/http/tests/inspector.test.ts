@@ -41,6 +41,18 @@ describe('development inspector', () => {
       expect(page.headers['content-type']).toContain('text/html');
       expect(page.body).toContain('Wingman Inspector');
       expect(page.body).toContain('--background: #09090b');
+      expect(page.body).toContain('<json-viewer id="detail-json">');
+      expect(page.body).toContain(
+        'https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.1.2/dist/json-viewer.bundle.js',
+      );
+      expect(page.body).toContain(
+        'integrity="sha384-WXI6N5Prus47Xp40Trnkq6kVftC+HZ0t+cb69l3oh0DReb5XnzMHU6caMho+S/LI"',
+      );
+      expect(page.body).toContain('crossorigin="anonymous"');
+      expect(page.body).toContain('referrerpolicy="no-referrer"');
+      expect(page.headers['content-security-policy']).toContain('https://cdn.jsdelivr.net');
+      expect(page.headers['referrer-policy']).toBe('no-referrer');
+      expect(page.headers['x-content-type-options']).toBe('nosniff');
       expect(data.statusCode).toBe(200);
       expect(snapshot.nodes.map((node) => node.type)).toEqual(
         expect.arrayContaining(['entry', 'interpretation', 'item', 'component', 'suggestion']),

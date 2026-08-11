@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typebox';
 import type { System } from '../../system/system.js';
 
@@ -36,7 +37,7 @@ interface InspectorRoutesOptions {
   readonly system: System;
 }
 
-const pageUrl = new URL('../../../packages/inspector/index.html', import.meta.url);
+const inspector = resolve(process.cwd(), 'packages/inspector/index.html');
 
 /** Exposes the unauthenticated local inspector outside the production route tree. */
 export const inspectorRoutes: FastifyPluginAsyncTypebox<InspectorRoutesOptions> = async (
@@ -44,8 +45,15 @@ export const inspectorRoutes: FastifyPluginAsyncTypebox<InspectorRoutesOptions> 
   { system },
 ) => {
   server.get('/inspect', async (_request, reply) => {
-    reply.type('text/html; charset=utf-8');
-    return readFile(pageUrl, 'utf8');
+    reply
+      .header(
+        'Content-Security-Policy',
+        "default-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; frame-ancestors 'none'",
+      )
+      .header('Referrer-Policy', 'no-referrer')
+      .header('X-Content-Type-Options', 'nosniff')
+      .type('text/html; charset=utf-8');
+    return readFile(inspector, 'utf8');
   });
 
   server.get(
