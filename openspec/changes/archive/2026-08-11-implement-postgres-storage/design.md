@@ -82,7 +82,7 @@ Review completion uses its existing unique completion-lock identity. All mutable
 
 The superseded `001` through `007` files are replaced by two PostgreSQL 18.4 migrations: `001_system.sql` creates every functional table, constraint and index from current domain contracts; `002_telemetry.sql` creates only inference telemetry. The real database and its `pgmigrations` history must be recreated before running this baseline.
 
-The system baseline uses `consent`/`consented`, current Review resolution, generic declaration outcomes, Automation definitions, and `suggestions` without Notification, Reminder, Proactivity, or planning/shopping/travel request tables. Foreign keys default to restrictive deletion because immutable evidence chains must not cascade away accidentally. Telemetry remains separate so its lifecycle and adapter stay independent from domain transactions.
+The system baseline uses `consent`/`consented`, current Review resolution, generic declaration outcomes, Automation definitions, and `assistance_suggestions` without Notification, Reminder, Proactivity, or planning/shopping/travel request tables. Foreign keys default to restrictive deletion because immutable evidence chains must not cascade away accidentally. Telemetry remains separate so its lifecycle and adapter stay independent from domain transactions.
 
 Adding an `008` replacement was rejected because a fresh installation would still execute obsolete schemas only to destroy them. After this reset, every later schema change is append-only beginning at `003`.
 

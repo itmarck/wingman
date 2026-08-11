@@ -13,7 +13,7 @@ erDiagram
 
     CORE_ITEMS ||--o{ CORE_COMPONENT_REVISIONS : composes
     CORE_COMPONENT_REVISIONS o|--o{ CORE_COMPONENT_REVISIONS : supersedes
-    CORE_ITEMS o|--o{ PROACTIVITY_SUGGESTIONS : subject
+    CORE_ITEMS o|--o{ ASSISTANCE_SUGGESTIONS : subject
 
     INTERPRETATION_RUNS ||--o{ INTERPRETATION_REVIEWS : requires
     INTERPRETATION_RUNS ||--o| INTERPRETATION_CLAIMS : leases
@@ -22,7 +22,7 @@ erDiagram
     EXECUTION_INTENTS ||--o{ EXECUTION_ATTEMPTS : executes
     EXECUTION_INTENTS ||--o{ EXECUTION_EVENTS : causes
     EXECUTION_ATTEMPTS ||--o{ EXECUTION_EVENTS : causes
-    EXECUTION_INTENTS o|--o{ PROACTIVITY_SUGGESTIONS : realizes
+    EXECUTION_INTENTS o|--o{ ASSISTANCE_SUGGESTIONS : realizes
 
     AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_DEDUPLICATIONS : remembers
     AUTOMATION_DEFINITIONS ||--o{ AUTOMATION_EVALUATIONS : evaluates
@@ -61,7 +61,7 @@ Automations only produce Intents. Attempts and Events remain separate so an unce
 
 | Table | Purpose |
 | --- | --- |
-| `suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
+| `assistance_suggestions` | Explainable detector finding, autonomy decision, feedback and optional Intent. |
 
 There is no notification table. Scheduling uses `automation_definitions`; launcher reads derive delivered, unacknowledged notices from Intents and Events.
 

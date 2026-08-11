@@ -17,13 +17,14 @@ export class PostgresSuggestionStore implements SuggestionStore {
     await inTransaction(this.database, (database) => saveSuggestion(database, suggestion));
   }
   async find(id: string): Promise<Suggestion | undefined> {
-    const row = (await this.database.query<Row>('SELECT * FROM suggestions WHERE id=$1', [id]))
-      .rows[0];
+    const row = (
+      await this.database.query<Row>('SELECT * FROM assistance_suggestions WHERE id=$1', [id])
+    ).rows[0];
     return row ? decodeSuggestion(row) : undefined;
   }
   async findFingerprint(fingerprint: string): Promise<Suggestion | undefined> {
     const row = (
-      await this.database.query<Row>('SELECT * FROM suggestions WHERE fingerprint=$1', [
+      await this.database.query<Row>('SELECT * FROM assistance_suggestions WHERE fingerprint=$1', [
         fingerprint,
       ])
     ).rows[0];
@@ -31,7 +32,7 @@ export class PostgresSuggestionStore implements SuggestionStore {
   }
   async list(): Promise<readonly Suggestion[]> {
     const rows = (
-      await this.database.query<Row>('SELECT * FROM suggestions ORDER BY created_at,id')
+      await this.database.query<Row>('SELECT * FROM assistance_suggestions ORDER BY created_at,id')
     ).rows;
     return freezeList(rows.map(decodeSuggestion));
   }
@@ -56,19 +57,22 @@ export class PostgresSuggestionLifecycle implements SuggestionLifecycle {
 
 async function saveSuggestion(database: QueryableDatabase, suggestion: Suggestion): Promise<void> {
   const current = (
-    await database.query<Row>('SELECT * FROM suggestions WHERE id=$1 FOR UPDATE', [suggestion.id])
+    await database.query<Row>('SELECT * FROM assistance_suggestions WHERE id=$1 FOR UPDATE', [
+      suggestion.id,
+    ])
   ).rows[0];
   if (!current) {
     const fingerprint = (
-      await database.query<{ id: string }>('SELECT id FROM suggestions WHERE fingerprint=$1', [
-        suggestion.fingerprint,
-      ])
+      await database.query<{ id: string }>(
+        'SELECT id FROM assistance_suggestions WHERE fingerprint=$1',
+        [suggestion.fingerprint],
+      )
     ).rows[0];
     if (fingerprint)
       throw new ConflictError(`Suggestion fingerprint ${suggestion.fingerprint} already exists`);
     try {
       await database.query(
-        `INSERT INTO suggestions
+        `INSERT INTO assistance_suggestions
       (id,fingerprint,detector_key,detector_version,subject_item_id,relevant_state,evidence,
        rationale,expected_effect,urgency,expires_at,capability_key,capability_version,autonomy,
        intent_id,status,created_at,feedback)
@@ -110,7 +114,7 @@ async function saveSuggestion(database: QueryableDatabase, suggestion: Suggestio
   if (!validTransition(existing.status, suggestion.status))
     throw new ConflictError(`Suggestion ${suggestion.id} transition is invalid`);
   const result = await database.query<{ id: string }>(
-    `UPDATE suggestions SET status=$1,feedback=$2
+    `UPDATE assistance_suggestions SET status=$1,feedback=$2
     WHERE id=$3 AND status=$4 RETURNING id`,
     [suggestion.status, jsonValue(suggestion.feedback), suggestion.id, existing.status],
   );

@@ -13,11 +13,11 @@ describe('PostgreSQL migration baseline', () => {
 
     expect(files).toEqual(['001_system.sql', '002_telemetry.sql']);
     expect(system).toContain('CREATE TABLE core_entries');
-    expect(system).toContain('CREATE TABLE suggestions');
+    expect(system).toContain('CREATE TABLE assistance_suggestions');
     expect(system).not.toContain('telemetry.');
     expect(telemetry).toContain('CREATE TABLE telemetry.runs');
     expect(telemetry).not.toMatch(
-      /CREATE TABLE (?:core|interpretation|execution|automation)_|CREATE TABLE suggestions/,
+      /CREATE TABLE (?:core|interpretation|execution|automation|assistance)_/,
     );
   });
 

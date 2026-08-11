@@ -29,7 +29,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await database.query(`TRUNCATE TABLE
-    suggestions, interpretation_declaration_outcomes, automation_evaluations,
+    assistance_suggestions, interpretation_declaration_outcomes, automation_evaluations,
     automation_deduplications, automation_definitions, execution_events, execution_attempts,
     execution_intents, interpretation_review_locks, interpretation_reviews,
     interpretation_claims, interpretation_runs, core_states, core_component_revisions,
