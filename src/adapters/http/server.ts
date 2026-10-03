@@ -110,7 +110,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
     );
 
     publicServer.get(
-      '/api/openapi.json',
+      '/api/openapi',
       {
         schema: {
           tags: ['System'],
@@ -159,7 +159,7 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
 function createOpenApiDocument(server: FastifyInstance) {
   const document = server.swagger();
   const paths = document.paths ?? {};
-  const publicPaths = ['/api/health', '/api/ready', '/api/openapi.json'];
+  const publicPaths = ['/api/health', '/api/ready', '/api/openapi'];
 
   for (const path of publicPaths) {
     const operation = paths[path]?.get;

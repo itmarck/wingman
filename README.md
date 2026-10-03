@@ -34,7 +34,7 @@ npm run build
 
 `npm test` runs fast deterministic tests without PostgreSQL or an inference provider. `test:postgres` and `test:http` each start a harness-owned native PostgreSQL 18.4 cluster, apply the real migrations, ignore `DATABASE_URL`, and remove their temporary data on completion. `test:all` runs every deterministic gate. `npm run evaluate` remains the explicit semantic evaluation against the configured real inference target.
 
-The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; omitting the header means `readonly`. `MUTATION_MODE=approval` is the initial system policy for development and production; production may move to `write` after validation. The current OpenAPI document is publicly available at `/api/openapi.json`.
+The API lives under `/api` and uses Bearer authentication. Mutating requests accept `X-Mutation-Mode: readonly | approval | write`; omitting the header means `readonly`. `MUTATION_MODE=approval` is the initial system policy for development and production; production may move to `write` after validation. The current OpenAPI document is publicly available at `/api/openapi`.
 
 The built-in projections are `system.currentItems` and `system.glossary`. Together they expose current Item compositions and their human-readable catalog.
 

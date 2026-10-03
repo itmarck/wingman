@@ -349,7 +349,7 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
     const [health, openapi, unauthorized, readonly, malformed, unknown, forgedOrigin] =
       await Promise.all([
         server.inject({ method: 'GET', url: '/api/health' }),
-        server.inject({ method: 'GET', url: '/api/openapi.json' }),
+        server.inject({ method: 'GET', url: '/api/openapi' }),
         server.inject({ method: 'GET', url: '/api/entries' }),
         server.inject({
           method: 'POST',

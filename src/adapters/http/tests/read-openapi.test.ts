@@ -6,7 +6,7 @@ describe('read OpenAPI document', () => {
     const server = createTestServer();
     const response = await server.inject({
       method: 'GET',
-      url: '/api/openapi.json',
+      url: '/api/openapi',
     });
 
     expect(response.statusCode).toBe(200);
@@ -35,7 +35,7 @@ describe('read OpenAPI document', () => {
     expect(document.security).toEqual([{ bearerAuth: [] }]);
     expect(document.servers[0]?.url).toMatch(/^http:\/\//);
     expect(document.paths['/api/health']?.get?.security).toEqual([]);
-    expect(document.paths['/api/openapi.json']?.get?.security).toEqual([]);
+    expect(document.paths['/api/openapi']?.get?.security).toEqual([]);
     expect(document.paths['/api/automations']?.get).toBeDefined();
     expect(document.paths['/api/notifications']?.get).toBeDefined();
     expect(document.paths['/api/reminders']).toBeUndefined();
