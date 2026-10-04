@@ -1,6 +1,5 @@
 import type { System } from '../../system/system.js';
 import type { HttpConfig } from './config.js';
-import { createLoggerOptions } from './logging.js';
 import { createHttpServer } from './server.js';
 
 export interface ServerLogger {
@@ -23,8 +22,9 @@ export function createServer(
   readiness?: () => Promise<boolean>,
 ): Server {
   const http = createHttpServer(system, {
-    logger: createLoggerOptions(config.environment),
+    logger: { level: 'info', redact: ['req.headers.authorization'] },
     signingSecret: config.signingSecret,
+    developmentTokenEndpoint: config.developmentTokenEndpoint,
     readiness,
   });
 

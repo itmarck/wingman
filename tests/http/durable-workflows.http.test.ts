@@ -16,7 +16,7 @@ import { testDatabaseUrl } from '../postgres/database.js';
 
 const signingSecret = 'durable-http-test-secret-with-32-characters';
 const token = await createAccessToken('httpTest', signingSecret);
-const headers = { authorization: `Bearer ${token}`, 'x-mutation-mode': 'write' };
+const headers = { authorization: `Bearer ${token}` };
 let admin: PostgresDatabase;
 
 beforeAll(() => {
@@ -212,12 +212,12 @@ describe('durable HTTP workflows', () => {
       rationale: 'Conviene',
       expectedEffect: 'Ayuda',
       urgency: 'medium',
-      expiresAt: '2026-08-11T12:00:00.000Z',
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
       capability: { key: 'notification', version: 1 },
       autonomy: { resolved: 'propose' as const, explicitConsent: true },
       intentId: intent.id,
       status: 'active',
-      createdAt: '2026-08-10T12:00:00.000Z',
+      createdAt: new Date().toISOString(),
       feedback: [],
     });
     await fixture.storage.suggestionLifecycle.create(suggestion, intent);
@@ -262,7 +262,6 @@ async function createFixture(): Promise<Fixture> {
   const system = createSystem(storage, {
     adapter: new DeterministicInterpreter(),
     inference: { target: 'test', provider: 'test', model: 'test' },
-    mode: 'write',
     registry,
   });
   const server = createHttpServer(system, { signingSecret, readiness: () => database.isReady() });
@@ -275,7 +274,6 @@ async function restart(fixture: Fixture): Promise<Fixture> {
 }
 async function closeFixture(fixture: Fixture): Promise<void> {
   await fixture.server.close();
-  await fixture.system.close();
   await fixture.database.close();
 }
 

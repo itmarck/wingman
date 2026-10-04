@@ -1,8 +1,6 @@
 import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typebox';
 import type { System } from '../../system/system.js';
-import { requireMutation } from './mutation.js';
-import { createProposalResponse, proposalSchema } from './proposal.js';
-import { errorSchema, idParamsSchema, mutationHeadersSchema } from './schema.js';
+import { errorSchema, idParamsSchema } from './schema.js';
 
 interface Options {
   readonly system: System;
@@ -53,32 +51,15 @@ export const notificationRoutes: FastifyPluginAsyncTypebox<Options> = async (
       schema: {
         tags: ['Notifications'],
         summary: 'Acknowledge a launcher notification',
-        headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
-          202: Type.Object({ proposal: proposalSchema }),
           204: Type.Null(),
           401: errorSchema,
-          403: errorSchema,
           404: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
-      if (mode === 'approval') {
-        const proposal = system.proposals.create(
-          [
-            {
-              operation: 'update',
-              target: 'notificationAcknowledgement',
-              value: { id: request.params.id },
-            },
-          ],
-          () => system.execution.notifications.acknowledge(request.params.id),
-        );
-        return reply.code(202).send({ proposal: createProposalResponse(proposal) });
-      }
       await system.execution.notifications.acknowledge(request.params.id);
       return reply.code(204).send(null);
     },

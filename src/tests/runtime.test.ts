@@ -3,7 +3,6 @@ import type { Server } from '../adapters/http/start.js';
 import type { Database, DatabaseResult } from '../adapters/postgres/database.js';
 import type { PollingWorker } from '../modules/interpretation/adapters/worker.js';
 import { Runtime } from '../runtime.js';
-import type { System } from '../system/system.js';
 
 describe('Runtime lifecycle', () => {
   it('starts and closes process resources in dependency order', async () => {
@@ -11,7 +10,6 @@ describe('Runtime lifecycle', () => {
     const runtime = new Runtime({
       server: createServer(events),
       worker: createWorker(events),
-      system: createClosable<System>('system', events),
       database: createDatabase(events),
     });
 
@@ -26,7 +24,6 @@ describe('Runtime lifecycle', () => {
       'runtime:test',
       'server:close',
       'worker:close',
-      'system:close',
       'database:close',
     ]);
   });
@@ -41,7 +38,6 @@ describe('Runtime lifecycle', () => {
     const runtime = new Runtime({
       server: createServer(events),
       worker,
-      system: createClosable<System>('system', events),
       database: createDatabase(events),
     });
 
@@ -53,7 +49,6 @@ describe('Runtime lifecycle', () => {
       'runtime:startupFailure',
       'server:close',
       'worker:close',
-      'system:close',
       'database:close',
     ]);
   });
@@ -68,7 +63,6 @@ describe('Runtime lifecycle', () => {
     const runtime = new Runtime({
       server: createServer(events),
       worker: createWorker(events),
-      system: createClosable<System>('system', events),
       database,
     });
 
@@ -78,7 +72,6 @@ describe('Runtime lifecycle', () => {
       'runtime:startupFailure',
       'server:close',
       'worker:close',
-      'system:close',
       'database:close',
     ]);
   });
@@ -132,12 +125,4 @@ function createDatabase(events: string[]): Database {
       events.push('database:close');
     },
   };
-}
-
-function createClosable<Value>(name: string, events: string[]): Value {
-  return {
-    async close() {
-      events.push(`${name}:close`);
-    },
-  } as Value;
 }

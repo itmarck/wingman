@@ -1,6 +1,6 @@
 # Database
 
-PostgreSQL 18.4 is the sole complete durable runtime store. One bounded pool is shared by functional adapters and inference telemetry; application startup checks connectivity and the required migration level before HTTP or workers start.
+PostgreSQL 18.6 is the sole complete durable runtime store. One bounded pool is shared by functional adapters and inference telemetry; application startup checks connectivity and the required migration level before HTTP or workers start.
 
 ## Functional schema
 
@@ -65,8 +65,6 @@ Automations only produce Intents. Attempts and Events remain separate so an unce
 
 There is no notification table. Scheduling uses `automation_definitions`; launcher reads derive delivered, unacknowledged notices from Intents and Events.
 
-The in-process mutation approval registry is not persisted. Its entries contain executable callbacks and cannot be safely restored after a restart until proposal application has a durable command contract.
-
 Interpretation Policies are code-owned operation definitions rather than functional data. They have
 no table and cannot be changed through Entries, connectors, or the HTTP API.
 
@@ -92,6 +90,6 @@ Legacy `concepts`, `predicates`, `axioms`, `aliases`, `links`, Reminders and req
 
 ## Verification and readiness
 
-`npm run test:postgres` and `npm run test:http` create temporary loopback-only PostgreSQL 18.4 clusters through `embedded-postgres`. The harness generates its own connection target, never reads the configured application database, applies both repository migrations, closes pools and the child process, and removes only its owned temporary directory.
+The Compose tests profile reuses the local PostgreSQL 18.6 service and creates a uniquely named disposable database through `WINGMAN_TEST_POSTGRES_URL`. Each project applies the repository migrations, closes its connections and removes only that owned database. The setup never reads the configured application `DATABASE_URL`. See [development commands](../README.md#development).
 
 `/api/health` reports process liveness. `/api/ready` verifies database connectivity and that `001_system` plus `002_telemetry` are present; workers do not start until the same check passes. Railway runs migrations before deployment and uses readiness as its healthcheck path.

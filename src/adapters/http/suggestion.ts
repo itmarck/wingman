@@ -2,8 +2,7 @@ import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typ
 import type { SuggestionSignal } from '../../modules/suggestion/domain/detector.js';
 import type { FeedbackInput } from '../../modules/suggestion/operations/service.js';
 import type { System } from '../../system/system.js';
-import { requireMutation } from './mutation.js';
-import { errorSchema, mutationHeadersSchema } from './schema.js';
+import { errorSchema } from './schema.js';
 
 interface Options {
   readonly system: System;
@@ -38,13 +37,11 @@ export const suggestionRoutes: FastifyPluginAsyncTypebox<Options> = async (serve
       schema: {
         tags: ['Suggestions'],
         summary: 'Evaluate relevant deterministic detectors',
-        headers: mutationHeadersSchema,
         body: Type.Unknown(),
         response: { 200: Type.Array(Type.Unknown()), 400: errorSchema, 401: errorSchema },
       },
     },
     async (request) => {
-      requireMutation(request.mutationMode);
       return [...(await system.suggestion.service.evaluate(request.body as SuggestionSignal))];
     },
   );
@@ -54,7 +51,6 @@ export const suggestionRoutes: FastifyPluginAsyncTypebox<Options> = async (serve
       schema: {
         tags: ['Suggestions'],
         summary: 'Record explicit Suggestion feedback',
-        headers: mutationHeadersSchema,
         params: Type.Object({ id: Type.String() }),
         body: Type.Object({
           kind: Type.Union(
@@ -70,7 +66,6 @@ export const suggestionRoutes: FastifyPluginAsyncTypebox<Options> = async (serve
       },
     },
     async (request, reply) => {
-      requireMutation(request.mutationMode);
       await system.suggestion.service.feedback(request.params.id, request.body as FeedbackInput);
       return reply.code(204).send(null);
     },

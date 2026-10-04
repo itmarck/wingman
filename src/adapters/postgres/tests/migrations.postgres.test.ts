@@ -13,7 +13,7 @@ afterAll(async () => {
   await pool.end();
 });
 
-describe('PostgreSQL 18.4 baseline migrations', () => {
+describe('PostgreSQL 18.6 baseline migrations', () => {
   it('applies the system and telemetry baselines to an empty database', async () => {
     const version = await pool.query<{ server_version: string }>('SHOW server_version');
     const tables = await pool.query<{ table_schema: string; table_name: string }>(`
@@ -23,7 +23,7 @@ describe('PostgreSQL 18.4 baseline migrations', () => {
       ORDER BY table_schema, table_name
     `);
 
-    expect(version.rows[0]?.server_version).toMatch(/^18\.4/);
+    expect(version.rows[0]?.server_version).toMatch(/^18\.6/);
     expect(tables.rows).toContainEqual({
       table_schema: 'public',
       table_name: 'interpretation_claims',

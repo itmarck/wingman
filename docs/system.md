@@ -8,7 +8,7 @@ flowchart TD
     AUTH -- No --> ERR401["401 Unauthorized"]
 
     ROUTE -->|Lenguaje natural| ENTRY["Crear Entry inmutable"]
-    ROUTE -->|Comando estructurado| MUTATION["Operación de módulo"]
+    ROUTE -->|Comando estructurado| APPLY["Aplicar operación autenticada"]
     ROUTE -->|Lectura| QUERY["Projection / View"]
 
     ENTRY --> QUEUE["Interpretation queued"]
@@ -27,14 +27,6 @@ flowchart TD
     DECLARATIONS --> INTENT["Intent validado"]
     DECLARATIONS -->|Datos incompletos| NEEDSINPUT["Outcome: needsInput"]
     DECLARATIONS -->|Contrato no registrado| UNSUPPORTED["Outcome: unsupported"]
-
-    MUTATION --> MODE{"Mutation mode"}
-    MODE -- readonly --> DENIED["403: mutación rechazada"]
-    MODE -- approval --> PROPOSAL["Proposal pendiente"]
-    MODE -- write --> APPLY["Aplicar inmediatamente"]
-    PROPOSAL --> DECISION{"Decisión humana"}
-    DECISION -- Aprobar --> APPLY
-    DECISION -- Rechazar --> REJECTED["Sin cambio operacional"]
 
     KNOWLEDGE --> STORE["PostgreSQL durable"]
     PROFILE --> STORE

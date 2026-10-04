@@ -21,7 +21,6 @@ describe('interpreted Entry declarations', () => {
     expect(await system.planning.queries.list('pending')).toEqual([]);
     expect(await system.automation.store.list()).toEqual([]);
     expect(await system.execution.store.listIntents()).toEqual([]);
-    await system.close();
   });
 
   it('composes a Profile and one scheduled notification Automation without executing it', async () => {
@@ -37,7 +36,6 @@ describe('interpreted Entry declarations', () => {
     expect(await system.execution.notifications.list()).toEqual([]);
     expect(await system.automation.store.list()).toHaveLength(1);
     expect(await system.execution.store.listIntents()).toEqual([]);
-    await system.close();
   });
 
   it('publishes an uncertain Item after its Review is resolved', async () => {
@@ -64,7 +62,6 @@ describe('interpreted Entry declarations', () => {
     expect((await system.projection.read('system.currentItems')).data).toMatchObject({
       items: [expect.objectContaining({ profile: { key: 'task', version: 1 } })],
     });
-    await system.close();
   });
 });
 

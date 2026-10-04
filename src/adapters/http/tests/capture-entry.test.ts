@@ -44,7 +44,6 @@ describe('capture Entry through HTTP', () => {
       url: '/api/entries',
       headers: {
         authorization: `Bearer ${minimaToken}`,
-        'x-mutation-mode': 'write',
       },
       payload: {
         ...payload,

@@ -260,7 +260,6 @@ async function execute(
   const system = createSystem(createMemoryTestStorage(), {
     adapter,
     inference: config,
-    mode: 'write',
     telemetry,
     processing: {
       leaseDurationMs: 60_000,
@@ -294,7 +293,6 @@ async function execute(
       error: error instanceof Error ? error.message : String(error),
     });
   } finally {
-    await system.close();
   }
 }
 

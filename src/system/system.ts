@@ -67,15 +67,12 @@ import {
   type SuggestionPolicy,
   SuggestionService,
 } from '../modules/suggestion/operations/service.js';
-import { ApprovalInterpretationLifecycle } from './approval.js';
-import { type MutationMode, ProposalRegistry } from './proposal.js';
 import type { SystemStorage } from './storage.js';
 
 export interface SystemOptions {
   readonly inference: InferenceConfig;
   readonly adapter: InterpretationAdapter;
   readonly telemetry?: InferenceTelemetry;
-  readonly mode?: MutationMode;
   readonly processing?: ProcessingConfig;
   readonly suggestion?: SuggestionPolicy;
   readonly detectorThresholds?: DetectorThresholds;
@@ -95,8 +92,6 @@ export interface System {
   readonly planning: PlanningModule;
   readonly suggestion: SuggestionModule;
   readonly declarations: DeclarationOutcomeSource;
-  readonly proposals: ProposalRegistry;
-  close(): Promise<void>;
 }
 
 /**
@@ -105,7 +100,6 @@ export interface System {
 export function createSystem(storage: SystemStorage, options: SystemOptions): System {
   const ids = new UuidGenerator();
   const clock = new SystemClock();
-  const proposals = new ProposalRegistry(ids, () => clock.now());
   const registry = options.registry ?? createKnowledgeRegistry();
   const operators = createOperatorRegistry();
   const stateStore = storage.states;
@@ -124,11 +118,7 @@ export function createSystem(storage: SystemStorage, options: SystemOptions): Sy
 
   const { knowledge, interpretations, reviews } = storage;
   const projections = new ProjectionCatalog(knowledge, projectionDefinitions);
-  const lifecycle = new ApprovalInterpretationLifecycle(
-    storage.lifecycle,
-    proposals,
-    options.mode ?? 'approval',
-  );
+  const lifecycle = storage.lifecycle;
   const interpreter = new Interpreter(options.adapter, options.inference, options.telemetry);
   const compiler = new InterpretationCompiler(registry, operators, triggers, capabilities);
   const registerInterpretation = new RegisterInterpretationCommand(
@@ -302,9 +292,5 @@ export function createSystem(storage: SystemStorage, options: SystemOptions): Sy
       detectors,
     }),
     declarations: declarationOutcomes,
-    proposals,
-    async close(): Promise<void> {
-      proposals.close();
-    },
   });
 }

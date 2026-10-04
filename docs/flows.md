@@ -32,7 +32,7 @@ Simple connections use typed references; relationships requiring their own evide
 
 ## Review and conflict resolution
 
-`referenceResolution` resolves identity ambiguity, not mutation approval. Conflicting evidence is preserved.
+`referenceResolution` resolves identity ambiguity before publication. Conflicting evidence is preserved.
 Pending Reviews SHALL remain visible to the launcher until resolved.
 
 ```mermaid
@@ -107,7 +107,7 @@ Tasks, objectives, plans, and habits are Item compositions, not separate storage
 
 ```mermaid
 flowchart LR
-    Capture[Entry or explicit proposal] --> Profile[Profile contract]
+    Capture[Entry or explicit command] --> Profile[Profile contract]
     Profile --> Compose[Required and optional Components + defaults]
     Profile --> Lifecycle[Lifecycle transitions]
     Profile --> State[Persisted State templates]
@@ -146,7 +146,7 @@ Every Suggestion carries evidence, rationale, urgency, and expiration.
 ```mermaid
 flowchart LR
     Context[Knowledge + State + Events] --> Detect[Deterministic detectors]
-    Detect --> Explain[Explainable proposal]
+    Detect --> Explain[Explainable Suggestion]
     Explain --> Autonomy{Allowed autonomy?}
     Autonomy -- ask --> User[Request confirmation]
     Autonomy -- propose or execute --> Intent[Intent]
@@ -155,7 +155,7 @@ flowchart LR
     Feedback --> Preferences[Future prioritization]
 ```
 
-Inference may structure or rank proposals, but cannot mutate or execute directly.
+Inference produces declarations; domain validation decides what may be persisted or executed.
 
 ## Runtime lifecycle
 

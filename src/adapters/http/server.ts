@@ -4,24 +4,22 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { System } from '../../system/system.js';
 import { createAuthHook } from './auth.js';
 import { automationRoutes } from './automation.js';
+import { developmentTokenRoutes } from './development-token.js';
 import { entryRoutes } from './entry.js';
 import { registerErrorHandling } from './error.js';
 import { executionRoutes } from './execution.js';
-import { inspectorRoutes } from './inspector.js';
-import { readMutationMode } from './mutation.js';
 import { notificationRoutes } from './notification.js';
 import { planningRoutes } from './planning.js';
 import { projectionRoutes } from './projection.js';
-import { proposalRoutes } from './proposal.js';
 import { reviewRoutes } from './review.js';
 import { stateRoutes } from './state.js';
 import { suggestionRoutes } from './suggestion.js';
 
 export interface HttpServerOptions {
-  readonly environment?: NodeJS.ProcessEnv;
   readonly logger?: FastifyServerOptions['logger'];
   readonly signingSecret: string;
   readonly readiness?: () => Promise<boolean>;
+  readonly developmentTokenEndpoint?: boolean;
 }
 
 /**
@@ -35,7 +33,6 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
 
   registerErrorHandling(server);
   server.decorateRequest('identity');
-  server.decorateRequest('mutationMode', 'readonly');
 
   void server.register(swagger, {
     openapi: {
@@ -59,7 +56,6 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
         { name: 'Entries' },
         { name: 'Reviews' },
         { name: 'Projections' },
-        { name: 'Proposals' },
         { name: 'States' },
         { name: 'Execution' },
         { name: 'Automations' },
@@ -87,6 +83,12 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
       },
       async () => ({ status: 'ok' as const }),
     );
+
+    if (options.developmentTokenEndpoint) {
+      await publicServer.register(developmentTokenRoutes, {
+        signingSecret: options.signingSecret,
+      });
+    }
 
     publicServer.get(
       '/api/ready',
@@ -129,20 +131,12 @@ export function createHttpServer(system: System, options: HttpServerOptions): Fa
     );
   });
 
-  if ((options.environment ?? process.env).NODE_ENV !== 'production') {
-    void server.register(inspectorRoutes, { system });
-  }
-
   server.register(
     async (protectedServer) => {
       protectedServer.addHook('onRequest', createAuthHook(options.signingSecret));
-      protectedServer.addHook('onRequest', async (request) => {
-        request.mutationMode = readMutationMode(request);
-      });
       await protectedServer.register(entryRoutes, { system });
       await protectedServer.register(reviewRoutes, { system });
       await protectedServer.register(projectionRoutes, { system });
-      await protectedServer.register(proposalRoutes, { proposals: system.proposals });
       await protectedServer.register(stateRoutes, { system });
       await protectedServer.register(executionRoutes, { system });
       await protectedServer.register(automationRoutes, { system });

@@ -70,6 +70,5 @@ describe('launcher notification HTTP API', () => {
       expect.arrayContaining([expect.objectContaining({ itemId: subjectItemId })]),
     );
     await server.close();
-    await system.close();
   });
 });

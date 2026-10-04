@@ -1,16 +1,7 @@
 import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typebox';
 import type { EntryStatusResult } from '../../modules/interpretation/operations/status.js';
-import { ConflictError } from '../../system/error.js';
 import type { System } from '../../system/system.js';
-import { requireMutation } from './mutation.js';
-import { createProposalResponse, proposalSchema } from './proposal.js';
-import {
-  cursorQuerySchema,
-  errorSchema,
-  idParamsSchema,
-  mutationHeadersSchema,
-  pageSchema,
-} from './schema.js';
+import { cursorQuerySchema, errorSchema, idParamsSchema, pageSchema } from './schema.js';
 
 interface EntryRoutesOptions {
   readonly system: System;
@@ -48,7 +39,6 @@ const statusSchema = Type.Object({
   reviewIds: Type.Array(Type.String()),
   declarations: Type.Array(Type.Unknown()),
   declarationStatus: Type.String(),
-  proposalId: Type.Optional(Type.String()),
 });
 
 export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async (
@@ -61,7 +51,6 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
       schema: {
         tags: ['Entries'],
         summary: 'Capture an entry',
-        headers: mutationHeadersSchema,
         body: Type.Object(
           {
             content: contentSchema,
@@ -72,25 +61,15 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
           },
         ),
         response: {
-          202: Type.Union([
-            Type.Object({
-              id: Type.String(),
-              status: Type.String(),
-            }),
-            Type.Object({
-              proposal: proposalSchema,
-            }),
-          ]),
+          202: Type.Object({ id: Type.String(), status: Type.String() }),
           400: errorSchema,
           401: errorSchema,
-          403: errorSchema,
           409: errorSchema,
           415: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
       const input = {
         content: request.body.content,
         origin: {
@@ -98,35 +77,6 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
           externalId: request.body.externalId,
         },
       };
-
-      if (mode === 'approval') {
-        const prepared = system.capture.captureEntry.prepare(input);
-        const proposal = system.proposals.create(
-          [
-            {
-              operation: 'create',
-              target: 'entry',
-              value: prepared.entry,
-            },
-            {
-              operation: 'create',
-              target: 'interpretation',
-              value: prepared.interpretation,
-            },
-          ],
-          async () => {
-            const storedId = await system.capture.captureEntry.commit(prepared);
-
-            if (storedId !== prepared.entry.id) {
-              throw new ConflictError('Capture Proposal became stale');
-            }
-          },
-        );
-
-        return reply.code(202).send({
-          proposal: createProposalResponse(proposal),
-        });
-      }
 
       const id = await system.capture.captureEntry.execute(input);
       const status = await system.interpretation.getEntryStatus.execute(id);
@@ -196,7 +146,7 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
     async (request) => {
       const status = await system.interpretation.getEntryStatus.execute(request.params.id);
 
-      return createStatus(status, findInterpretationProposalId(system, status.interpretationId));
+      return createStatus(status);
     },
   );
 
@@ -206,43 +156,16 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
       schema: {
         tags: ['Entries'],
         summary: 'Retry entry interpretation',
-        headers: mutationHeadersSchema,
         params: idParamsSchema,
         response: {
-          202: Type.Union([
-            statusSchema,
-            Type.Object({
-              proposal: proposalSchema,
-            }),
-          ]),
+          202: statusSchema,
           401: errorSchema,
-          403: errorSchema,
           404: errorSchema,
           409: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
-
-      if (mode === 'approval') {
-        const interpretation = await system.interpretation.retryEntry.prepare(request.params.id);
-        const proposal = system.proposals.create(
-          [
-            {
-              operation: 'update',
-              target: 'interpretation',
-              value: interpretation,
-            },
-          ],
-          () => system.interpretation.retryEntry.commit(interpretation),
-        );
-
-        return reply.code(202).send({
-          proposal: createProposalResponse(proposal),
-        });
-      }
-
       await system.interpretation.retryEntry.execute(request.params.id);
 
       const status = await system.interpretation.getEntryStatus.execute(request.params.id);
@@ -252,29 +175,10 @@ export const entryRoutes: FastifyPluginAsyncTypebox<EntryRoutesOptions> = async 
   );
 };
 
-function createStatus(status: EntryStatusResult, proposalId?: string) {
+function createStatus(status: EntryStatusResult) {
   return {
     ...status,
     reviewIds: [...status.reviewIds],
     declarations: [...status.declarations],
-    proposalId,
   };
-}
-
-function findInterpretationProposalId(
-  system: System,
-  interpretationId: string,
-): string | undefined {
-  return system.proposals
-    .list()
-    .find((proposal) =>
-      proposal.changes.some(
-        (change) =>
-          change.target === 'interpretation' &&
-          typeof change.value === 'object' &&
-          change.value !== null &&
-          'id' in change.value &&
-          change.value.id === interpretationId,
-      ),
-    )?.id;
 }

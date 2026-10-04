@@ -10,14 +10,13 @@ export const token = await createAccessToken('browser', signingSecret);
 
 export const authorization = Object.freeze({
   authorization: `Bearer ${token}`,
-  'x-mutation-mode': 'write',
 });
 
 export function createTestServer(readiness?: () => Promise<boolean>) {
   return createHttpServer(createTestSystem(), { signingSecret, readiness });
 }
 
-export function createTestSystem(mode: 'approval' | 'readonly' | 'write' = 'write') {
+export function createTestSystem() {
   return createSystem(createMemoryTestStorage(), {
     inference: {
       target: 'test.default',
@@ -25,7 +24,6 @@ export function createTestSystem(mode: 'approval' | 'readonly' | 'write' = 'writ
       model: 'test',
     },
     adapter: new EmptyInterpreter(),
-    mode,
   });
 }
 

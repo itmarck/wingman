@@ -1,4 +1,0 @@
-schema: spec-driven
-created: 2026-08-02
-goal: Let Wingman reason about observed, desired, required, forbidden, and
-  predicted conditions.

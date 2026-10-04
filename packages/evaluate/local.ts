@@ -108,7 +108,6 @@ async function runOperationalScenarios(): Promise<{
   const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'operational-fixtures' },
     adapter: new OperationalQualityInterpreter(),
-    mode: 'write',
   });
   const server = createHttpServer(system, { signingSecret });
   try {
@@ -116,7 +115,6 @@ async function runOperationalScenarios(): Promise<{
     const token = await createAccessToken('codex', signingSecret);
     const headers = {
       authorization: `Bearer ${token}`,
-      'x-mutation-mode': 'write',
     };
     const capture = async (externalId: string, text: string) => {
       const response = await server.inject({
@@ -165,7 +163,6 @@ async function runOperationalScenarios(): Promise<{
     };
   } finally {
     await server.close();
-    await system.close();
   }
 }
 
@@ -175,7 +172,6 @@ async function observeFailedInterpretation(
   const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'failure-fixture' },
     adapter,
-    mode: 'write',
     processing: {
       leaseDurationMs: 1_000,
       leaseRenewalIntervalMs: 100,
@@ -191,7 +187,7 @@ async function observeFailedInterpretation(
   try {
     await server.ready();
     const token = await createAccessToken('codex', signingSecret);
-    const headers = { authorization: `Bearer ${token}`, 'x-mutation-mode': 'write' };
+    const headers = { authorization: `Bearer ${token}` };
     const captured = await server.inject({
       method: 'POST',
       url: '/api/entries',
@@ -216,7 +212,6 @@ async function observeFailedInterpretation(
     ).json<PublicStatus>();
   } finally {
     await server.close();
-    await system.close();
   }
 }
 
@@ -339,14 +334,13 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
   const system = createSystem(createMemoryTestStorage(), {
     inference: { target: 'quality.local', provider: 'local', model: 'fixtures' },
     adapter: new OperationalQualityInterpreter(),
-    mode: 'write',
   });
   const server = createHttpServer(system, { signingSecret });
   try {
     await server.ready();
     const token = await createAccessToken('codex', signingSecret);
     const authorization = { authorization: `Bearer ${token}` };
-    const [health, openapi, unauthorized, readonly, malformed, unknown, forgedOrigin] =
+    const [health, openapi, unauthorized, write, malformed, unknown, forgedOrigin] =
       await Promise.all([
         server.inject({ method: 'GET', url: '/api/health' }),
         server.inject({ method: 'GET', url: '/api/openapi' }),
@@ -355,19 +349,19 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
           method: 'POST',
           url: '/api/entries',
           headers: authorization,
-          payload: { externalId: 'readonly', content: { kind: 'text', text: 'safe' } },
+          payload: { externalId: 'direct', content: { kind: 'text', text: 'safe' } },
         }),
         server.inject({
           method: 'POST',
           url: '/api/entries',
-          headers: { ...authorization, 'x-mutation-mode': 'write' },
+          headers: authorization,
           payload: { externalId: '', content: { kind: 'text', text: '' } },
         }),
         server.inject({ method: 'GET', url: '/api/does-not-exist', headers: authorization }),
         server.inject({
           method: 'POST',
           url: '/api/entries',
-          headers: { ...authorization, 'x-mutation-mode': 'write' },
+          headers: authorization,
           payload: {
             externalId: 'forged',
             source: 'trusted',
@@ -405,9 +399,9 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
       ),
       check(
         'httpContracts',
-        'readonly is the safe mutation default',
-        errorIs(readonly, 403, 'forbidden'),
-        `status=${readonly.statusCode} body=${readonly.body}`,
+        'authenticated writes are applied directly',
+        write.statusCode === 202,
+        `status=${write.statusCode} body=${write.body}`,
         { critical: true },
       ),
       check(
@@ -432,7 +426,6 @@ async function inspectHttpContracts(): Promise<readonly QualityCheck[]> {
     ];
   } finally {
     await server.close();
-    await system.close();
   }
 }
 

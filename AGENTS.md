@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Wingman is a provider-agnostic personal knowledge and automation server. It preserves immutable Entries, derives Concepts, Predicates, Axioms and Links, resolves uncertain Concept references through Reviews, and exposes Projections through an authenticated HTTP API.
+Wingman is a provider-agnostic task, knowledge and automation server. It preserves immutable Entries, derives composable Items and Components, resolves uncertain Item references through Reviews, and exposes planning and Projections through an authenticated HTTP API.
 
 ## Architecture
 
@@ -14,7 +14,8 @@ Wingman is a provider-agnostic personal knowledge and automation server. It pres
 - `migrations/`: append-only PostgreSQL migrations managed by `node-pg-migrate`.
 - `temp/`: experiments; never modify unless explicitly requested.
 
-Dependencies point inward toward stable concepts. Keep framework and driver types behind adapter surfaces. Knowledge storage is still in memory; PostgreSQL currently stores inference telemetry.
+Dependencies point inward toward stable concepts. Keep framework and driver types behind adapter surfaces. PostgreSQL stores all durable domain facts and inference telemetry. Local execution and integration tests use containers; see `README.md`. The public `/api/token` endpoint is registered only when `NODE_ENV=development`; other runtime behavior does not branch on `NODE_ENV`.
+Local container workflows use `podman compose` with a provider installed in WSL. Railway uses its default Railpack detection; `npm start` applies database migrations before launching the server.
 Inference uses one required infrastructure target that resolves to an adapter and model, with `low | high` reasoning and no automatic fallback.
 
 ## Commands
@@ -26,7 +27,9 @@ npm test
 npm run build
 npm run migrate
 npm start
-npm run --silent token -- browser
+podman compose up --build -d
+podman compose down
+podman compose --profile tests run --build --rm tests
 ```
 
 ## Conventions
@@ -39,7 +42,7 @@ npm run --silent token -- browser
 - Tests cover relevant behavior per operation, not every internal function.
 - Never hardcode secrets or trust a Connector source supplied in an HTTP body.
 - Keep Reviews on the single `referenceResolution` contract. Extend its generic question,   proposal and candidates instead of adding case-specific Review kinds.
-- Preserve verbatim citations as exact `quote` Literals. Validate Predicate usage and source   locators against the supplied Interpretation context and Entry content.
+- Preserve verbatim citations as exact `quote` Components. Validate Component usage and source locators against the supplied Interpretation context and Entry content.
 - Treat code as the source of truth when documentation disagrees.
 
 ## Agent flows
@@ -48,7 +51,7 @@ npm run --silent token -- browser
 
 When asked to make a smoke test to the system, act as a real user:
 
-1. Create a token with the command to authenticate (use `codex` as source).
+1. Create a token with the local development endpoint to authenticate (use `codex` as source): `curl -sS -X POST 'http://localhost:3000/api/token?source=codex'`.
 2. Exercise the principal API workflow end to end.
 3. Inspect responses, logs, persisted effects and derived knowledge.
 4. Adapt the test when something fails; diagnose instead of stopping at the first error.

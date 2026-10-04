@@ -42,7 +42,6 @@ async function startRuntime(
         provider: config.inference.provider,
         model: config.inference.model,
       },
-      mode: config.system.mode,
       telemetry: new PostgresInferenceTelemetry(database),
       registry,
     });
@@ -57,27 +56,22 @@ async function startRuntime(
         onError: (error) => server?.logger.error({ error }, 'System work failed'),
       },
     );
-    owner = new Runtime({ server, worker, system, database });
+    owner = new Runtime({ server, worker, database });
     await owner.start();
     return Object.freeze({ runtime: owner, server });
   } catch (error) {
-    if (!owner) await closePartial(server, system, database, error);
+    if (!owner) await closePartial(server, database, error);
     throw error;
   }
 }
 
 async function closePartial(
   server: Server | undefined,
-  system: System | undefined,
   database: PostgresDatabase,
   startupError: unknown,
 ): Promise<void> {
   const errors: unknown[] = [startupError];
-  for (const close of [
-    server ? () => server.close() : undefined,
-    system ? () => system.close() : undefined,
-    () => database.close(),
-  ]) {
+  for (const close of [server ? () => server.close() : undefined, () => database.close()]) {
     try {
       await close?.();
     } catch (error) {

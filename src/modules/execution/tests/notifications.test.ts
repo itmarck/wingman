@@ -50,7 +50,6 @@ describe('execution launcher inbox', () => {
         (event) => event.key === 'notificationDelivered',
       ),
     ).toHaveLength(2);
-    await system.close();
   });
 
   it('acknowledges a notice without completing its subject', async () => {
@@ -93,7 +92,6 @@ describe('execution launcher inbox', () => {
     expect(await system.planning.queries.list('pending')).toEqual(
       expect.arrayContaining([expect.objectContaining({ itemId: subjectItemId })]),
     );
-    await system.close();
   });
 });
 

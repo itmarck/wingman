@@ -9,11 +9,10 @@ const requiredEnvironment = {
 };
 
 describe('Runtime configuration', () => {
-  it('organizes adapter and system configuration from one environment', () => {
+  it('organizes infrastructure configuration from one environment', () => {
     expect(
       readConfig({
         ...requiredEnvironment,
-        MUTATION_MODE: 'write',
         SERVER_PORT: '3100',
       }),
     ).toMatchObject({
@@ -30,19 +29,13 @@ describe('Runtime configuration', () => {
       postgres: {
         connectionString: 'postgresql://localhost/wingman',
       },
-      system: {
-        mode: 'write',
-      },
     });
   });
 
-  it('uses safe system defaults without making inference optional', () => {
+  it('uses the inference configuration required by the runtime', () => {
     expect(readConfig(requiredEnvironment)).toMatchObject({
       inference: {
         target: 'openai.luna',
-      },
-      system: {
-        mode: 'approval',
       },
     });
   });

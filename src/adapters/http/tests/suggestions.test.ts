@@ -54,7 +54,6 @@ describe('Suggestion HTTP API', () => {
       expect(legacy.statusCode).toBe(404);
     } finally {
       await server.close();
-      await system.close();
     }
   });
 });

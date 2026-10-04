@@ -10,20 +10,42 @@ describe('read HTTP configuration', () => {
         SERVER_SECRET: signingSecret,
       }),
     ).toEqual({
-      environment: 'development',
       host: '0.0.0.0',
       port: 3100,
       signingSecret,
+      developmentTokenEndpoint: false,
     });
     expect(() => readHttpConfig({})).toThrow('SERVER_SECRET is required');
   });
 
-  it('reads the port assigned by the deployment platform', () => {
+  it('uses Railway PORT before the local SERVER_PORT setting', () => {
     expect(
       readHttpConfig({
+        PORT: '8080',
         SERVER_PORT: '8080',
         SERVER_SECRET: signingSecret,
       }).port,
     ).toBe(8080);
+    expect(
+      readHttpConfig({
+        PORT: '8080',
+        SERVER_PORT: '3100',
+        SERVER_SECRET: signingSecret,
+      }).port,
+    ).toBe(8080);
+  });
+
+  it('enables the token endpoint only in development', () => {
+    expect(
+      readHttpConfig({
+        SERVER_SECRET: signingSecret,
+        NODE_ENV: 'development',
+      }).developmentTokenEndpoint,
+    ).toBe(true);
+    for (const NODE_ENV of ['production', 'test', undefined]) {
+      expect(
+        readHttpConfig({ SERVER_SECRET: signingSecret, NODE_ENV }).developmentTokenEndpoint,
+      ).toBe(false);
+    }
   });
 });

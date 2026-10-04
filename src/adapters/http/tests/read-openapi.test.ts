@@ -41,14 +41,6 @@ describe('read OpenAPI document', () => {
     expect(document.paths['/api/reminders']).toBeUndefined();
     expect(document.paths['/api/rules']).toBeUndefined();
     expect(document.paths['/api/entries']?.get?.security).toBeUndefined();
-    expect(document.paths['/api/entries']?.post?.parameters ?? []).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          in: 'header',
-          name: 'x-mutation-mode',
-        }),
-      ]),
-    );
     expect(document.paths['/api/entries']?.get?.responses).toHaveProperty('401');
     expect(
       document.paths['/api/entries']?.post?.requestBody?.content['application/json']?.example,

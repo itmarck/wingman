@@ -41,7 +41,6 @@ describe('classified interpretation retries', () => {
     vi.advanceTimersByTime(3_000);
     await expect(system.interpretation.processNext.execute()).rejects.toThrow('offline');
     expect(await status(system, entryId)).toMatchObject({ status: 'exhausted', attempts: 3 });
-    await system.close();
   });
 
   it('uses provider quota timing as a lower bound and retries invalid output briefly', async () => {
@@ -57,7 +56,6 @@ describe('classified interpretation retries', () => {
       attempts: 1,
       availableAt: '2026-08-09T12:00:05.000Z',
     });
-    await quota.close();
 
     const invalid = createTestSystem({ adapter: new InvalidAdapter(), processing });
     const invalidEntry = await capture(invalid);
@@ -68,7 +66,6 @@ describe('classified interpretation retries', () => {
       attempts: 1,
       availableAt: '2026-08-09T12:00:00.100Z',
     });
-    await invalid.close();
   });
 
   it('fails authentication errors immediately without fallback', async () => {
@@ -83,7 +80,6 @@ describe('classified interpretation retries', () => {
     );
     expect(await status(system, entryId)).toMatchObject({ status: 'failed', attempts: 1 });
     expect(adapter.calls).toBe(1);
-    await system.close();
   });
 });
 

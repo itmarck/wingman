@@ -38,11 +38,7 @@ describe('system composition', () => {
       'planning',
       'suggestion',
       'declarations',
-      'proposals',
-      'close',
     ]);
-
-    await system.close();
   });
 });
 

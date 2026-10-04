@@ -2,9 +2,7 @@ import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typ
 import { planningViews } from '../../modules/planning/operations/query.js';
 import type { CreatePlanningItemInput } from '../../modules/planning/operations/write.js';
 import type { System } from '../../system/system.js';
-import { requireMutation } from './mutation.js';
-import { createProposalResponse, proposalSchema } from './proposal.js';
-import { errorSchema, mutationHeadersSchema } from './schema.js';
+import { errorSchema } from './schema.js';
 
 interface Options {
   readonly system: System;
@@ -58,29 +56,16 @@ export const planningRoutes: FastifyPluginAsyncTypebox<Options> = async (server,
       schema: {
         tags: ['Planning'],
         summary: 'Create a planning Item',
-        headers: mutationHeadersSchema,
         body: createSchema,
         response: {
           201: Type.Object({ id: Type.String() }),
-          202: Type.Object({ proposal: proposalSchema }),
           400: errorSchema,
           401: errorSchema,
-          403: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
       const input = request.body as CreatePlanningItemInput;
-      if (mode === 'approval') {
-        const proposal = system.proposals.create(
-          [{ operation: 'create', target: 'planningItem', value: input }],
-          async () => {
-            await system.planning.commands.create(input);
-          },
-        );
-        return reply.code(202).send({ proposal: createProposalResponse(proposal) });
-      }
       return reply.code(201).send({ id: await system.planning.commands.create(input) });
     },
   );
@@ -90,7 +75,6 @@ export const planningRoutes: FastifyPluginAsyncTypebox<Options> = async (server,
       schema: {
         tags: ['Planning'],
         summary: 'Change a planning Item',
-        headers: mutationHeadersSchema,
         params: Type.Object({
           id: Type.String(),
           operation: Type.Union(
@@ -102,37 +86,19 @@ export const planningRoutes: FastifyPluginAsyncTypebox<Options> = async (server,
         body: Type.Object({ value: Type.Unknown(), evidence: evidenceSchema }),
         response: {
           204: Type.Null(),
-          202: Type.Object({ proposal: proposalSchema }),
           400: errorSchema,
           401: errorSchema,
-          403: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
-      const apply = () =>
-        applyOperation(
-          system,
-          request.params.id,
-          request.params.operation,
-          request.body.value,
-          request.body.evidence as CreatePlanningItemInput['evidence'],
-        );
-      if (mode === 'approval') {
-        const proposal = system.proposals.create(
-          [
-            {
-              operation: 'update',
-              target: `planningItem:${request.params.id}`,
-              value: request.body,
-            },
-          ],
-          apply,
-        );
-        return reply.code(202).send({ proposal: createProposalResponse(proposal) });
-      }
-      await apply();
+      await applyOperation(
+        system,
+        request.params.id,
+        request.params.operation,
+        request.body.value,
+        request.body.evidence as CreatePlanningItemInput['evidence'],
+      );
       return reply.code(204).send(null);
     },
   );

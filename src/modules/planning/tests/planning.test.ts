@@ -50,7 +50,6 @@ describe('planning', () => {
     expect(await system.state.listView.execute('desired')).toHaveLength(1);
     expect(await system.automation.store.list()).toEqual([]);
     expect(await system.execution.store.listIntents()).toEqual([]);
-    await system.close();
   });
 
   it('identifies blockers, rejects cycles and preserves completion when reopening', async () => {
@@ -93,7 +92,6 @@ describe('planning', () => {
     await expect(system.planning.commands.transition(first, 'achieved', evidence)).rejects.toThrow(
       'cannot transition',
     );
-    await system.close();
   });
 
   it('validates typed references and exposes overdue work', async () => {
@@ -120,7 +118,6 @@ describe('planning', () => {
     expect((await system.planning.queries.list('overdue')).map((item) => item.itemId)).toEqual([
       taskId,
     ]);
-    await system.close();
   });
 });
 

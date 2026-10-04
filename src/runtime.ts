@@ -1,12 +1,10 @@
 import type { Server } from './adapters/http/start.js';
 import type { Database } from './adapters/postgres/database.js';
 import type { PollingWorker } from './modules/interpretation/adapters/worker.js';
-import type { System } from './system/system.js';
 
 export interface RuntimeOptions {
   readonly server: Server;
   readonly worker: PollingWorker;
-  readonly system: System;
   readonly database: Database;
 }
 
@@ -16,7 +14,6 @@ export interface RuntimeOptions {
 export class Runtime {
   readonly #server: Server;
   readonly #worker: PollingWorker;
-  readonly #system: System;
   readonly #database: Database;
   #started = false;
   #closing?: Promise<void>;
@@ -24,7 +21,6 @@ export class Runtime {
   constructor(options: RuntimeOptions) {
     this.#server = options.server;
     this.#worker = options.worker;
-    this.#system = options.system;
     this.#database = options.database;
   }
 
@@ -62,7 +58,6 @@ export class Runtime {
     await closeAll([
       () => this.#server.close(),
       () => this.#worker.stop(),
-      () => this.#system.close(),
       () => this.#database.close(),
     ]);
   }

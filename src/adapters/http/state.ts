@@ -2,9 +2,7 @@ import { type FastifyPluginAsyncTypebox, Type } from '@fastify/type-provider-typ
 import type { PersistStateInput } from '../../modules/state/operations/create.js';
 import { stateViews } from '../../modules/state/operations/list.js';
 import type { System } from '../../system/system.js';
-import { requireMutation } from './mutation.js';
-import { createProposalResponse, proposalSchema } from './proposal.js';
-import { errorSchema, mutationHeadersSchema } from './schema.js';
+import { errorSchema } from './schema.js';
 
 interface StateRoutesOptions {
   readonly system: System;
@@ -61,29 +59,16 @@ export const stateRoutes: FastifyPluginAsyncTypebox<StateRoutesOptions> = async 
       schema: {
         tags: ['States'],
         summary: 'Preserve non-derivable modal State',
-        headers: mutationHeadersSchema,
         body: stateInputSchema,
         response: {
           201: Type.Object({ id: Type.String() }),
-          202: Type.Object({ proposal: proposalSchema }),
           400: errorSchema,
           401: errorSchema,
-          403: errorSchema,
         },
       },
     },
     async (request, reply) => {
-      const mode = requireMutation(request.mutationMode);
       const input = request.body as PersistStateInput;
-      if (mode === 'approval') {
-        const proposal = system.proposals.create(
-          [{ operation: 'create', target: 'state', value: input }],
-          async () => {
-            await system.state.createState.execute(input);
-          },
-        );
-        return reply.code(202).send({ proposal: createProposalResponse(proposal) });
-      }
       const id = await system.state.createState.execute(input);
       return reply.code(201).send({ id });
     },

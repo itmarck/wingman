@@ -57,7 +57,6 @@ describe('Suggestion assistance', () => {
       });
     expect(await system.execution.notifications.list()).toEqual([]);
     expect(await system.suggestion.service.evaluate({ kind: 'scan' })).toEqual([]);
-    await system.close();
   });
 
   it('detects conflicts and only evaluates dependencies related to a signal', async () => {
@@ -100,7 +99,6 @@ describe('Suggestion assistance', () => {
         expect.stringContaining('forbidden:'),
       ]),
     });
-    await system.close();
   });
 
   it('handles relevant knowledge and Events without turning them into a background loop', async () => {
@@ -133,7 +131,6 @@ describe('Suggestion assistance', () => {
         (suggestion) => suggestion.detector.key,
       ),
     ).toEqual(['relevantChange']);
-    await system.close();
   });
 
   it('bounds registered effects, rejects unsupported inferred effects and preserves feedback', async () => {
@@ -202,7 +199,6 @@ describe('Suggestion assistance', () => {
       ),
     ).toEqual(['postponed', 'accepted', 'modified', 'rejected', 'completed']);
     expect(safe.executions).toBe(0);
-    await system.close();
   });
 });
 
