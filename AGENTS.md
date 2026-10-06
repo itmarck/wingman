@@ -1,60 +1,30 @@
-# AGENTS.md
+# Wingman
 
-Wingman is a provider-agnostic task, knowledge and automation server. It preserves immutable Entries, derives composable Items and Components, resolves uncertain Item references through Reviews, and exposes planning and Projections through an authenticated HTTP API.
+Personal content, Collections/Records, Tasks and passive notifications. REFERENCE.md defines the proposal; implement only its active core stage. Keep complexity low for one maintainer. No universal entities, versions, jobs or extension frameworks unless an actual enabled capability needs them.
 
-## Architecture
+## Structure
 
-### Folder structure
+- `src/core/`: model, validation and content/work/processing operations.
+- `src/platform/`: PostgreSQL, JEV, authentication, HTTP and runtime adapters.
+- `src/main.ts`: process entry point; `src/tsconfig.build.json`: app build config.
+- `migrations/`: versioned, append-only changes after the replacement initial schema.
+- `temp/`: never modify unless explicitly requested.
 
-- `src/core/`: stable knowledge entities and invariants; no infrastructure dependencies.
-- `src/modules/`: feature slices with operations, ports, adapters and behavior tests.
-- `src/system/`: composition and cross-module policies.
-- `src/adapters/`: HTTP, PostgreSQL, inference and runtime infrastructure.
-- `src/runtime.ts`: starts and closes the complete process; `main.ts` only composes and handles signals.
-- `migrations/`: append-only PostgreSQL migrations managed by `node-pg-migrate`.
-- `temp/`: experiments; never modify unless explicitly requested.
+Use functions and small modules, not a class/file/interface per operation or table. Validate internal entry points as well as HTTP; preserve original text and falsy values. Source comes from authentication. Links have no action semantics. Do not duplicate
+structural relationships as Links. No external request inside a database
+transaction. Publish classification and effects together and fence tale claims.
 
-Dependencies point inward toward stable concepts. Keep framework and driver types behind adapter surfaces. PostgreSQL stores all durable domain facts and inference telemetry. Local execution and integration tests use containers; see `README.md`. The public `/api/token` endpoint is registered only when `NODE_ENV=development`; other runtime behavior does not branch on `NODE_ENV`.
-Local container workflows use `podman compose` with a provider installed in WSL. Railway uses its default Railpack detection; `npm start` applies database migrations before launching the server.
-Inference uses one required infrastructure target that resolves to an adapter and model, with `low | high` reasoning and no automatic fallback.
-
-## Commands
+Node >=22.18, TypeScript, ES modules, Fastify `/api`, PostgreSQL. Only the public development token route depends on NODE_ENV. Local execution uses Podman Compose in WSL. Railway uses default Railpack; npm start migrates before starting HTTP.
 
 ```bash
 npx biome check --write <paths>
 npm run typecheck
 npm test
 npm run build
-npm run migrate
-npm start
 podman compose up --build -d
 podman compose down
-podman compose --profile tests run --build --rm tests
 ```
 
-## Conventions
+Keep tests focused on pure rules and deterministic provider contracts. Database and HTTP integration tests are currently out of scope; reintroduce them only when requested. Keep provider fixtures distinct from real semantic evaluations. Exported helpers need concise JSDoc. Treat code as truth if docs differ.
 
-- Node.js `>=22.18.0`, TypeScript, ES modules, Fastify under `/api`.
-- Prefer simple readable code, `async/await`, `const`, and `this`.
-- Avoid unnecessary layers, abbreviations, one-use return variables and long compound conditions.
-- Apply validation, normalization, cloning and freezing consistently.
-- Add concise JSDoc to exported classes and meaningful standalone helpers.
-- Tests cover relevant behavior per operation, not every internal function.
-- Never hardcode secrets or trust a Connector source supplied in an HTTP body.
-- Keep Reviews on the single `referenceResolution` contract. Extend its generic question,   proposal and candidates instead of adding case-specific Review kinds.
-- Preserve verbatim citations as exact `quote` Components. Validate Component usage and source locators against the supplied Interpretation context and Entry content.
-- Treat code as the source of truth when documentation disagrees.
-
-## Agent flows
-
-### Smoke test
-
-When asked to make a smoke test to the system, act as a real user:
-
-1. Create a token with the local development endpoint to authenticate (use `codex` as source): `curl -sS -X POST 'http://localhost:3000/api/token?source=codex'`.
-2. Exercise the principal API workflow end to end.
-3. Inspect responses, logs, persisted effects and derived knowledge.
-4. Adapt the test when something fails; diagnose instead of stopping at the first error.
-5. Evaluate semantic quality, not only status codes.
-6. Do not modify code unless explicitly requested.
-7. Report tested scenarios, evidence, defects and conclusions.
+For a requested smoke test, obtain a development token with source=codex, exercise the real principal API flow, inspect responses/logs/persisted effects, adapt on failure and evaluate semantic quality. Do not modify code unless requested. Report evidence, defects and limitations. Tests use isolated databases, not application data.

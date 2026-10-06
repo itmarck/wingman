@@ -4,6 +4,8 @@ services:
     environment:
       POSTGRES_USER: wingman
       POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "3301:5432"
     volumes:
       - postgres-data:/var/lib/postgresql
     healthcheck:
@@ -18,22 +20,10 @@ services:
     environment:
       DATABASE_URL: postgresql://wingman@database:5432/wingman
     ports:
-      - "127.0.0.1:3000:3000"
+      - "3300:3000"
     depends_on:
       database:
         condition: service_healthy
-
-  tests:
-    build:
-      context: .
-      target: build
-    profiles: [tests]
-    environment:
-      WINGMAN_TEST_POSTGRES_URL: postgresql://wingman@database:5432/postgres
-    depends_on:
-      database:
-        condition: service_healthy
-    command: ["npm", "run", "test:all"]
 
 volumes:
   postgres-data:
