@@ -97,13 +97,19 @@ export async function createServer(db: Database, secret: string, development = f
       // The browser sends the API token itself (e.g. via an extension); there is no login page.
       panel.addHook('onRequest', async (request, reply) => {
         if (!request.headers.authorization) return page(reply, 404, 'Not found');
-        if (!(await verifyAuthorization(request.headers.authorization, secret)))
-          return page(reply, 401, 'Unauthorized');
+        const identity = await verifyAuthorization(request.headers.authorization, secret);
+        if (!identity) return page(reply, 401, 'Unauthorized');
+        if (identity.source !== 'panel') return page(reply, 403, 'Forbidden');
       });
       await panel.register(fastifyStatic, { root: panelRoot });
     });
   await app.register(async (api) => {
     api.addHook('onRequest', createAuthHook(secret));
+    // Separation of responsibilities: only panel tokens use the panel's routes.
+    api.addHook('onRequest', async (request, reply) => {
+      if (request.url.startsWith('/api/admin/') && request.identity.source !== 'panel')
+        return reply.code(403).send({ error: { message: 'Panel token required' } });
+    });
     api.addHook('onResponse', async (request, reply) => {
       track(
         db,
@@ -125,13 +131,31 @@ export async function createServer(db: Database, secret: string, development = f
   return app;
 }
 
+const errorPages: Record<number, string> = {
+  401: 'The Authorization header has an invalid or expired token.',
+  403: 'This token cannot open the panel. Use a token with source=panel.',
+  404: 'The page you are looking for does not exist.',
+};
+
+/** An error page with the panel's look; inline because panel assets require a token. */
 function page(reply: FastifyReply, status: number, title: string) {
+  const description = errorPages[status] ?? 'Something went wrong.';
   return reply
     .code(status)
     .type('text/html')
-    .send(
-      `<!doctype html><title>${title}</title><body style="font-family:sans-serif"><h1>${status}</h1><p>${title}</p></body>`,
-    );
+    .send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${status} ${title}</title>
+<style>
+:root{color-scheme:dark;--background:oklch(0.145 0 0);--foreground:oklch(0.985 0 0);--card:oklch(0.205 0 0);--muted-foreground:oklch(0.708 0 0);--border:oklch(1 0 0 / 10%)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;background:var(--background);color:var(--foreground);font:14px/1.5 "Geist Variable",ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{width:100%;max-width:24rem;padding:24px;border:1px solid var(--border);border-radius:14px;background:var(--card);box-shadow:0 1px 3px 0 rgb(0 0 0 / .1),0 1px 2px -1px rgb(0 0 0 / .1);text-align:center}
+.status{display:inline-block;margin-bottom:12px;padding:2px 10px;border:1px solid var(--border);border-radius:999px;color:var(--muted-foreground);font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+h1{margin:0 0 8px;font-size:18px;font-weight:600;line-height:1.2}
+p{margin:0;color:var(--muted-foreground)}
+</style></head>
+<body><main><span class="status">${status}</span><h1>${title}</h1><p>${description}</p></main></body></html>`);
 }
 
 function route(

@@ -42,7 +42,7 @@ Get a local token (only in development): `curl -sS -X POST 'http://localhost:330
 | GET | `/api/collections` | Collections with Record counts |
 | GET/POST | `/api/collections/{id}/records` | Records of one Collection; create one |
 
-The panel's internal routes live under `/api/admin` (flow, retry, projects, collections, records, preferences, settings and archive).
+The panel's internal routes live under `/api/admin` (flow, retry, projects, collections, records, preferences, settings and archive). The panel page and `/api/admin` require a token with `source=panel`; that token can also use the rest of the API.
 
 Captures answer immediately; the same `submissionKey` with the same input returns the same receipt, and different input returns 409. Instants are stored in UTC and always returned as ISO strings ending in `Z`; clients convert them to local time. `plannedFor` is a calendar day (`YYYY-MM-DD`). The `timezone` setting is the user's zone; it gives local-day meaning to Spanish dates in the text (`mañana`, `antes del viernes`, `ayer`) that fill `plannedFor`, `dueAt` or `occurredAt`, to date-only inputs (start of that local day), today's tasks, postponing and journal days. The server's own timezone (`TZ`) is irrelevant.
 
