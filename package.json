@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npm run clean && tsc -p src/tsconfig.build.json && vite build --config src/panel/vite.config.ts",
     "clean": "rm -rf dist",
-    "migrate": "node-pg-migrate up",
+    "migrate": "node-pg-migrate up --migrations-schema telemetry --create-migrations-schema",
     "start": "npm run migrate && node dist/src/main.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/panel",

@@ -60,7 +60,8 @@ CREATE TABLE interactions (
 );
 CREATE INDEX interactions_entry ON interactions ("entryId", "createdAt");
 
-CREATE SCHEMA telemetry;
+-- node-pg-migrate creates this schema first to keep its pgmigrations table here.
+CREATE SCHEMA IF NOT EXISTS telemetry;
 CREATE TABLE telemetry.classifications (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, "entryId" uuid NOT NULL REFERENCES entries(id),
   "createdAt" timestamptz NOT NULL DEFAULT now(), "durationMs" integer NOT NULL, model text,

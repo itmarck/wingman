@@ -1,3 +1,6 @@
+Dockerfile
+.dockerignore
+compose.yaml
 .github/
 docs/
 temp/

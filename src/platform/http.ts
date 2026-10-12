@@ -111,6 +111,7 @@ export async function createServer(db: Database, secret: string, development = f
         return reply.code(403).send({ error: { message: 'Panel token required' } });
     });
     api.addHook('onResponse', async (request, reply) => {
+      if (request.headers['x-background']) return;
       track(
         db,
         'request',

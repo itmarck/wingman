@@ -1,10 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /** Call the same API as the launcher; the browser adds the Authorization header. */
-export async function api<T = unknown>(path: string, method = 'GET', body?: unknown): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  method = 'GET',
+  body?: unknown,
+  background = false,
+): Promise<T> {
   const response = await fetch(`/api${path}`, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      // Automatic refreshes are not user actions, so telemetry skips them.
+      ...(background && { 'X-Background': '1' }),
+      ...(body !== undefined && { 'Content-Type': 'application/json' }),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await response.json().catch(() => ({}));
@@ -16,21 +25,25 @@ export async function api<T = unknown>(path: string, method = 'GET', body?: unkn
 export function useData<T>(path: string | null, refreshMs?: number) {
   const [data, setData] = useState<T>();
   const [error, setError] = useState<string>();
-  const reload = useCallback(async () => {
-    if (!path) return;
-    try {
-      setData(await api<T>(path));
-      setError(undefined);
-    } catch (failure) {
-      setError((failure as Error).message);
-    }
-  }, [path]);
+  const load = useCallback(
+    async (background: boolean) => {
+      if (!path) return;
+      try {
+        setData(await api<T>(path, 'GET', undefined, background));
+        setError(undefined);
+      } catch (failure) {
+        setError((failure as Error).message);
+      }
+    },
+    [path],
+  );
+  const reload = useCallback(() => load(false), [load]);
   useEffect(() => {
-    void reload();
+    void load(false);
     if (!refreshMs) return;
-    const timer = setInterval(reload, refreshMs);
+    const timer = setInterval(() => load(true), refreshMs);
     return () => clearInterval(timer);
-  }, [reload, refreshMs]);
+  }, [load, refreshMs]);
   return { data, error, reload };
 }
 

@@ -26,7 +26,7 @@ Restore into an empty database with `pg_restore -d "$DATABASE_URL" wingman.dump`
 
 ## API
 
-Get a local token (only in development): `curl -sS -X POST 'http://localhost:3300/api/token?source=codex'`. Every other route requires `Authorization: Bearer <token>`; the token supplies the capture source. The panel uses the same token. Health, readiness and OpenAPI are public: `/api/health`, `/api/ready`, `/api/openapi`.
+Get a token from the local development server (`compose.yaml` sets `NODE_ENV=development`; Railway never exposes this route): `curl -sS -X POST 'http://localhost:3300/api/token?source=panel'`. Production shares `SERVER_SECRET` with local, so tokens created locally also work there. Every other route requires `Authorization: Bearer <token>`; the token supplies the capture source. The panel uses the same token. Health, readiness and OpenAPI are public: `/api/health`, `/api/ready`, `/api/openapi`.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
