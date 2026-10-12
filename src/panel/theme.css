@@ -2,6 +2,13 @@
 :root {
   color-scheme: dark;
   --radius: 0.625rem;
+  /* Controls (buttons, inputs, selects, tabs) share one height, as shadcn's size sm. */
+  --control-height: 2rem;
+  --control-height-sm: 1.75rem;
+  --control-padding: 0.75rem;
+  /* Floating action button and the empty space kept for it at the end of every page. */
+  --fab-size: 3rem;
+  --fab-offset: 1.5rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

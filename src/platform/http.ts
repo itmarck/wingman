@@ -69,6 +69,13 @@ export async function createServer(db: Database, secret: string, development = f
       },
     });
   });
+  // Private system: nothing on this domain should be indexed by search engines.
+  app.addHook('onSend', async (_request, reply) => {
+    reply.header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  });
+  app.get('/robots.txt', async (_request, reply) =>
+    reply.type('text/plain').send('User-agent: *\nDisallow: /\n'),
+  );
   app.get('/api/health', async () => ({ ok: true }));
   app.get('/api/ready', async () => {
     await db.query('SELECT 1 FROM collections LIMIT 1');

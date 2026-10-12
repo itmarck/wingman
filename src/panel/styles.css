@@ -5,6 +5,21 @@
   box-sizing: border-box;
   border: 0 solid var(--border);
 }
+/*
+ * The page always keeps its vertical scrollbar (with a transparent track), so content never
+ * shifts when the page becomes taller or shorter, e.g. while loading or switching tabs.
+ */
+html {
+  overflow-y: scroll;
+}
+/* Radix adds the scrollbar width as margin when it locks scroll; the bar never leaves here. */
+html body[data-scroll-locked] {
+  /* biome-ignore lint/complexity/noImportantStyles: it must beat Radix's own !important */
+  margin-right: 0 !important;
+}
+.dialog-content {
+  scrollbar-gutter: stable;
+}
 body {
   margin: 0;
   background: var(--background);
@@ -61,6 +76,8 @@ svg {
   max-width: 1200px;
   margin: 0 auto;
   padding: 16px;
+  /* Scrolling to the end always leaves room for the floating button. */
+  padding-bottom: calc(var(--fab-size) + var(--fab-offset) * 2 + env(safe-area-inset-bottom));
 }
 .row {
   display: flex;
@@ -134,8 +151,8 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 36px;
-  padding: 8px 16px;
+  height: var(--control-height);
+  padding: 0 var(--control-padding);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: var(--primary);
@@ -147,7 +164,7 @@ svg {
   transition: all 0.15s;
 }
 .button:has(> svg) {
-  padding-inline: 12px;
+  padding-inline: 10px;
 }
 .button:hover {
   background: oklch(0.922 0 0 / 90%);
@@ -177,17 +194,26 @@ svg {
   background: oklch(0.269 0 0 / 50%);
   color: var(--accent-foreground);
 }
+.button.icon.outline {
+  border-color: var(--input);
+  background: oklch(1 0 0 / 4.5%);
+  color: var(--foreground);
+  box-shadow: var(--shadow-xs);
+}
+.button.icon.outline:hover {
+  background: oklch(1 0 0 / 7.5%);
+}
 .button.sm {
-  height: 32px;
+  height: var(--control-height-sm);
   gap: 6px;
   padding: 0 12px;
 }
 .button.sm:has(> svg) {
-  padding-inline: 10px;
+  padding-inline: 8px;
 }
 .button.icon {
-  width: 32px;
-  height: 32px;
+  width: var(--control-height);
+  height: var(--control-height);
   padding: 0;
   color: var(--muted-foreground);
 }
@@ -201,8 +227,8 @@ svg {
 .textarea {
   width: 100%;
   min-width: 0;
-  height: 36px;
-  padding: 4px 12px;
+  height: var(--control-height);
+  padding: 0 var(--control-padding);
   border: 1px solid var(--input);
   border-radius: var(--radius-md);
   background: oklch(1 0 0 / 4.5%);
@@ -229,7 +255,7 @@ svg {
   display: flex;
   height: auto;
   min-height: 64px;
-  padding: 8px 12px;
+  padding: 6px var(--control-padding);
   field-sizing: content;
   resize: vertical;
 }
@@ -270,11 +296,11 @@ svg {
 .select-trigger {
   display: inline-flex;
   width: fit-content;
-  height: 36px;
+  height: var(--control-height);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 0 var(--control-padding);
   border: 1px solid var(--input);
   border-radius: var(--radius-md);
   background: oklch(1 0 0 / 4.5%);
@@ -356,7 +382,7 @@ svg {
   display: inline-flex;
   width: fit-content;
   max-width: 100%;
-  height: 36px;
+  height: var(--control-height);
   align-items: center;
   padding: 3px;
   border-radius: var(--radius-lg);
@@ -371,7 +397,7 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: transparent;
@@ -484,8 +510,8 @@ svg {
 }
 .item-media {
   display: flex;
-  width: 32px;
-  height: 32px;
+  width: var(--control-height);
+  height: var(--control-height);
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -617,7 +643,7 @@ svg {
 }
 .list-item {
   display: flex;
-  height: 32px;
+  height: var(--control-height);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -698,7 +724,7 @@ svg {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgb(0 0 0 / 0.5);
+  background: rgb(0 0 0 / 0.8);
   animation: fade-in 0.2s ease-out;
 }
 .dialog-content {
@@ -803,7 +829,7 @@ svg {
   font-weight: 400;
 }
 .calendar {
-  --cell-size: 32px;
+  --cell-size: var(--control-height);
   display: grid;
   gap: 16px;
   padding: 12px;
@@ -883,15 +909,21 @@ svg {
   fill: var(--foreground);
 }
 
+/* Page loading: centered on the whole viewport and out of the layout, so it adds no height. */
 .loading {
+  position: fixed;
+  inset: 0;
   display: flex;
-  min-height: calc(100vh - 120px);
+  height: 100dvh;
   align-items: center;
   justify-content: center;
   color: var(--muted-foreground);
+  pointer-events: none;
 }
+/* Inside a table it stays in place, with a fixed height. */
 .loading.compact {
-  min-height: 120px;
+  position: static;
+  height: 120px;
 }
 .loading .spinner {
   width: 24px;
@@ -927,7 +959,7 @@ svg {
 .table td .input,
 .table td .select-trigger {
   width: calc(100% + 14px);
-  height: 32px;
+  height: var(--control-height);
   margin: 0 -7px;
   padding-inline: 6px;
   font-size: 14px;
@@ -968,4 +1000,23 @@ svg {
 }
 .new-field {
   padding-top: 8px;
+}
+
+/* Floating action button: the panel-wide "New entry" action */
+.button.fab {
+  position: fixed;
+  right: calc(var(--fab-offset) + env(safe-area-inset-right));
+  bottom: calc(var(--fab-offset) + env(safe-area-inset-bottom));
+  z-index: 40;
+  width: var(--fab-size);
+  height: var(--fab-size);
+  padding: 0;
+  border-radius: 999px;
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px oklch(0 0 0 / 30%);
+}
+.button.fab svg {
+  width: 20px;
+  height: 20px;
 }

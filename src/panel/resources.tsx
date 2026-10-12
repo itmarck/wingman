@@ -347,7 +347,7 @@ function CollectionForm(props: {
           <Tip label="Add field">
             <span className="tip-target">
               <button
-                className="button icon"
+                className="button icon outline"
                 type="button"
                 aria-label="Add field"
                 disabled={!newField.name.trim()}
@@ -596,9 +596,10 @@ export function EntryForm() {
     <FormDialog
       title="New entry"
       onOpen={() => setForm(empty)}
+      tooltip="New entry"
       trigger={
-        <button className="button outline" type="button">
-          <PlusIcon /> Entry
+        <button className="button fab" type="button" aria-label="New entry">
+          <PlusIcon />
         </button>
       }
       onSubmit={() =>

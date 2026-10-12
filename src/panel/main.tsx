@@ -31,16 +31,13 @@ function Panel() {
       {!catalog && !error && <Loading />}
       {catalog && (
         <Tabs.Root defaultValue={initialTab()} onValueChange={selectTab}>
-          <div className="row spread toolbar">
-            <Tabs.List className="tabs-list">
-              {tabs.map((tab) => (
-                <Tabs.Trigger key={tab} value={tab} className="tabs-trigger">
-                  {tab}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
-            <EntryForm />
-          </div>
+          <Tabs.List className="tabs-list toolbar">
+            {tabs.map((tab) => (
+              <Tabs.Trigger key={tab} value={tab} className="tabs-trigger">
+                {tab}
+              </Tabs.Trigger>
+            ))}
+          </Tabs.List>
           <Tabs.Content value="Flow">
             <Flow />
           </Tabs.Content>
@@ -58,6 +55,7 @@ function Panel() {
           </Tabs.Content>
         </Tabs.Root>
       )}
+      {catalog && <EntryForm />}
     </div>
   );
 }
