@@ -13,7 +13,7 @@ Personal log: Entries (note, task, project), Collections/Records, links and pass
 
 Use functions and small modules, not a class/file/interface per operation or table. Validate internal entry points as well as HTTP; preserve original text and falsy values. Source comes from authentication. Links have no action semantics. Do not duplicate structural relationships as Links. No external request inside a database transaction. Publish classification and effects together and fence stale claims.
 
-Node >=22.18, TypeScript, ES modules, Fastify `/api`, PostgreSQL. Only the public development token route depends on NODE_ENV. Local execution uses Podman Compose in WSL. Railway uses default Railpack (`.railwayignore` hides the Dockerfile); npm start migrates before starting HTTP. `NODE_ENV=development` is set only in compose.yaml.
+Node >=22.18, TypeScript, ES modules, Fastify `/api`, PostgreSQL. Only the public development token route depends on NODE_ENV. Local execution uses Podman Compose in WSL. Railway and local runs build the same Dockerfile; npm start migrates before starting HTTP. The image defaults to `NODE_ENV=production`; compose.yaml sets development.
 
 ```bash
 npx biome check --write <paths>

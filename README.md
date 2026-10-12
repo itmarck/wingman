@@ -14,7 +14,7 @@ npm run container:start
 
 The schema is a replacement initial migration: **an earlier database is incompatible** and needs a fresh volume (`podman compose down -v`). `npm start` runs migrations before HTTP. The JEV model is `jev-1.13.0`, declared in `src/platform/runtime.ts`.
 
-Railway uses default Railpack detection, `npm run build` and `npm start`, with `DATABASE_URL`, `SERVER_SECRET`, `TYPESAFE_API_KEY` and `PORT`. The database needs the `unaccent` and `pg_trgm` extensions (created by the migration).
+Railway builds the same `Dockerfile` used locally (Node 24, production dependencies only, `NODE_ENV=production`) and runs `npm start`, with `DATABASE_URL`, `SERVER_SECRET`, `TYPESAFE_API_KEY` and `PORT`. Use `/api/ready` as the health check path. The database needs the `unaccent` and `pg_trgm` extensions (created by the migration).
 
 ## Backup
 
