@@ -3,6 +3,7 @@ import { Problem } from '../core/model.js';
 
 types.setTypeParser(1082, (value) => value);
 types.setTypeParser(1700, (value) => Number(value));
+types.setTypeParser(20, (value) => Number(value));
 export type Database = Pool;
 export type Transaction = PoolClient;
 /** Open PostgreSQL with bounded connection and statement waits. */
@@ -32,21 +33,30 @@ export async function transaction<T>(
     tx.release();
   }
 }
-export const entitiesSql = `SELECT id, title, "inputMode" AS type, "archivedAt" FROM content
-  UNION ALL SELECT id, name, 'Collection', "archivedAt" FROM collections
-  UNION ALL SELECT id, title, 'Record', "archivedAt" FROM records
-  UNION ALL SELECT id, title, 'Task', "archivedAt" FROM tasks`;
-/** Resolve admitted identities without a universal entity table. */
-export async function entity(tx: Transaction, id: string) {
-  const result = await tx.query(`SELECT id,title,type FROM (${entitiesSql}) e WHERE id=$1`, [id]);
-  if (!result.rows[0]) throw new Problem(404, 'Entity not found');
-  return result.rows[0] as {
+export type EntityType = 'entry' | 'collection' | 'record';
+/** Every linkable item; ids are unique UUIDs across tables. */
+export const entitiesSql = `SELECT id, kind AS type, title, coalesce("editedText", text) AS body, "archivedAt" FROM entries
+  UNION ALL SELECT id, 'collection', name, NULL, "archivedAt" FROM collections
+  UNION ALL SELECT id, 'record', title, concat_ws(' ', subtitle, category, body), "archivedAt" FROM records`;
+/** Resolve one existing item without a universal entity table. */
+export async function entity(tx: Database | Transaction, id: string) {
+  const row = (
+    await tx.query(
+      `SELECT id, title, CASE WHEN type IN ('note','task','project') THEN 'entry' ELSE type END AS type,
+      type AS kind, "archivedAt" FROM (${entitiesSql}) e WHERE id=$1`,
+      [id],
+    )
+  ).rows[0];
+  if (!row) throw new Problem(404, 'Item not found');
+  return row as {
     id: string;
     title: string;
-    type: 'Entry' | 'Note' | 'Collection' | 'Record' | 'Task';
+    type: EntityType;
+    kind: string;
+    archivedAt: Date | null;
   };
 }
-/** Serialize the small form/reference write surface against schema changes. */
+/** Serialize Collection definition and Record form writes against each other. */
 export async function lockForms(tx: Transaction): Promise<void> {
   await tx.query('SELECT pg_advisory_xact_lock(734921)');
 }

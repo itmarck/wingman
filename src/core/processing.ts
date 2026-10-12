@@ -1,123 +1,141 @@
 import { randomUUID } from 'node:crypto';
-import type { Classification, Classify } from '../platform/decisions.js';
-import { areas, type Content, idSchema, Problem, validate } from './model.js';
+import type { Classify } from '../platform/decisions.js';
 import { type Database, transaction } from '../platform/storage.js';
-import { refreshNotifications } from './work.js';
+import {
+  type Entry,
+  idSchema,
+  type PreferenceInput,
+  Problem,
+  preferenceSchema,
+  validate,
+} from './model.js';
+import { type AppliedAnswer, buildQuestions, interpret, questionsOf } from './questions.js';
 
-/** Claim one recoverable capture, call JEV outside SQL, and publish effects atomically. */
+/** Claim one pending Entry, ask JEV outside SQL, and publish attributes and reasons together. */
 export async function run(
   db: Database,
   classify: Classify,
   signal?: AbortSignal,
 ): Promise<boolean> {
   const token = randomUUID();
-  const claimed = await db.query<Content>(
-    `UPDATE content SET "claimToken"=$1,"leaseUntil"=now()+interval '2 minutes',attempts=attempts+1
-    WHERE id=(SELECT id FROM content WHERE "classifiedAt" IS NULL AND "archivedAt" IS NULL AND "nextAttemptAt"<=now()
-      AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) ORDER BY "createdAt",id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,
-    [token],
-  );
-  const capture = claimed.rows[0];
-  if (!capture) return false;
-  const started = Date.now();
-  let result: Classification;
-  try {
-    result = await classify({ text: capture.text, inputMode: capture.inputMode }, signal);
-    if (
-      !['task', 'keep', 'unsupported', 'undetermined'].includes(result.decision.destination) ||
-      (result.decision.area !== 'undetermined' && !Object.hasOwn(areas, result.decision.area))
+  const entry = (
+    await db.query<Entry>(
+      `UPDATE entries SET "claimToken"=$1, "leaseUntil"=now()+interval '2 minutes', attempts=attempts+1
+      WHERE id=(SELECT id FROM entries WHERE "classifiedAt" IS NULL AND "archivedAt" IS NULL AND "nextAttemptAt"<=now()
+        AND ("leaseUntil" IS NULL OR "leaseUntil"<now()) ORDER BY "createdAt", id FOR UPDATE SKIP LOCKED LIMIT 1)
+      RETURNING *`,
+      [token],
     )
-      throw new Error('Invalid classification');
+  ).rows[0];
+  if (!entry) return false;
+  const started = Date.now();
+  const projects = (
+    await db.query(
+      `SELECT id, title, coalesce("editedText", text) AS text FROM entries
+      WHERE kind='project' AND "finishedAt" IS NULL AND "archivedAt" IS NULL ORDER BY "createdAt"`,
+    )
+  ).rows;
+  const preferences = (
+    await db.query(
+      'SELECT text FROM preferences WHERE kind=$1 AND "archivedAt" IS NULL ORDER BY "createdAt"',
+      [entry.kind],
+    )
+  ).rows.map((row) => row.text as string);
+  const definitions = buildQuestions(entry.kind, projects);
+  const state = { kind: entry.kind, text: entry.editedText ?? entry.text, preferences };
+  const questions = questionsOf(definitions);
+  const request = { state, questions };
+  let model: string;
+  let applied: Record<string, AppliedAnswer>;
+  let attributes: Record<string, unknown>;
+  try {
+    const result = await classify(state, questions, signal);
+    model = result.model;
+    ({ applied, attributes } = interpret(definitions, result.answers));
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 500) : 'Classification failed';
     await transaction(db, async (tx) => {
       const updated = await tx.query(
-        `UPDATE content SET error=$3,"claimToken"=NULL,"leaseUntil"=NULL,
-        "nextAttemptAt"=now()+make_interval(secs => LEAST(3600, power(2,LEAST(attempts,10))::integer))
+        `UPDATE entries SET error=$3, "claimToken"=NULL, "leaseUntil"=NULL,
+        "nextAttemptAt"=now()+make_interval(secs => LEAST(3600, power(2, LEAST(attempts, 10))::integer))
         WHERE id=$1 AND "claimToken"=$2 RETURNING id`,
-        [capture.id, token, message],
+        [entry.id, token, message],
       );
       if (updated.rowCount)
-        await tx.query('INSERT INTO telemetry ("contentId","durationMs",error) VALUES ($1,$2,$3)', [
-          capture.id,
-          Date.now() - started,
-          message,
-        ]);
-      if (updated.rowCount && capture.attempts >= 3) {
         await tx.query(
-          `INSERT INTO notifications ("subjectId",message) VALUES ($1,$2)
-          ON CONFLICT ("subjectId") DO NOTHING`,
-          [capture.id, `No se pudo procesar la captura; se reintentará: ${capture.title}`],
+          'INSERT INTO telemetry.classifications ("entryId", "durationMs", request, error) VALUES ($1,$2,$3,$4)',
+          [entry.id, Date.now() - started, JSON.stringify(request), message],
         );
-      }
     });
     return true;
   }
   await transaction(db, async (tx) => {
-    const current = (
-      await tx.query(
-        'SELECT * FROM content WHERE id=$1 AND "claimToken"=$2 AND "classifiedAt" IS NULL FOR UPDATE',
-        [capture.id, token],
-      )
-    ).rows[0];
-    if (!current) return;
-    await tx.query('UPDATE notifications SET "resolvedAt"=now() WHERE "subjectId"=$1', [
-      capture.id,
-    ]);
-    const settings = (await tx.query('SELECT "taskCapture" FROM settings WHERE id=true')).rows[0];
-    let outcome = 'organized';
-    const taskRequested = capture.inputMode === 'Entry' && capture.preset === 'taskCapture';
-    if (
-      !current.archivedAt &&
-      taskRequested &&
-      settings.taskCapture &&
-      result.decision.destination === 'task' &&
-      result.decision.area !== 'undetermined'
-    ) {
-      await tx.query(
-        `INSERT INTO tasks (id,title,area,"plannedFor","dueAt","sourceId") VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("sourceId") DO NOTHING`,
-        [
-          randomUUID(),
-          capture.text,
-          result.decision.area,
-          capture.plannedFor,
-          capture.dueAt,
-          capture.id,
-        ],
-      );
-      outcome = 'taskCreated';
-    } else if (!current.archivedAt && taskRequested) {
-      outcome = result.decision.destination === 'unsupported' ? 'unsupported' : 'retained';
-      await tx.query(
-        `INSERT INTO notifications ("subjectId",message) VALUES ($1,$2) ON CONFLICT ("subjectId")
-          DO UPDATE SET message=excluded.message,"resolvedAt"=NULL,"acknowledgedAt"=NULL,"deferredUntil"=NULL`,
-        [capture.id, `Captura conservada sin crear tarea: ${capture.title}`],
-      );
-    }
+    const current = await tx.query(
+      'SELECT id FROM entries WHERE id=$1 AND "claimToken"=$2 AND "classifiedAt" IS NULL FOR UPDATE',
+      [entry.id, token],
+    );
+    if (!current.rowCount) return;
+    const parentId = attributes.parentId;
+    const parentOpen =
+      parentId &&
+      (
+        await tx.query(
+          `SELECT 1 FROM entries WHERE id=$1 AND kind='project' AND "finishedAt" IS NULL AND "archivedAt" IS NULL`,
+          [parentId],
+        )
+      ).rowCount;
     await tx.query(
-      `UPDATE content SET "classifiedAt"=now(),classification=$3,"claimToken"=NULL,"leaseUntil"=NULL,error=NULL WHERE id=$1 AND "claimToken"=$2`,
-      [capture.id, token, JSON.stringify({ ...result.decision, outcome })],
+      `UPDATE entries SET area=coalesce(area, $3), "parentId"=coalesce("parentId", $4),
+        context=coalesce(context, $5), effort=coalesce(effort, $6), importance=coalesce(importance, $7),
+        "classifiedAt"=now(), "claimToken"=NULL, "leaseUntil"=NULL, error=NULL
+      WHERE id=$1 AND "claimToken"=$2`,
+      [
+        entry.id,
+        token,
+        attributes.area ?? null,
+        parentOpen ? parentId : null,
+        attributes.context ?? null,
+        attributes.effort ?? null,
+        attributes.importance ?? null,
+      ],
     );
     await tx.query(
-      'INSERT INTO telemetry ("contentId","durationMs",model,result) VALUES ($1,$2,$3,$4)',
-      [capture.id, Date.now() - started, result.model, JSON.stringify(result.telemetry)],
+      'INSERT INTO telemetry.classifications ("entryId", "durationMs", model, request, answers) VALUES ($1,$2,$3,$4,$5)',
+      [entry.id, Date.now() - started, model, JSON.stringify(request), JSON.stringify(applied)],
     );
-    await refreshNotifications(tx);
   });
   return true;
 }
 
-/** Retry an identified technical failure without resetting confirmed effects. */
-export async function retry(db: Database, id: string): Promise<void> {
+/** Retry a failed classification now, without waiting for its backoff. */
+export async function retry(db: Database, id: string): Promise<{ id: string }> {
   validate(idSchema, id);
   const result = await db.query(
-    `UPDATE content SET "nextAttemptAt"=now() WHERE id=$1 AND "classifiedAt" IS NULL AND error IS NOT NULL AND "claimToken" IS NULL RETURNING id`,
+    `UPDATE entries SET "nextAttemptAt"=now() WHERE id=$1 AND "classifiedAt" IS NULL AND "claimToken" IS NULL RETURNING id`,
     [id],
   );
-  if (!result.rowCount) throw new Problem(409, 'No retryable failure');
+  if (!result.rowCount) throw new Problem(409, 'Nothing to retry');
+  return { id };
 }
 
-/** Run one Processor alongside HTTP, with bounded concurrency and interruptible shutdown. */
+/** The processing flow for the panel: latest Entries with their state and classification attempts. */
+export async function flow(db: Database, limit = 50) {
+  return (
+    await db.query(
+      `SELECT e.id, e.kind, e.title, e.area, e."parentId", e.context, e.effort, e.importance,
+        e."plannedFor", e."dueAt", e."occurredAt", e."finishedAt", e.source, e."createdAt",
+        e."classifiedAt", e.attempts, e.error, e."nextAttemptAt",
+        CASE WHEN e."classifiedAt" IS NOT NULL THEN 'classified' WHEN e."leaseUntil" > now() THEN 'processing'
+          WHEN e.error IS NOT NULL THEN 'failed' ELSE 'pending' END AS status,
+        coalesce((SELECT jsonb_agg(row_to_json(c) ORDER BY c.id DESC) FROM
+          (SELECT id, "createdAt", "durationMs", model, request, answers, error FROM telemetry.classifications WHERE "entryId"=e.id) c), '[]') AS classifications
+      FROM entries e WHERE e.kind <> 'project' ORDER BY e."createdAt" DESC, e.id DESC LIMIT $1`,
+      [limit],
+    )
+  ).rows;
+}
+
+/** Run one Processor alongside HTTP, with interruptible shutdown. */
 export function startProcessor(
   db: Database,
   classify: Classify,
@@ -128,7 +146,6 @@ export function startProcessor(
   const done = (async () => {
     while (!abort.signal.aborted) {
       try {
-        await transaction(db, refreshNotifications);
         if (await run(db, classify, abort.signal)) continue;
       } catch (error) {
         onError(error);
@@ -148,4 +165,43 @@ export function startProcessor(
     wake?.();
     await done;
   };
+}
+
+/** Natural-language classification preferences, edited only from the panel. */
+export async function listPreferences(db: Database) {
+  return (
+    await db.query(
+      'SELECT * FROM preferences WHERE "archivedAt" IS NULL ORDER BY kind, "createdAt"',
+    )
+  ).rows;
+}
+export async function createPreference(db: Database, input: PreferenceInput) {
+  validate(preferenceSchema, input);
+  return (
+    await db.query('INSERT INTO preferences (kind, text) VALUES ($1,$2) RETURNING *', [
+      input.kind,
+      input.text.trim(),
+    ])
+  ).rows[0];
+}
+export async function updatePreference(db: Database, id: string, input: PreferenceInput) {
+  validate(idSchema, id);
+  validate(preferenceSchema, input);
+  const row = (
+    await db.query(
+      'UPDATE preferences SET kind=$2, text=$3, "updatedAt"=clock_timestamp() WHERE id=$1 RETURNING *',
+      [id, input.kind, input.text.trim()],
+    )
+  ).rows[0];
+  if (!row) throw new Problem(404, 'Preference not found');
+  return row;
+}
+export async function archivePreference(db: Database, id: string) {
+  validate(idSchema, id);
+  const result = await db.query(
+    'UPDATE preferences SET "archivedAt"=now() WHERE id=$1 AND "archivedAt" IS NULL',
+    [id],
+  );
+  if (!result.rowCount) throw new Problem(404, 'Preference not found');
+  return { id, archived: true };
 }

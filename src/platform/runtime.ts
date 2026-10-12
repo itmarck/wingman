@@ -1,7 +1,8 @@
+import { startProcessor } from '../core/processing.js';
 import { createClassifier } from './decisions.js';
 import { createServer } from './http.js';
-import { startProcessor } from '../core/processing.js';
 import { database } from './storage.js';
+import { track } from './telemetry.js';
 
 const decisionModel = 'jev-1.13.0';
 
@@ -20,11 +21,16 @@ export async function start(env: NodeJS.ProcessEnv = process.env) {
   const db = database(url);
   let server: Awaited<ReturnType<typeof createServer>> | undefined;
   try {
-    await db.query('SELECT id FROM settings WHERE id=true');
+    await db.query('SELECT 1 FROM collections LIMIT 1');
     server = await createServer(db, secret, env.NODE_ENV === 'development');
     await server.listen({ host: '0.0.0.0', port });
     const log = server.log;
-    const stopProcessor = startProcessor(db, classify, (error) => log.error(error));
+    const stopProcessor = startProcessor(db, classify, (error) => {
+      log.error(error);
+      track(db, 'processorError', {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    });
     const http = server;
     let closing: Promise<void> | undefined;
     return () =>

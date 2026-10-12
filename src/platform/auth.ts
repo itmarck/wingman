@@ -30,33 +30,35 @@ export async function createAccessToken(source: string, signingSecret: string): 
 }
 
 /**
+ * Verifies a bearer Authorization header; returns the identity, or undefined when invalid.
+ */
+export async function verifyAuthorization(
+  authorization: string | undefined,
+  signingSecret: string,
+): Promise<AccessIdentity | undefined> {
+  const token = readBearerToken(authorization);
+  if (!token) return undefined;
+  try {
+    const { payload } = await jwtVerify(token, createSecret(signingSecret), {
+      algorithms: ['HS256'],
+      audience: tokenAudience,
+      subject: tokenSubject,
+    });
+    return Object.freeze({ subject: tokenSubject, source: requireSource(payload.source) });
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Creates the bearer-token guard used by protected HTTP routes.
  */
 export function createAuthHook(signingSecret: string): onRequestHookHandler {
-  const secret = createSecret(signingSecret);
-
+  createSecret(signingSecret);
   return async (request, reply) => {
-    const token = readBearerToken(request.headers.authorization);
-
-    if (!token) {
-      return unauthorized(reply);
-    }
-
-    try {
-      const { payload } = await jwtVerify(token, secret, {
-        algorithms: ['HS256'],
-        audience: tokenAudience,
-        subject: tokenSubject,
-      });
-      const source = requireSource(payload.source);
-
-      request.identity = Object.freeze({
-        subject: tokenSubject,
-        source,
-      });
-    } catch {
-      return unauthorized(reply);
-    }
+    const identity = await verifyAuthorization(request.headers.authorization, signingSecret);
+    if (!identity) return unauthorized(reply);
+    request.identity = identity;
   };
 }
 
