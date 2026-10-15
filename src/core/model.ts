@@ -125,7 +125,7 @@ export const recordColumns = [
 export const collectionSchema = Type.Object(
   {
     name: titleSchema,
-    area: areaSchema,
+    area: nullable(areaSchema),
     definitions: Type.Optional(
       Type.Record(Type.String({ pattern: `^(${recordColumns.join('|')})$` }), titleSchema),
     ),

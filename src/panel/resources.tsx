@@ -231,7 +231,12 @@ function CollectionForm(props: {
         const definitions = Object.fromEntries(
           Object.entries(form.definitions).filter(([, v]) => v.trim()),
         );
-        const body = { name: form.name, area: form.area, definitions, fields: form.fields };
+        const body = {
+          name: form.name,
+          area: form.area || null,
+          definitions,
+          fields: form.fields,
+        };
         if (props.collection) await api(`/admin/collections/${props.collection.id}`, 'PATCH', body);
         else await api('/admin/collections', 'POST', body);
         await props.onSaved();
@@ -247,9 +252,9 @@ function CollectionForm(props: {
       </Labeled>
       <Labeled label="Area">
         <Choice
-          value={form.area}
-          options={props.catalog.areas}
-          onChange={(area) => setForm({ ...form, area })}
+          value={form.area || 'none'}
+          options={['none', ...Object.keys(props.catalog.areas)]}
+          onChange={(area) => setForm({ ...form, area: area === 'none' ? '' : area })}
         />
       </Labeled>
       <section className="form-section">

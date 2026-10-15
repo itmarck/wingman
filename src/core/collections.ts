@@ -94,7 +94,7 @@ export async function createCollection(db: Database, input: CollectionInput) {
         'INSERT INTO collections (name, area, definitions, fields) VALUES ($1,$2,$3,$4) RETURNING *',
         [
           input.name.trim(),
-          input.area,
+          input.area ?? null,
           JSON.stringify(input.definitions ?? {}),
           JSON.stringify(input.fields ?? []),
         ],

@@ -77,7 +77,7 @@ Todo lo que se registra en la bitácora es una Entry de algún tipo (`kind`). El
 
 ### Collections y Records
 
-- Una Collection define su nombre, su área y `definitions`: un texto por columna general que explica qué significa en esa Collection. Por ejemplo, en `Movies` `subtitle` significa «Director». Es solo referencial: da contexto al sistema y **no cambia la API**, que siempre devuelve las mismas propiedades para todos los Records.
+- Una Collection define su nombre, su área opcional y `definitions`: un texto por columna general que explica qué significa en esa Collection. Por ejemplo, en `Movies` `subtitle` significa «Director». Es solo referencial: da contexto al sistema y **no cambia la API**, que siempre devuelve las mismas propiedades para todos los Records.
 - Un Record pertenece a una Collection (`collectionId`, con llave foránea real) y usa las columnas generales (tema 9).
 - En la primera versión, las Collections y sus Records se crean desde el panel administrativo. Más adelante, el launcher podrá mostrarlos y crear Records.
 
@@ -128,7 +128,7 @@ Son **fijas en código**, pensadas para mi uso pero escritas de forma general. S
 | `entertainment` | Ocio. |
 
 - Cada Entry tiene una sola área, la de su propósito principal. JEV siempre elige una; la confianza se guarda para diagnóstico y el área se puede corregir.
-- Las Collections tienen área obligatoria. Los Records no guardan área: usan la de su Collection.
+- Las Collections tienen área opcional: una Collection transversal (por ejemplo, `Bookmarks`) no tiene área. Los Records no guardan área: usan la de su Collection.
 - Las descripciones (`criteria`) que recibe JEV se escriben con cuidado y con ejemplos propios (tema 6).
 
 **Conclusión:** siete áreas fijas en código, sin superposición entre ellas.
