@@ -122,14 +122,21 @@ export const recordColumns = [
   'occurredAt',
   'dueAt',
 ] as const;
+/** Record timestamps a Collection may show in the panel, read only. */
+export const readOnlyColumns = ['createdAt', 'updatedAt'] as const;
 export const collectionSchema = Type.Object(
   {
     name: titleSchema,
     area: nullable(areaSchema),
     definitions: Type.Optional(
-      Type.Record(Type.String({ pattern: `^(${recordColumns.join('|')})$` }), titleSchema),
+      Type.Record(
+        Type.String({ pattern: `^(${[...recordColumns, ...readOnlyColumns].join('|')})$` }),
+        titleSchema,
+      ),
     ),
     fields: Type.Optional(Type.Array(fieldSchema, { maxItems: 50 })),
+    /** General columns and extra field IDs the panel shows; title always shows. */
+    visible: Type.Optional(Type.Array(Type.String(), { maxItems: 70, uniqueItems: true })),
   },
   { additionalProperties: false },
 );
@@ -279,6 +286,16 @@ export function fieldsValid(fields: Field[]): void {
     if (field.collectionId && field.type !== 'reference')
       throw new Problem(400, 'Only references have a target Collection');
   }
+}
+/** Validate that visible only names hideable general columns and non-reference extra fields. */
+export function visibleValid(visible: string[], fields: Field[]): void {
+  const known = [
+    ...recordColumns.filter((column) => column !== 'title'),
+    ...readOnlyColumns,
+    ...fields.filter((field) => field.type !== 'reference').map((field) => field.id),
+  ];
+  const unknown = visible.find((key) => !known.includes(key));
+  if (unknown) throw new Problem(400, `visible ${unknown} is not a column or field`, 'visible');
 }
 /** Validate extra values, preserving zero, false, empty text and null. */
 export function valuesValid(fields: Field[], values: Record<string, unknown>): void {

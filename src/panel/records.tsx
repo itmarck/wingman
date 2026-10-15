@@ -32,6 +32,7 @@ type Column = {
   tip?: string;
   type: string;
   field?: Field;
+  readOnly?: boolean;
 };
 type Draft = { columns: Record<string, string>; values: Record<string, unknown> };
 
@@ -44,12 +45,8 @@ const typeOf = (column: string) =>
         ? 'url'
         : column;
 const widthOf = (column: Column) => widths[column.type] ?? widths.text;
-const empty = (value: unknown) => value == null || value === '';
 
-/**
- * The Records of one Collection as a table. Only columns with some value are shown; while a
- * row is edited or added, the empty ones appear at the right end.
- */
+/** The Records of one Collection as a table with the title and the visible columns and fields. */
 export function RecordsTable(props: {
   collection: Collection;
   catalog: Catalog;
@@ -62,20 +59,25 @@ export function RecordsTable(props: {
   const { data, error, reload } = useData<{ records: RecordRow[] }>(
     `/collections/${collection.id}/records`,
   );
-  const defined = Object.keys(collection.definitions).filter((c) => c !== 'title');
-  // Collections without definitions may use any general column.
-  const general = defined.length
-    ? ['title', ...props.catalog.recordColumns.filter((c) => defined.includes(c))]
-    : props.catalog.recordColumns;
-  const candidates: Column[] = [
+  const visible = (key: string) => key === 'title' || collection.visible.includes(key);
+  const general = props.catalog.recordColumns.filter(visible);
+  const timestamps = props.catalog.readOnlyColumns.filter(visible);
+  const columns: Column[] = [
     ...general.map((key) => ({
       key,
       label: collection.definitions[key] ?? key,
       tip: key,
       type: typeOf(key),
     })),
+    ...timestamps.map((key) => ({
+      key,
+      label: collection.definitions[key] ?? key,
+      tip: key,
+      type: 'date',
+      readOnly: true,
+    })),
     ...collection.fields
-      .filter((field) => field.type !== 'reference')
+      .filter((field) => field.type !== 'reference' && visible(field.id))
       .map((field) => ({
         key: field.id,
         label: field.name,
@@ -87,11 +89,6 @@ export function RecordsTable(props: {
   const records = data?.records ?? [];
   const cellValue = (record: RecordRow, column: Column) =>
     column.field ? record.values[column.field.id] : record[column.key];
-  const used = candidates.filter(
-    (column) => column.key === 'title' || records.some((r) => !empty(cellValue(r, column))),
-  );
-  const unused = candidates.filter((column) => !used.includes(column));
-  const columns = editing ? [...used, ...unused] : used;
   const span = columns.length + 2;
   const refresh = async () => {
     setEditing(null);
@@ -111,7 +108,7 @@ export function RecordsTable(props: {
         <thead>
           <tr>
             {columns.map((column) => (
-              <th key={column.key} data-unused={unused.includes(column) || undefined}>
+              <th key={column.key}>
                 <ColumnHeader column={column} />
               </th>
             ))}
@@ -208,7 +205,6 @@ function ColumnHeader({ column }: { column: Column }) {
   const content = (
     <span className="label-text">
       <span className="truncate">{column.label}</span>
-      {column.type === 'number' && <span className="hint">number</span>}
     </span>
   );
   if (!column.tip || column.tip === column.label) return content;
@@ -227,7 +223,7 @@ function EditRow(props: {
   onSaved: () => unknown;
 }) {
   const { record } = props;
-  const general = props.columns.filter((column) => !column.field);
+  const general = props.columns.filter((column) => !column.field && !column.readOnly);
   const [draft, setDraft] = useState<Draft>(() => ({
     columns: Object.fromEntries(
       general.map(({ key }) => {
@@ -269,7 +265,9 @@ function EditRow(props: {
     <tr className="edit-row" onKeyDown={keys}>
       {props.columns.map((column) => (
         <td key={column.key}>
-          {column.field ? (
+          {column.readOnly ? (
+            <span className="muted">{display(record?.[column.key])}</span>
+          ) : column.field ? (
             <FieldInput
               field={column.field}
               value={draft.values[column.field.id]}

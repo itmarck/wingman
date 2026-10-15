@@ -57,7 +57,7 @@ El sistema tiene dos conceptos base, cada uno con su propia tabla:
 
 ```text
 entries      (id, kind, title, text, area, parentId?, occurredAt?, plannedFor?, dueAt?, finishedAt?, archivedAt?, ...)
-collections  (id, name, area, definitions, fields, archivedAt?, ...)
+collections  (id, name, area, definitions, fields, visible, archivedAt?, ...)
 records      (id, collectionId → collections.id, title, ...columnas generales, values?, ...)
 ```
 
@@ -232,7 +232,7 @@ El launcher no muestra todas las tareas pendientes, sino unas pocas elegidas seg
 **Estado:** Decidido
 
 - **Columnas para todo lo posible, de la forma más general posible.** Las columnas de hechos se llenan solo cuando aplican; las demás quedan vacías porque conceptualmente no ocurrieron.
-- **Columnas generales de Records:** `title`, `subtitle`, `body`, `category`, `rating`, `amount`, `url`, `occurredAt`, `dueAt`, `archivedAt`, `createdAt` y `updatedAt`. La API siempre devuelve estas propiedades; cada Collection solo describe en `definitions` qué significan para ella. Por ejemplo, en `Movies`: `subtitle` = "Director", `category` = "Genre", `rating` = "My rating", `occurredAt` = "Watched on".
+- **Columnas generales de Records:** `title`, `subtitle`, `body`, `category`, `rating`, `amount`, `url`, `occurredAt`, `dueAt`, `archivedAt`, `createdAt` y `updatedAt`. La API siempre devuelve estas propiedades; cada Collection solo describe en `definitions` qué significan para ella. Por ejemplo, en `Movies`: `subtitle` = "Director", `category` = "Genre", `rating` = "My rating", `occurredAt` = "Watched on". La tabla del panel muestra siempre `title` y solo las columnas y campos que la Collection marca en `visible` (por defecto ninguno); ocultar no borra datos. `createdAt` y `updatedAt` también se pueden mostrar, en solo lectura.
 - **JSONB (`values`) solo para datos sin comportamiento:** valores extra que una Collection necesita guardar, pero sobre los que el sistema no hace nada, o solo algo muy simple como mostrarlos. Su definición vive en `fields` de la Collection, con tipos simples: text, number, boolean, date, select y url.
 - A escala personal, el rendimiento no es un factor; se comprobó el 11/10/2026.
 

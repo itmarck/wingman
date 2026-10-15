@@ -57,6 +57,7 @@ export type Catalog = {
   contexts: Record<string, string>;
   fieldTypes: string[];
   recordColumns: string[];
+  readOnlyColumns: string[];
   settings: Record<
     string,
     { default: string | number; description: string; options: string[] | false }
@@ -88,6 +89,7 @@ export type Collection = {
   area: string | null;
   definitions: Record<string, string>;
   fields: Field[];
+  visible: string[];
   records: number;
 };
 export type RecordRow = Record<string, unknown> & {

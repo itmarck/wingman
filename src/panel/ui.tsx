@@ -197,15 +197,10 @@ export function FormDialog(props: {
 }
 
 /**
- * A form label; `hint` names the expected value type, e.g. "number". `name` is the API
- * property the input sets, so a server error about it highlights the input.
+ * A form label. `name` is the API property the input sets, so a server error about it
+ * highlights the input.
  */
-export function Labeled(props: {
-  label: string;
-  hint?: string;
-  name?: string;
-  children: ReactNode;
-}) {
+export function Labeled(props: { label: string; name?: string; children: ReactNode }) {
   const error = useContext(FieldError);
   const invalid = Boolean(props.name) && error.field === props.name;
   return (
@@ -217,7 +212,6 @@ export function Labeled(props: {
     >
       <span className="label-text">
         <span className="truncate">{props.label}</span>
-        {props.hint && <span className="hint">{props.hint}</span>}
       </span>
       {props.children}
     </div>

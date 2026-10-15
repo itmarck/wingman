@@ -19,6 +19,7 @@ import {
   urlValid,
   validate,
   valuesValid,
+  visibleValid,
 } from './model.js';
 
 /** Valid setting keys, their defaults and validation; Records of Settings hold the values. */
@@ -92,17 +93,19 @@ export async function listCollections(db: Database, archived = false) {
 export async function createCollection(db: Database, input: CollectionInput) {
   validate(collectionSchema, input);
   fieldsValid(input.fields ?? []);
+  visibleValid(input.visible ?? [], input.fields ?? []);
   return transaction(db, async (tx) => {
     await lockForms(tx);
     await referenceTargets(tx, input.fields ?? []);
     return (
       await tx.query(
-        'INSERT INTO collections (name, area, definitions, fields) VALUES ($1,$2,$3,$4) RETURNING *',
+        'INSERT INTO collections (name, area, definitions, fields, visible) VALUES ($1,$2,$3,$4,$5) RETURNING *',
         [
           input.name.trim(),
           input.area ?? null,
           JSON.stringify(input.definitions ?? {}),
           JSON.stringify(input.fields ?? []),
+          JSON.stringify(input.visible ?? []),
         ],
       )
     ).rows[0];
@@ -125,6 +128,9 @@ export async function updateCollection(db: Database, id: string, patch: Collecti
       const removed = (previous.fields as Field[]).filter(
         (field) => !patch.fields?.some((next) => next.id === field.id),
       );
+      // Removed fields leave visible unless the patch sets it.
+      if (!patch.visible)
+        next.visible = next.visible.filter((key: string) => !removed.some((f) => f.id === key));
       for (const field of removed) {
         await tx.query('UPDATE records SET values=values-$1 WHERE "collectionId"=$2', [
           field.id,
@@ -138,9 +144,10 @@ export async function updateCollection(db: Database, id: string, patch: Collecti
       const records = await tx.query('SELECT values FROM records WHERE "collectionId"=$1', [id]);
       for (const record of records.rows) valuesValid(patch.fields, record.values);
     }
+    visibleValid(next.visible, next.fields);
     return (
       await tx.query(
-        `UPDATE collections SET name=$2, area=$3, definitions=$4, fields=$5, "updatedAt"=clock_timestamp()
+        `UPDATE collections SET name=$2, area=$3, definitions=$4, fields=$5, visible=$6, "updatedAt"=clock_timestamp()
         WHERE id=$1 RETURNING *`,
         [
           id,
@@ -148,6 +155,7 @@ export async function updateCollection(db: Database, id: string, patch: Collecti
           next.area,
           JSON.stringify(next.definitions),
           JSON.stringify(next.fields),
+          JSON.stringify(next.visible),
         ],
       )
     ).rows[0];

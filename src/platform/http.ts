@@ -26,6 +26,7 @@ import {
   Problem,
   preferenceSchema,
   projectSchema,
+  readOnlyColumns,
   recordColumns,
   recordPatchSchema,
   recordSchema,
@@ -338,6 +339,7 @@ function panelRoutes(api: FastifyInstance, db: Database) {
     contexts,
     fieldTypes,
     recordColumns,
+    readOnlyColumns,
     questions: catalog,
     settings: Object.fromEntries(
       Object.entries(collections.settingDefinitions).map(([key, d]) => [

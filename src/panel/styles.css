@@ -215,6 +215,9 @@ svg {
 .button.icon.outline:hover {
   background: oklch(1 0 0 / 7.5%);
 }
+.button.icon.outline[aria-pressed="false"] {
+  color: var(--muted-foreground);
+}
 .button.sm {
   height: var(--control-height-sm);
   gap: 6px;
@@ -279,7 +282,7 @@ svg {
   accent-color: var(--primary);
 }
 
-/* Field label, with an optional value type hint */
+/* Field label */
 .label {
   display: grid;
   gap: 8px;
@@ -292,16 +295,6 @@ svg {
   font-weight: 500;
   line-height: 1;
   user-select: none;
-}
-.hint {
-  padding: 2px 7px;
-  border-radius: 999px;
-  background: var(--muted);
-  color: var(--muted-foreground);
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.2;
 }
 
 /* Select */
@@ -839,12 +832,16 @@ svg {
 }
 .definition {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr) var(--control-height);
   align-items: center;
   gap: 12px;
 }
 .definition .mono {
   color: var(--muted-foreground);
+}
+/* A column without a visibility toggle, like title, takes the whole row. */
+.definition > .input:last-child {
+  grid-column: 2 / -1;
 }
 
 /* Popover and date picker */
@@ -977,9 +974,6 @@ svg {
   overflow: visible;
   padding: 8px;
 }
-.table th[data-unused] {
-  color: var(--muted-foreground);
-}
 .truncate {
   min-width: 0;
   overflow: hidden;
@@ -1026,7 +1020,7 @@ svg {
 /* Extra field rows in the collection dialog */
 .field-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto auto auto;
   align-items: center;
   gap: 8px;
 }

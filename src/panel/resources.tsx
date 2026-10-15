@@ -1,5 +1,7 @@
 import {
   CheckIcon,
+  EyeNoneIcon,
+  EyeOpenIcon,
   Pencil1Icon,
   PlusIcon,
   ResetIcon,
@@ -185,6 +187,8 @@ const examples: Record<string, string> = {
   url: 'e.g. Trailer',
   occurredAt: 'e.g. Watched on',
   dueAt: 'e.g. Return by',
+  createdAt: 'e.g. Added on',
+  updatedAt: 'e.g. Last changed',
 };
 
 function CollectionForm(props: {
@@ -197,10 +201,18 @@ function CollectionForm(props: {
     area: '',
     definitions: {} as Record<string, string>,
     fields: [] as Field[],
+    visible: [] as string[],
   };
   const [form, setForm] = useState(empty);
   const emptyField = { name: '', description: '', type: 'text', options: '' };
   const [newField, setNewField] = useState(emptyField);
+  const toggle = (key: string) =>
+    setForm({
+      ...form,
+      visible: form.visible.includes(key)
+        ? form.visible.filter((k) => k !== key)
+        : [...form.visible, key],
+    });
   const setField = (id: string, patch: Partial<Field>) =>
     setForm({
       ...form,
@@ -236,6 +248,7 @@ function CollectionForm(props: {
           area: form.area || null,
           definitions,
           fields: form.fields,
+          visible: form.visible,
         };
         if (props.collection) await api(`/admin/collections/${props.collection.id}`, 'PATCH', body);
         else await api('/admin/collections', 'POST', body);
@@ -263,12 +276,12 @@ function CollectionForm(props: {
         <div>
           <h3 className="section-title">Column definitions</h3>
           <p className="section-description">
-            What each general column means in this collection. Leave empty the ones it does not use;
-            the API always returns every column.
+            What each general column means in this collection. The eye decides which columns the
+            table shows; hiding one keeps its data, and the API always returns every column.
           </p>
         </div>
         <div className="definitions">
-          {props.catalog.recordColumns.map((column) => (
+          {[...props.catalog.recordColumns, ...props.catalog.readOnlyColumns].map((column) => (
             <label key={column} className="definition">
               <span className="mono">{column}</span>
               <input
@@ -282,6 +295,9 @@ function CollectionForm(props: {
                   })
                 }
               />
+              {column !== 'title' && (
+                <Visibility shown={form.visible.includes(column)} onToggle={() => toggle(column)} />
+              )}
             </label>
           ))}
         </div>
@@ -324,6 +340,10 @@ function CollectionForm(props: {
                     <TrashIcon />
                   </button>
                 </Tip>
+                <Visibility
+                  shown={form.visible.includes(field.id)}
+                  onToggle={() => toggle(field.id)}
+                />
                 {field.options && (
                   <span className="muted small field-options">
                     Options: {field.options.join(', ')}
@@ -389,6 +409,24 @@ function CollectionForm(props: {
         </div>
       </section>
     </FormDialog>
+  );
+}
+
+/** Toggle whether the records table shows a general column or an extra field. */
+function Visibility({ shown, onToggle }: { shown: boolean; onToggle: () => void }) {
+  const label = shown ? 'Hide in table' : 'Show in table';
+  return (
+    <Tip label={label}>
+      <button
+        className="button icon outline"
+        type="button"
+        aria-label={label}
+        aria-pressed={shown}
+        onClick={onToggle}
+      >
+        {shown ? <EyeOpenIcon /> : <EyeNoneIcon />}
+      </button>
+    </Tip>
   );
 }
 
