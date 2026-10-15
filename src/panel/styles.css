@@ -92,18 +92,17 @@ svg {
   display: grid;
   gap: 16px;
 }
+/* Grid columns may shrink below their content (inputs, long labels), so layouts never overflow. */
+:is(.stack, .label, .definitions, .form-section, .dialog-content) {
+  grid-template-columns: minmax(0, 1fr);
+}
 .toolbar {
   margin-bottom: 16px;
 }
 .grid-2 {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: var(--grid-2-columns);
   gap: 24px;
-}
-@media (max-width: 720px) {
-  .grid-2 {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* Text */
@@ -116,6 +115,11 @@ svg {
 .mono {
   font-family: var(--mono);
   font-size: 12px;
+}
+.link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 .error {
   color: var(--destructive);
@@ -181,6 +185,14 @@ svg {
 }
 .button.outline:hover {
   background: oklch(1 0 0 / 7.5%);
+}
+.button.destructive {
+  border-color: transparent;
+  background: var(--destructive);
+  color: var(--foreground);
+}
+.button.destructive:hover {
+  background: oklch(0.704 0.191 22.216 / 90%);
 }
 .button.ghost,
 .button.icon {
@@ -329,6 +341,10 @@ svg {
 .select-trigger > span:last-child > svg {
   opacity: 0.5;
 }
+/* Radix wraps the chevron in an inline span, which sits on the text baseline. */
+.select-trigger > span:last-child {
+  display: flex;
+}
 .select-content {
   position: relative;
   z-index: 50;
@@ -373,8 +389,18 @@ svg {
   height: 16px;
 }
 
+.select-clear {
+  color: var(--muted-foreground);
+  cursor: pointer;
+}
+.select-clear:hover {
+  color: var(--foreground);
+}
 .label > .select-trigger {
   width: 100%;
+}
+.label[data-invalid] :is(.input, .textarea, .select-trigger) {
+  border-color: var(--destructive);
 }
 
 /* Tabs */
@@ -480,7 +506,8 @@ svg {
 .item-content {
   display: flex;
   min-width: 0;
-  flex: 1;
+  /* Below this width the actions wrap to their own line instead of squeezing the text. */
+  flex: 1 1 var(--item-content-width);
   flex-direction: column;
   gap: 4px;
 }
@@ -505,8 +532,17 @@ svg {
 }
 .item-actions {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
+}
+/*
+ * Text inputs and selects share one width and shrink when the line is narrower. It is a width,
+ * not a flex-basis: browsers size the actions row from its children's widths.
+ */
+.item-actions > :is(.input, .select-trigger) {
+  width: var(--item-control-width);
+  min-width: 0;
 }
 .item-media {
   display: flex;
@@ -746,6 +782,9 @@ svg {
   transform: translate(-50%, -50%);
   animation: dialog-in 0.2s ease-out;
 }
+.dialog-content.small {
+  max-width: min(24rem, calc(100% - 2rem));
+}
 .dialog-title {
   font-size: 18px;
   font-weight: 600;
@@ -773,14 +812,9 @@ svg {
 }
 .dialog-footer {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: var(--dialog-footer-direction);
+  justify-content: flex-end;
   gap: 8px;
-}
-@media (min-width: 640px) {
-  .dialog-footer {
-    flex-direction: row;
-    justify-content: flex-end;
-  }
 }
 
 /* Form sections inside dialogs */
@@ -805,7 +839,7 @@ svg {
 }
 .definition {
   display: grid;
-  grid-template-columns: 96px 1fr;
+  grid-template-columns: 96px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
 }
@@ -947,6 +981,7 @@ svg {
   color: var(--muted-foreground);
 }
 .truncate {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1019,4 +1054,70 @@ svg {
 .button.fab svg {
   width: 20px;
   height: 20px;
+}
+
+/* Snackbars: above the floating button, on the side set in Settings (centered when narrow) */
+.toast-viewport {
+  position: fixed;
+  right: var(--fab-offset);
+  bottom: calc(var(--fab-offset) * 2 + var(--fab-size));
+  left: var(--fab-offset);
+  z-index: 60;
+  display: flex;
+  width: min(36rem, calc(100% - var(--fab-offset) * 2));
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+  outline: none;
+}
+.toast-viewport[data-side="left"] {
+  margin-left: var(--snackbar-edge);
+}
+.toast-viewport[data-side="right"] {
+  margin-right: var(--snackbar-edge);
+}
+.toast {
+  position: relative;
+  display: flex;
+  min-height: 4rem;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 44px 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: var(--shadow-lg);
+  animation: pop-in 0.15s ease-out;
+}
+.toast-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--destructive);
+}
+.toast-text {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.toast-title {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toast-detail {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.toast .dialog-close {
+  top: 12px;
+  right: 12px;
 }

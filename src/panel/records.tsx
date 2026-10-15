@@ -9,7 +9,7 @@ import {
   remove,
   useData,
 } from './api';
-import { ActionButton, Choice, DateInput, day, Loading, localDay, Tip } from './ui';
+import { ActionButton, Choice, DateInput, day, Loading, localDay, notify, Tip } from './ui';
 
 const numeric = ['rating', 'amount'];
 const temporal = ['occurredAt', 'dueAt'];
@@ -150,7 +150,13 @@ export function RecordsTable(props: {
                   const text = display(cellValue(record, column));
                   return (
                     <td key={column.key} title={text}>
-                      {text}
+                      {column.type === 'url' && text ? (
+                        <a className="link" href={text} target="_blank" rel="noreferrer">
+                          {text}
+                        </a>
+                      ) : (
+                        text
+                      )}
                     </td>
                   );
                 })}
@@ -251,7 +257,9 @@ function EditRow(props: {
     if (event.key === 'Enter' && typing && draft.columns.title?.trim() && !pending) {
       setPending(true);
       save()
-        .catch((failure) => window.alert((failure as Error).message))
+        .catch((failure) =>
+          notify('Could not save', { detail: (failure as Error).message, error: true }),
+        )
         .finally(() => setPending(false));
     }
   };

@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { type Catalog, useData } from './api';
 import { Flow } from './flow';
 import { Collections, EntryForm, Preferences, Projects, Settings } from './resources';
-import { Loading } from './ui';
+import { Feedback, Loading } from './ui';
 import '@fontsource-variable/geist';
 import './theme.css';
 import './styles.css';
@@ -25,6 +25,8 @@ function selectTab(tab: string) {
 
 function Panel() {
   const { data: catalog, error } = useData<Catalog>('/admin/catalog');
+  // Loaded here because the snackbars use them too.
+  const settings = useData<Record<string, string | number>>('/admin/settings');
   return (
     <div className="shell">
       {error && <p className="error">{error}</p>}
@@ -51,11 +53,12 @@ function Panel() {
             <Preferences catalog={catalog} />
           </Tabs.Content>
           <Tabs.Content value="Settings">
-            <Settings catalog={catalog} />
+            <Settings catalog={catalog} settings={settings} />
           </Tabs.Content>
         </Tabs.Root>
       )}
       {catalog && <EntryForm />}
+      <Feedback side={settings.data?.snackbarSide === 'left' ? 'left' : 'right'} />
     </div>
   );
 }

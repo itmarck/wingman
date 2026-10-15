@@ -5,26 +5,42 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   Cross2Icon,
+  CrossCircledIcon,
 } from '@radix-ui/react-icons';
-import { Dialog, Popover, Select, Tooltip } from 'radix-ui';
-import { type ReactNode, useState } from 'react';
+import { AlertDialog, Dialog, Popover, Select, Toast, Tooltip } from 'radix-ui';
+import { createContext, type ReactNode, useContext, useState, useSyncExternalStore } from 'react';
 
 export function Choice(props: {
   value: string;
   options: Record<string, string> | string[];
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Shows an X that clears the selected value. */
+  onClear?: () => void;
 }) {
   const entries = Array.isArray(props.options)
     ? props.options.map((option) => [option, option])
     : Object.keys(props.options).map((key) => [key, key]);
   return (
-    <Select.Root value={props.value || undefined} onValueChange={props.onChange}>
+    <Select.Root value={props.value} onValueChange={props.onChange}>
       <Select.Trigger className="select-trigger">
         <Select.Value placeholder={props.placeholder ?? 'Select'} />
-        <Select.Icon>
-          <ChevronDownIcon />
-        </Select.Icon>
+        {props.onClear && props.value ? (
+          // The trigger opens on pointer down (mouse) or click (touch); the X must not open it.
+          <Cross2Icon
+            className="select-clear"
+            aria-label="Clear"
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              props.onClear?.();
+            }}
+            onClick={(event) => event.stopPropagation()}
+          />
+        ) : (
+          <Select.Icon>
+            <ChevronDownIcon />
+          </Select.Icon>
+        )}
       </Select.Trigger>
       <Select.Portal>
         <Select.Content className="select-content" position="popper" sideOffset={4}>
@@ -57,7 +73,7 @@ export function useAction() {
       await action();
       await done?.();
     } catch (failure) {
-      window.alert((failure as Error).message);
+      notify('Action failed', { detail: (failure as Error).message, error: true });
     } finally {
       setPending(false);
     }
@@ -97,7 +113,13 @@ export function ActionButton(props: {
   );
 }
 
-/** A dialog with a form; it closes when onSubmit resolves and shows its error otherwise. */
+/** The field of the open form that the last error is about; its Labeled input turns red. */
+const FieldError = createContext<{ field?: string; clear: () => void }>({ clear: () => {} });
+
+/**
+ * A dialog with a form; it closes when onSubmit resolves. Errors appear in a snackbar, and the
+ * field they are about, if shown, is highlighted.
+ */
 export function FormDialog(props: {
   trigger: ReactNode;
   title: string;
@@ -108,14 +130,14 @@ export function FormDialog(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string>();
+  const [field, setField] = useState<string>();
   return (
     <Dialog.Root
       open={open}
       onOpenChange={(next) => {
         if (pending) return;
         setOpen(next);
-        setError(undefined);
+        setField(undefined);
         if (next) props.onOpen?.();
       }}
     >
@@ -135,21 +157,27 @@ export function FormDialog(props: {
           </Dialog.Close>
           <form
             className="stack"
+            // The server validates; its errors replace the browser's native bubbles.
+            noValidate
             onSubmit={async (event) => {
               event.preventDefault();
               setPending(true);
+              setField(undefined);
               try {
                 await props.onSubmit();
                 setOpen(false);
               } catch (failure) {
-                setError((failure as Error).message);
+                const { message, field } = failure as Error & { field?: string };
+                setField(field);
+                notify('Could not save', { detail: message, error: true });
               } finally {
                 setPending(false);
               }
             }}
           >
-            {props.children}
-            {error && <p className="error">{error}</p>}
+            <FieldError.Provider value={{ field, clear: () => setField(undefined) }}>
+              {props.children}
+            </FieldError.Provider>
             <div className="dialog-footer">
               <Dialog.Close asChild>
                 <button className="button" type="button" disabled={pending}>
@@ -168,12 +196,27 @@ export function FormDialog(props: {
   );
 }
 
-/** A form label; `hint` names the expected value type, e.g. "number". */
-export function Labeled(props: { label: string; hint?: string; children: ReactNode }) {
+/**
+ * A form label; `hint` names the expected value type, e.g. "number". `name` is the API
+ * property the input sets, so a server error about it highlights the input.
+ */
+export function Labeled(props: {
+  label: string;
+  hint?: string;
+  name?: string;
+  children: ReactNode;
+}) {
+  const error = useContext(FieldError);
+  const invalid = Boolean(props.name) && error.field === props.name;
   return (
-    <div className="label">
+    <div
+      className="label"
+      data-invalid={invalid || undefined}
+      // Inputs and Radix selects inside a form both emit change events; editing clears the error.
+      onChange={() => invalid && error.clear()}
+    >
       <span className="label-text">
-        {props.label}
+        <span className="truncate">{props.label}</span>
         {props.hint && <span className="hint">{props.hint}</span>}
       </span>
       {props.children}
@@ -338,5 +381,82 @@ export function Loading(props: { compact?: boolean }) {
     <div className={props.compact ? 'loading compact' : 'loading'} aria-busy="true">
       <Spinner />
     </div>
+  );
+}
+
+type Notice = { id: number; title: string; detail?: string; error?: boolean };
+type Question = { message: string; answer: (accepted: boolean) => void };
+let feedback: { notices: Notice[]; question?: Question } = { notices: [] };
+const listeners = new Set<() => void>();
+let lastNotice = 0;
+const setFeedback = (next: typeof feedback) => {
+  feedback = next;
+  for (const listener of listeners) listener();
+};
+
+/** Show a snackbar that disappears by itself: a title line and up to two lines of detail. */
+export function notify(title: string, options: { detail?: string; error?: boolean } = {}) {
+  const notice = { id: ++lastNotice, title, ...options };
+  setFeedback({ ...feedback, notices: [...feedback.notices, notice] });
+}
+
+/** Ask in a small dialog; resolves true when accepted. */
+export function confirm(message: string): Promise<boolean> {
+  return new Promise((answer) => setFeedback({ ...feedback, question: { message, answer } }));
+}
+
+/** Renders the snackbars and the confirmation dialog once for the whole panel. */
+export function Feedback(props: { side: 'left' | 'right' }) {
+  const { notices, question } = useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => feedback,
+  );
+  const answer = (accepted: boolean) => {
+    question?.answer(accepted);
+    setFeedback({ ...feedback, question: undefined });
+  };
+  return (
+    <Toast.Provider duration={5000} swipeDirection={props.side}>
+      {notices.map((notice) => (
+        <Toast.Root
+          key={notice.id}
+          className="toast"
+          data-error={notice.error || undefined}
+          onOpenChange={(open) =>
+            !open &&
+            setFeedback({ ...feedback, notices: feedback.notices.filter((n) => n !== notice) })
+          }
+        >
+          {notice.error && <CrossCircledIcon className="toast-icon" />}
+          <div className="toast-text">
+            <Toast.Title className="toast-title">{notice.title}</Toast.Title>
+            {notice.detail && (
+              <Toast.Description className="toast-detail">{notice.detail}</Toast.Description>
+            )}
+          </div>
+          <Toast.Close className="dialog-close" aria-label="Close">
+            <Cross2Icon />
+          </Toast.Close>
+        </Toast.Root>
+      ))}
+      <Toast.Viewport className="toast-viewport" data-side={props.side} />
+      <AlertDialog.Root open={Boolean(question)} onOpenChange={(open) => !open && answer(false)}>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="dialog-overlay" />
+          <AlertDialog.Content className="dialog-content small" aria-describedby={undefined}>
+            <AlertDialog.Title className="dialog-title">{question?.message}</AlertDialog.Title>
+            <div className="dialog-footer">
+              <AlertDialog.Cancel className="button outline">Cancel</AlertDialog.Cancel>
+              <AlertDialog.Action className="button destructive" onClick={() => answer(true)}>
+                Delete
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
+    </Toast.Provider>
   );
 }

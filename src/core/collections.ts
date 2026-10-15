@@ -36,6 +36,12 @@ export const settingDefinitions = {
       return Number.isInteger(number) && number >= 1 && number <= 20 ? number : undefined;
     },
   },
+  snackbarSide: {
+    default: 'right',
+    description: 'Side of the screen where the panel shows snackbars (right or left)',
+    options: ['right', 'left'],
+    parse: (value: string) => (['right', 'left'].includes(value) ? value : undefined),
+  },
 };
 export type SettingKey = keyof typeof settingDefinitions;
 export type Settings = { [K in SettingKey]: (typeof settingDefinitions)[K]['default'] };

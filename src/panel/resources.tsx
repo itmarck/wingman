@@ -61,7 +61,7 @@ export function Projects({ catalog }: { catalog: Catalog }) {
             await reload();
           }}
         >
-          <Labeled label="Title">
+          <Labeled label="Title" name="title">
             <input
               className="input"
               required
@@ -69,14 +69,14 @@ export function Projects({ catalog }: { catalog: Catalog }) {
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
           </Labeled>
-          <Labeled label="Description (helps JEV assign Entries)">
+          <Labeled label="Description (helps JEV assign Entries)" name="text">
             <textarea
               className="textarea"
               value={form.text}
               onChange={(e) => setForm({ ...form, text: e.target.value })}
             />
           </Labeled>
-          <Labeled label="Area">
+          <Labeled label="Area" name="area">
             <Choice
               value={form.area}
               options={catalog.areas}
@@ -242,7 +242,7 @@ function CollectionForm(props: {
         await props.onSaved();
       }}
     >
-      <Labeled label="Name (in English)">
+      <Labeled label="Name (in English)" name="name">
         <input
           className="input"
           required
@@ -250,11 +250,13 @@ function CollectionForm(props: {
           onChange={(e) => setForm({ ...form, name: e.target.value })}
         />
       </Labeled>
-      <Labeled label="Area">
+      <Labeled label="Area" name="area">
         <Choice
-          value={form.area || 'none'}
-          options={['none', ...Object.keys(props.catalog.areas)]}
-          onChange={(area) => setForm({ ...form, area: area === 'none' ? '' : area })}
+          value={form.area}
+          options={props.catalog.areas}
+          placeholder="No area"
+          onChange={(area) => setForm({ ...form, area })}
+          onClear={() => setForm({ ...form, area: '' })}
         />
       </Labeled>
       <section className="form-section">
@@ -532,20 +534,24 @@ function PreferenceRow({ preference, reload }: { preference: Preference; reload:
 }
 
 /** Settings are Records of the system Settings Collection; code defines keys and defaults. */
-export function Settings({ catalog }: { catalog: Catalog }) {
-  const { data, error, reload } = useData<Record<string, string | number>>('/admin/settings');
+export function Settings(props: {
+  catalog: Catalog;
+  settings: ReturnType<typeof useData<Record<string, string | number>>>;
+}) {
+  const { data, error, reload } = props.settings;
   return (
     <div>
       {error && <p className="error">{error}</p>}
       <div className="item-group">
         {!data && !error && <Loading />}
         {data &&
-          Object.entries(catalog.settings).map(([key, definition]) => (
+          Object.entries(props.catalog.settings).map(([key, definition]) => (
             <SettingRow
               key={key}
               name={key}
               description={definition.description}
               fallback={definition.default}
+              options={definition.options}
               value={data[key]}
               reload={reload}
             />
@@ -559,6 +565,8 @@ function SettingRow(props: {
   name: string;
   description: string;
   fallback: string | number;
+  /** Allowed values, chosen from a select instead of typed. */
+  options: string[] | false;
   value: string | number;
   reload: () => unknown;
 }) {
@@ -572,12 +580,11 @@ function SettingRow(props: {
         </div>
       </div>
       <div className="item-actions">
-        <input
-          className="input"
-          style={{ width: 220 }}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-        />
+        {props.options ? (
+          <Choice value={value} options={props.options} onChange={setValue} />
+        ) : (
+          <input className="input" value={value} onChange={(e) => setValue(e.target.value)} />
+        )}
         <ActionButton
           className="button sm"
           icon={<CheckIcon />}
@@ -618,14 +625,14 @@ export function EntryForm() {
         })
       }
     >
-      <Labeled label="Kind">
+      <Labeled label="Kind" name="kind">
         <Choice
           value={form.kind}
           options={['note', 'task']}
           onChange={(kind) => setForm({ ...form, kind })}
         />
       </Labeled>
-      <Labeled label="Text">
+      <Labeled label="Text" name="text">
         <textarea
           className="textarea"
           required
@@ -635,18 +642,18 @@ export function EntryForm() {
       </Labeled>
       {task ? (
         <>
-          <Labeled label="Planned for">
+          <Labeled label="Planned for" name="plannedFor">
             <DateInput
               value={form.plannedFor}
               onChange={(plannedFor) => setForm({ ...form, plannedFor })}
             />
           </Labeled>
-          <Labeled label="Due">
+          <Labeled label="Due" name="dueAt">
             <DateInput value={form.dueAt} onChange={(dueAt) => setForm({ ...form, dueAt })} />
           </Labeled>
         </>
       ) : (
-        <Labeled label="Occurred on">
+        <Labeled label="Occurred on" name="occurredAt">
           <DateInput
             value={form.occurredAt}
             onChange={(occurredAt) => setForm({ ...form, occurredAt })}

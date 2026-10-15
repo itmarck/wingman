@@ -9,6 +9,14 @@
   /* Floating action button and the empty space kept for it at the end of every page. */
   --fab-size: 3rem;
   --fab-offset: 1.5rem;
+  /* Items (lists of cards): text width before actions wrap, and the width of their inputs. */
+  --item-content-width: 16rem;
+  --item-control-width: 14rem;
+  /* Responsive tokens: styles.css only reads them; the media queries below change them. */
+  --grid-2-columns: 220px minmax(0, 1fr);
+  --dialog-footer-direction: row;
+  /* Snackbars stick to their side (0) or center (auto). */
+  --snackbar-edge: 0;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -41,4 +49,16 @@
   --focus-ring: 0 0 0 3px oklch(0.556 0 0 / 50%);
   --font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --grid-2-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 639px) {
+  :root {
+    --dialog-footer-direction: column-reverse;
+    --snackbar-edge: auto;
+  }
 }

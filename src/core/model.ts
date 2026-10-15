@@ -210,13 +210,49 @@ export class Problem extends Error {
   constructor(
     public statusCode: number,
     message: string,
+    /** The offending input property, as a dotted path (e.g. "fields.0.name"). */
+    public field?: string,
   ) {
     super(message);
   }
 }
+/** A schema validation error, as reported by TypeBox. */
+type InvalidValue = {
+  keyword: string;
+  instancePath: string;
+  params: Record<string, unknown>;
+  message?: string;
+};
+/** The first schema error as a readable message and the property it refers to. */
+export function describeInvalid(errors: InvalidValue[]): { message: string; field?: string } {
+  // A nullable value also fails its null alternative and the union itself; those add nothing.
+  const error =
+    errors.find(
+      (e) => e.keyword !== 'anyOf' && !(e.keyword === 'type' && e.params.type === 'null'),
+    ) ?? errors[0];
+  if (!error) return { message: 'Invalid input' };
+  const { keyword, params } = error;
+  const path = error.instancePath.split('/').filter(Boolean);
+  // A missing or unknown property is reported on its parent, so name the property itself.
+  const property = [params.requiredProperties, params.additionalProperties].flat().find(Boolean);
+  if (property) path.push(String(property));
+  const rules: Record<string, string> = {
+    required: 'is required',
+    additionalProperties: 'is not allowed',
+    enum: 'is not a valid option',
+    minLength: 'must not be empty',
+    pattern: params.pattern === '\\S' ? 'must not be empty' : 'has an invalid format',
+  };
+  const field = path.join('.');
+  if (!field)
+    return { message: keyword === 'minProperties' ? 'Nothing to change' : 'Invalid input' };
+  return { message: `${field} ${rules[keyword] ?? error.message}`, field };
+}
 /** Validate module boundaries, including internal callers. */
 export function validate<T extends TSchema>(schema: T, value: unknown): asserts value is Static<T> {
-  if (!Value.Check(schema, value)) throw new Problem(400, 'Invalid input');
+  if (Value.Check(schema, value)) return;
+  const { message, field } = describeInvalid(Value.Errors(schema, value) as InvalidValue[]);
+  throw new Problem(400, message, field);
 }
 /** The first line of a text, bounded, as its title. */
 export function titleOf(text: string): string {

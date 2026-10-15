@@ -4,6 +4,7 @@ import fastifyStatic from '@fastify/static';
 import swagger from '@fastify/swagger';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { type TSchema, Type } from 'typebox';
+import { Value } from 'typebox/value';
 import * as collections from '../core/collections.js';
 import * as entries from '../core/entries.js';
 import * as links from '../core/links.js';
@@ -15,18 +16,19 @@ import {
   contextSchema,
   contexts,
   dateSchema,
+  describeInvalid,
   entryFilterSchema,
   entryPatchSchema,
   fieldTypes,
   idSchema,
   kinds,
   linkSchema,
+  Problem,
   preferenceSchema,
   projectSchema,
   recordColumns,
   recordPatchSchema,
   recordSchema,
-  validate,
 } from '../core/model.js';
 import * as processing from '../core/processing.js';
 import { catalog } from '../core/questions.js';
@@ -55,8 +57,21 @@ export async function createServer(db: Database, secret: string, development = f
       },
     },
   });
+  // TypeBox validates every request part like core does. Only URL text (params, query) is
+  // converted; Ajv's default coercion would turn a null body value into 0 or "".
+  app.setValidatorCompiler<TSchema>(({ schema, httpPart }) => (data) => {
+    const value = httpPart === 'body' ? data : Value.Convert(schema, data);
+    if (Value.Check(schema, value)) return { value };
+    const { message, field } = describeInvalid(Value.Errors(schema, value) as never);
+    return { error: new Problem(400, message, field) };
+  });
   app.setErrorHandler((error, request, reply) => {
-    const failure = error as { statusCode?: number; code?: string; message?: string };
+    const failure = error as {
+      statusCode?: number;
+      code?: string;
+      message?: string;
+      field?: string;
+    };
     const status =
       failure.statusCode ??
       (['23505', '23503', '23514', '22P02', '22007', '22008'].includes(failure.code ?? '')
@@ -66,6 +81,7 @@ export async function createServer(db: Database, secret: string, development = f
     reply.code(status).send({
       error: {
         message: status >= 500 ? 'Internal server error' : (failure.message ?? 'Invalid request'),
+        ...(status < 500 && failure.field && { field: failure.field }),
       },
     });
   });
@@ -182,10 +198,7 @@ function route(
       ...(schemas.query && { querystring: schemas.query }),
       ...(schemas.body && { body: schemas.body }),
     },
-    handler: async (request) => {
-      if (schemas.body) validate(schemas.body, request.body);
-      return handler(request as unknown as Input, request);
-    },
+    handler: async (request) => handler(request as unknown as Input, request),
   });
 }
 
@@ -329,7 +342,7 @@ function panelRoutes(api: FastifyInstance, db: Database) {
     settings: Object.fromEntries(
       Object.entries(collections.settingDefinitions).map(([key, d]) => [
         key,
-        { default: d.default, description: d.description },
+        { default: d.default, description: d.description, options: 'options' in d && d.options },
       ]),
     ),
   }));

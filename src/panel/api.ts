@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { confirm } from './ui';
 
 /** Call the same API as the launcher; the browser adds the Authorization header. */
 export async function api<T = unknown>(
@@ -17,7 +18,10 @@ export async function api<T = unknown>(
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
+  if (!response.ok)
+    throw Object.assign(new Error(data?.error?.message ?? `HTTP ${response.status}`), {
+      field: data?.error?.field as string | undefined,
+    });
   return data as T;
 }
 
@@ -53,7 +57,10 @@ export type Catalog = {
   contexts: Record<string, string>;
   fieldTypes: string[];
   recordColumns: string[];
-  settings: Record<string, { default: string | number; description: string }>;
+  settings: Record<
+    string,
+    { default: string | number; description: string; options: string[] | false }
+  >;
 };
 export type Entry = {
   id: string;
@@ -93,7 +100,7 @@ export type RecordRow = Record<string, unknown> & {
  * restored, but the panel has no view for archived items.
  */
 export async function remove(id: string, name: string): Promise<void> {
-  if (!window.confirm(`Delete ${name}?`)) return;
+  if (!(await confirm(`Delete ${name}?`))) return;
   await api('/admin/archive', 'POST', { id, archived: true });
 }
 
