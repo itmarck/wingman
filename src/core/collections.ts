@@ -203,7 +203,16 @@ export async function updateRecord(db: Database, id: string, patch: RecordPatch)
   return writeRecord(db, found.collectionId, id, patch);
 }
 
-const columns = ['title', 'subtitle', 'body', 'category', 'rating', 'amount', 'url'] as const;
+const columns = [
+  'title',
+  'subtitle',
+  'body',
+  'category',
+  'rating',
+  'amount',
+  'url',
+  'checked',
+] as const;
 
 async function writeRecord(
   db: Database,
@@ -242,12 +251,12 @@ async function writeRecord(
     const saved = id
       ? await tx.query(
           `UPDATE records SET title=$2, subtitle=$3, body=$4, category=$5, rating=$6, amount=$7, url=$8,
-          "occurredAt"=$9, "dueAt"=$10, values=$11, "updatedAt"=clock_timestamp() WHERE id=$1 RETURNING *`,
+          checked=$9, "occurredAt"=$10, "dueAt"=$11, values=$12, "updatedAt"=clock_timestamp() WHERE id=$1 RETURNING *`,
           [id, ...params],
         )
       : await tx.query(
-          `INSERT INTO records ("collectionId", title, subtitle, body, category, rating, amount, url, "occurredAt", "dueAt", values)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+          `INSERT INTO records ("collectionId", title, subtitle, body, category, rating, amount, url, checked, "occurredAt", "dueAt", values)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
           [collectionId, ...params],
         );
     const record = saved.rows[0];

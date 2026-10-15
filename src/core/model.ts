@@ -119,6 +119,7 @@ export const recordColumns = [
   'rating',
   'amount',
   'url',
+  'checked',
   'occurredAt',
   'dueAt',
 ] as const;
@@ -162,6 +163,7 @@ export const recordSchema = Type.Object(
     rating: nullable(Type.Number()),
     amount: nullable(Type.Number()),
     url: nullableText,
+    checked: nullable(Type.Boolean()),
     occurredAt: nullable(temporalSchema),
     dueAt: nullable(temporalSchema),
     values: Type.Optional(Type.Record(idSchema, valueSchema)),

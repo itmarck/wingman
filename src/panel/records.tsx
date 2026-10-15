@@ -43,7 +43,9 @@ const typeOf = (column: string) =>
       ? 'date'
       : column === 'url'
         ? 'url'
-        : column;
+        : column === 'checked'
+          ? 'boolean'
+          : column;
 const widthOf = (column: Column) => widths[column.type] ?? widths.text;
 
 /** The Records of one Collection as a table with the title and the visible columns and fields. */
@@ -241,6 +243,7 @@ function EditRow(props: {
       const value = draft.columns[key]?.trim() ?? '';
       if (key === 'title') body.title = value;
       else if (!value) body[key] = null;
+      else if (key === 'checked') body[key] = value === 'true';
       else body[key] = numeric.includes(key) ? Number(value) : value;
     }
     if (record) await api(`/admin/records/${record.id}`, 'PATCH', body);
@@ -274,6 +277,14 @@ function EditRow(props: {
               onChange={(value) =>
                 setDraft({ ...draft, values: { ...draft.values, [column.key]: value } })
               }
+            />
+          ) : column.type === 'boolean' ? (
+            // Untouched stays empty, so a new Record keeps null instead of false.
+            <input
+              className="checkbox"
+              type="checkbox"
+              checked={draft.columns[column.key] === 'true'}
+              onChange={(e) => setColumn(column.key, String(e.target.checked))}
             />
           ) : column.type === 'date' ? (
             <DateInput

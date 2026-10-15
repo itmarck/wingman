@@ -185,6 +185,7 @@ const examples: Record<string, string> = {
   rating: 'e.g. My rating',
   amount: 'e.g. Price',
   url: 'e.g. Trailer',
+  checked: 'e.g. Watched',
   occurredAt: 'e.g. Watched on',
   dueAt: 'e.g. Return by',
   createdAt: 'e.g. Added on',
